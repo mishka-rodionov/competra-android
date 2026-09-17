@@ -32,6 +32,20 @@ data class OrientReadCardState(
      * импортирована из геопривязанной карты (IOF XML). Нужны для расчёта темпа на перегоне.
      */
     val expectedControlPoints: List<ControlPoint> = emptyList(),
+    /**
+     * Номер стартового КП дистанции (см. [com.competra.domain.models.orienteering.Distance.startControlPoint]),
+     * если задан. В [expectedControlPoints] не входит — он не часть проверяемой организатором
+     * последовательности отметок, только источник реального времени старта при
+     * [StartTimeMode.BY_START_STATION]. Нужен экрану отдельно, чтобы не подсвечивать отметку
+     * старт-станции как «лишнюю».
+     */
+    val startControlPoint: Int? = null,
     /** true — DSQ-результат показан организатору, ожидает явного сохранения. */
     val isPendingSave: Boolean = false,
+    /**
+     * Причина текущего статуса результата (например, почему участник дисквалифицирован),
+     * из [com.competra.center.data.read_card.CheckResult.message]. Показывается организатору
+     * на экране сканирования — без неё DSQ с нулевым временем выглядит необъяснимым сбоем.
+     */
+    val statusMessage: String? = null,
 ) : BaseState

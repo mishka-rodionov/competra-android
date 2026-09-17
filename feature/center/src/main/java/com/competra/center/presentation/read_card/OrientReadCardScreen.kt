@@ -67,9 +67,11 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 groupTotalFinished = state.groupTotalFinished,
                 expectedCpOrder = state.expectedCpNumbers,
                 expectedControlPoints = state.expectedControlPoints,
+                startControlPoint = state.startControlPoint,
                 competitionDirection = state.competitionDirection,
                 isPendingSave = state.isPendingSave,
                 isReadOnly = state.isCompetitionFinished,
+                statusMessage = state.statusMessage,
                 onEditSplit = { index -> viewModel.onAction(OrientReadCardAction.EditSplitClicked(index)) },
                 onCreditCp = { cpNumber, prevTimestamp ->
                     viewModel.onAction(OrientReadCardAction.CreditMissedCp(cpNumber, prevTimestamp))
@@ -140,6 +142,42 @@ private fun ReadOnlyBanner() {
 }
 
 /**
+ * Баннер с причиной дисквалификации ([CheckResult.message]) — например, отсутствие отметки на
+ * стартовой станции или не заданное в настройках дистанции стартовое КП.
+ */
+@Composable
+private fun DsqReasonBanner(reason: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Dimens.SIZE_BASE.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Дисквалификация (DSQ)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    text = reason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
+    }
+}
+
+/**
  * Основное содержимое экрана при наличии данных.
  */
 @Composable
@@ -151,9 +189,11 @@ private fun ReadCardContent(
     groupTotalFinished: Int = 0,
     expectedCpOrder: List<Int> = emptyList(),
     expectedControlPoints: List<ControlPoint> = emptyList(),
+    startControlPoint: Int? = null,
     competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
     isPendingSave: Boolean = false,
     isReadOnly: Boolean = false,
+    statusMessage: String? = null,
     onEditSplit: (index: Int) -> Unit = {},
     onCreditCp: (cpNumber: Int, prevTimestamp: Long) -> Unit = { _, _ -> },
     onSaveResult: () -> Unit = {},
@@ -184,6 +224,14 @@ private fun ReadCardContent(
         // Карточка участника
         item {
             ParticipantInfoCard(participant)
+        }
+
+        // Причина статуса результата (в первую очередь — почему DSQ): без неё нулевое время
+        // и дисквалификация выглядят необъяснимым сбоем, а не следствием конкретной причины.
+        if (result?.status == ResultStatus.DSQ && !statusMessage.isNullOrEmpty()) {
+            item {
+                DsqReasonBanner(statusMessage)
+            }
         }
 
         // Карточка итогового времени
@@ -219,6 +267,7 @@ private fun ReadCardContent(
                         splits = displaySplits,
                         expectedCpOrder = expectedCpOrder,
                         expectedControlPoints = expectedControlPoints,
+                        startControlPoint = startControlPoint,
                         competitionDirection = competitionDirection,
                         onEditSplit = if (isReadOnly) null else onEditSplit,
                         onCreditCp = if (isPendingSave) onCreditCp else null,
@@ -441,6 +490,9 @@ private sealed class SplitDisplayItem {
      * не из дистанции (лишний) или не был сопоставлен с ожидаемой позицией.
      * @param isOutOfOrder true — сопоставленная отметка взята не в том порядке (нарушает возрастание
      * позиций дистанции относительно остальных отметок).
+     * @param isStartPunch true — это отметка на стартовой станции ([Distance.startControlPoint]).
+     * Она не входит в проверяемую последовательность КП дистанции (используется только для расчёта
+     * времени старта при BY_START_STATION), поэтому не должна подсвечиваться как лишняя/ошибочная.
      */
     data class Actual(
         val split: SplitTime,
@@ -448,6 +500,7 @@ private sealed class SplitDisplayItem {
         val isExtra: Boolean,
         val distanceOrdinal: Int? = null,
         val isOutOfOrder: Boolean = false,
+        val isStartPunch: Boolean = false,
     ) : SplitDisplayItem()
 
     /** @param distanceOrdinal Порядковый номер пропущенного КП по дистанции (1-based). */
@@ -471,9 +524,12 @@ private fun buildSplitDisplayItems(
     expectedCpOrder: List<Int>,
     requiredCpNumbers: Set<Int> = emptySet(),
     isByChoice: Boolean = false,
+    startControlPoint: Int? = null,
 ): List<SplitDisplayItem> {
     if (expectedCpOrder.isEmpty()) {
-        return rawSplits.mapIndexed { i, s -> SplitDisplayItem.Actual(s, i, isExtra = false) }
+        return rawSplits.mapIndexed { i, s ->
+            SplitDisplayItem.Actual(s, i, isExtra = false, isStartPunch = s.controlPoint == startControlPoint)
+        }
     }
     val shownIndices = mutableSetOf<Int>()
     // Порядковый номер по дистанции для каждой сопоставленной фактической отметки.
@@ -512,12 +568,14 @@ private fun buildSplitDisplayItems(
     // «Лишняя» — отметка, которой не нашлось места в дистанции: чужой КП либо повтор сверх нужного.
     val actualItems = rawSplits.indices.map { i ->
         val ordinal = distanceOrdinalByIndex[i]
+        val isStartPunch = ordinal == null && startControlPoint != null && rawSplits[i].controlPoint == startControlPoint
         SplitDisplayItem.Actual(
             split = rawSplits[i],
             chipIndex = i,
-            isExtra = ordinal == null,
+            isExtra = ordinal == null && !isStartPunch,
             distanceOrdinal = ordinal,
             isOutOfOrder = i in outOfOrderIndices,
+            isStartPunch = isStartPunch,
         )
     }
 
@@ -574,6 +632,7 @@ internal fun SplitsCard(
     splits: List<SplitTime>,
     expectedCpOrder: List<Int> = emptyList(),
     expectedControlPoints: List<ControlPoint> = emptyList(),
+    startControlPoint: Int? = null,
     competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
     onEditSplit: ((index: Int) -> Unit)? = null,
     onCreditCp: ((cpNumber: Int, prevTimestamp: Long) -> Unit)? = null,
@@ -585,8 +644,8 @@ internal fun SplitsCard(
     val scoreByNumber = remember(expectedControlPoints) {
         expectedControlPoints.associate { it.number to it.score }
     }
-    val displayItems = remember(splits, expectedCpOrder, requiredCpNumbers, isByChoice) {
-        buildSplitDisplayItems(splits, expectedCpOrder, requiredCpNumbers, isByChoice)
+    val displayItems = remember(splits, expectedCpOrder, requiredCpNumbers, isByChoice, startControlPoint) {
+        buildSplitDisplayItems(splits, expectedCpOrder, requiredCpNumbers, isByChoice, startControlPoint)
     }
 
     Card(
@@ -653,6 +712,7 @@ internal fun SplitsCard(
                                     when {
                                         item.isExtra -> Color(0xFFFFEB3B).copy(alpha = 0.25f)
                                         item.isOutOfOrder -> Color(0xFFFF9800).copy(alpha = 0.22f)
+                                        item.isStartPunch -> MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                                         else -> Color.Transparent
                                     }
                                 )
@@ -671,7 +731,7 @@ internal fun SplitsCard(
                                 text = if (isByChoice) {
                                     (scoreByNumber[item.split.controlPoint] ?: 0).toString()
                                 } else {
-                                    item.distanceOrdinal?.toString() ?: ""
+                                    item.distanceOrdinal?.toString() ?: if (item.isStartPunch) "Старт" else ""
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = if (item.isOutOfOrder) FontWeight.Bold else FontWeight.Normal,

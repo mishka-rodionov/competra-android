@@ -251,19 +251,29 @@ class OrientReadCardViewModel(
         val expected = getExpectedControlPoints(participant.groupId)
         Log.d("LOG_TAG", "computeParticipantResult: $expected")
         val expectedCpNumbers = expected.map { it.number }
+        val startControlPoint = getDistance(participant.groupId)?.startControlPoint
 
         val startTime = resolveStartTime(participant, splits)
         if (startTime == null) {
             // BY_START_STATION без отметки на стартовой станции — считать результат не по чему.
+            // Различаем две причины: у дистанции вообще не задано стартовое КП (ошибка настройки
+            // организатора) — и стартовое КП задано, но именно на чипе этого участника отметки
+            // о нём нет (участник не отметился на старт-станции).
+            val message = if (startControlPoint != null) {
+                "Нет отметки на стартовой станции"
+            } else {
+                "У дистанции не задано стартовое КП — укажите его в редактировании дистанции"
+            }
             createParticipantResult(
                 participant = participant,
                 startTime = participant.startTime,
                 finishTime = 0L,
                 totalTime = 0L,
-                result = CheckResult(status = ResultStatus.DSQ, message = "Нет отметки на стартовой станции"),
+                result = CheckResult(status = ResultStatus.DSQ, message = message),
                 rawSplits = splits,
                 expectedCpNumbers = expectedCpNumbers,
-                expectedControlPoints = expected
+                expectedControlPoints = expected,
+                startControlPoint = startControlPoint
             )
             return
         }
@@ -285,7 +295,8 @@ class OrientReadCardViewModel(
             result = result,
             rawSplits = splits,
             expectedCpNumbers = expectedCpNumbers,
-            expectedControlPoints = expected
+            expectedControlPoints = expected,
+            startControlPoint = startControlPoint
         )
     }
 
@@ -297,7 +308,8 @@ class OrientReadCardViewModel(
         result: CheckResult,
         rawSplits: List<SplitTime>,
         expectedCpNumbers: List<Int> = emptyList(),
-        expectedControlPoints: List<ControlPoint> = emptyList()
+        expectedControlPoints: List<ControlPoint> = emptyList(),
+        startControlPoint: Int? = null
     ) {
         val newResult = OrienteeringResult(
             competitionId = participant.competitionId,
@@ -316,11 +328,18 @@ class OrientReadCardViewModel(
 
         // При старте по стартовой станции реальное время старта узнаётся только сейчас, из чипа —
         // сохраняем его в участника, чтобы протокол/список участников тоже показывали факт, а не 0L.
-        if (!stateValue.isCompetitionFinished &&
+        // resolvedParticipant (а не исходный participant с устаревшим startTime) кладём в state —
+        // иначе экран сканирования при первом же скане показывает пустое/старое время старта и
+        // считает сплиты от него, выдавая гигантские значения; они «чинились» только со второго
+        // скана этого же чипа, когда getParticipantByChipNumber уже отдавал обновлённого участника.
+        val resolvedParticipant = if (!stateValue.isCompetitionFinished &&
             stateValue.startTimeMode == StartTimeMode.BY_START_STATION &&
             startTime != participant.startTime
         ) {
             orienteeringCompetitionInteractor.updateParticipantLocally(participant.copy(startTime = startTime))
+            participant.copy(startTime = startTime)
+        } else {
+            participant
         }
 
         if (stateValue.isCompetitionFinished) {
@@ -328,12 +347,14 @@ class OrientReadCardViewModel(
             // но не сохраняем результат и не влияем на итоговые протоколы.
             updateState {
                 copy(
-                    participant = participant,
+                    participant = resolvedParticipant,
                     participantResult = newResult,
                     rawSplits = rawSplits,
                     expectedCpNumbers = expectedCpNumbers,
                     expectedControlPoints = expectedControlPoints,
                     isPendingSave = false,
+                    statusMessage = result.message,
+                    startControlPoint = startControlPoint,
                 )
             }
             return
@@ -343,12 +364,14 @@ class OrientReadCardViewModel(
             // DSQ: показываем результат организатору и ждём явного сохранения
             updateState {
                 copy(
-                    participant = participant,
+                    participant = resolvedParticipant,
                     participantResult = newResult,
                     rawSplits = rawSplits,
                     expectedCpNumbers = expectedCpNumbers,
                     expectedControlPoints = expectedControlPoints,
                     isPendingSave = true,
+                    statusMessage = result.message,
+                    startControlPoint = startControlPoint,
                 )
             }
             return
@@ -356,11 +379,13 @@ class OrientReadCardViewModel(
 
         updateState {
             copy(
-                participant = participant,
+                participant = resolvedParticipant,
                 participantResult = newResult,
                 rawSplits = rawSplits,
                 expectedCpNumbers = expectedCpNumbers,
-                expectedControlPoints = expectedControlPoints
+                expectedControlPoints = expectedControlPoints,
+                statusMessage = result.message,
+                startControlPoint = startControlPoint,
             )
         }
 
