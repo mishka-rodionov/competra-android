@@ -42,5 +42,6 @@ data class DistanceEntity(
     val serverUpdatedAt: Long? = null,
     val syncError: String? = null,
     val controlPoints: List<ControlPoint> = emptyList(),
-    val finishControlPoint: Int? = null
+    val finishControlPoint: Int? = null,
+    val startControlPoint: Int? = null
 )

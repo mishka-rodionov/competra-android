@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.competra.utils.isValidStartTimestamp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -408,12 +409,9 @@ private fun StopwatchBanner(
     }
 }
 
-/** Минимальный допустимый timestamp — 1 января 2000 года. */
-private const val MIN_VALID_TIMESTAMP_MS = 946_684_800_000L
-
 /** Форматирует абсолютное стартовое время в ЧЧ:ММ (или ЧЧ:ММ:СС при ненулевых секундах). */
 private fun formatTime(startTimeMs: Long): String {
-    if (startTimeMs < MIN_VALID_TIMESTAMP_MS) return "—"
+    if (!startTimeMs.isValidStartTimestamp()) return "—"
     val calendar = Calendar.getInstance().apply { timeInMillis = startTimeMs }
     val h = calendar.get(Calendar.HOUR_OF_DAY)
     val m = calendar.get(Calendar.MINUTE)

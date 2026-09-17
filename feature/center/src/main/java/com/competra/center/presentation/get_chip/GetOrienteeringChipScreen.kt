@@ -25,6 +25,7 @@ import com.competra.center.data.get_chip.GetOrienteeringChipAction
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.resources.R
 import com.competra.utils.DateTimeFormat
+import com.competra.utils.isValidStartTimestamp
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -240,7 +241,13 @@ private fun ParticipantChipCard(
                     )
                 }
                 Text(
-                    text = "Старт: ${DateTimeFormat.transformLongToTime(participant.startTime)}",
+                    text = "Старт: ${
+                        if (participant.startTime.isValidStartTimestamp()) {
+                            DateTimeFormat.transformLongToTime(participant.startTime)
+                        } else {
+                            "—"
+                        }
+                    }",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -268,11 +275,8 @@ private fun ParticipantChipCard(
     }
 }
 
-/** Минимальный валидный timestamp (1 января 2000) — отсекает нулевые/неустановленные значения. */
-private const val MIN_VALID_TIMESTAMP_MS = 946_684_800_000L
-
 /** true, если стартовое время реально установлено (а не 0/мусор). */
-private fun isValidTimestamp(ms: Long): Boolean = ms >= MIN_VALID_TIMESTAMP_MS
+private fun isValidTimestamp(ms: Long): Boolean = ms.isValidStartTimestamp()
 
 @Composable
 private fun LoadingPlaceholder() {

@@ -324,9 +324,11 @@ private fun CommonCompetitionFieldContent(
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
             StartTimeModeSelector(state = state, userAction = onAction)
             FieldDescription("Как назначается стартовое время каждого участника")
-            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-            StartIntervalSelector(state = state, userAction = onAction)
-            FieldDescription("Промежуток между стартами участников при стартах по протоколу")
+            if (state.startTimeMode != StartTimeMode.BY_START_STATION) {
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                StartIntervalSelector(state = state, userAction = onAction)
+                FieldDescription("Промежуток между стартами участников при стартах по протоколу")
+            }
 
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
 
@@ -518,15 +520,27 @@ private fun formatIntervalSeconds(seconds: Int): String {
     }
 }
 
+/** Системы отметки, для которых имеет смысл понятие электронной стартовой станции. */
+private val ELECTRONIC_PUNCHING_SYSTEMS = setOf(
+    PunchingSystem.SPORTIDUINO,
+    PunchingSystem.SPORTIDENT,
+    PunchingSystem.SFR
+)
+
 @Composable
 private fun PunchingSystemSelector(
     state: OrienteeringCreatorState,
     userAction: (OrienteeringCreatorAction) -> Unit
 ) {
     val context = LocalContext.current
+    val items = if (state.startTimeMode == StartTimeMode.BY_START_STATION) {
+        PunchingSystem.entries.filter { it in ELECTRONIC_PUNCHING_SYSTEMS }
+    } else {
+        PunchingSystem.entries
+    }
     ExposedDropdownMenuOutlined(
         label = stringResource(R.string.label_punching_system),
-        items = PunchingSystem.entries,
+        items = items,
         selectedItem = state.punchingSystem,
         onItemSelected = {
             userAction.invoke(OrienteeringCreatorAction.UpdatePunchingSystem(it))

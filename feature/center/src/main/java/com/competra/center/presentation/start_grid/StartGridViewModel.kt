@@ -15,6 +15,7 @@ import com.competra.ui.BaseAction
 import com.competra.ui.CompetitionStartTimeRepository
 import com.competra.ui.viewmodel.BaseViewModel
 import com.competra.utils.constants.EventsConstants
+import com.competra.utils.isValidStartTimestamp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -62,7 +63,7 @@ class StartGridViewModel(
             interactor.getCompetitionWithDetails(id).onSuccess { details ->
                 val participants = details.groupsWithParticipants
                     .flatMap { it.participants }
-                    .filter { it.startNumber.isNotEmpty() && isValidTimestamp(it.startTime) }
+                    .filter { it.startNumber.isNotEmpty() && it.startTime.isValidStartTimestamp() }
 
                 val slots = participants
                     .groupBy { it.startTime }
@@ -128,11 +129,4 @@ class StartGridViewModel(
         super.onCleared()
         stopwatchJob?.cancel()
     }
-
-    private companion object {
-        /** Минимальный допустимый timestamp — 1 января 2000 года. */
-        const val MIN_VALID_TIMESTAMP_MS = 946_684_800_000L
-    }
-
-    private fun isValidTimestamp(ms: Long): Boolean = ms >= MIN_VALID_TIMESTAMP_MS
 }

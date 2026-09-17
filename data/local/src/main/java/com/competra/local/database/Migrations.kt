@@ -310,3 +310,15 @@ val MIGRATION_47_48 = object : Migration(47, 48) {
         db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN organizingClubId TEXT")
     }
 }
+
+/**
+ * Миграция с версии 48 на 49.
+ * Добавляет номер стартового контрольного пункта (отдельная физическая старт-станция) —
+ * используется при StartTimeMode.BY_START_STATION как источник реального времени старта участника,
+ * по аналогии с уже существующим finishControlPoint.
+ */
+val MIGRATION_48_49 = object : Migration(48, 49) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE distances ADD COLUMN startControlPoint INTEGER")
+    }
+}

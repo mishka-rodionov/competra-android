@@ -19,6 +19,10 @@ package com.competra.domain.models.orienteering
  *                              время финиша участника. Для электронных систем отметки (SPORTIDUINO, SPORTIDENT,
  *                              SFR) поле обязательно к заполнению в UI; для бумажных/механических систем
  *                              может быть `null`.
+ * @property startControlPoint Номер стартового контрольного пункта (отдельная физическая старт-станция).
+ *                              Отметка этого КП в чипе используется как реальное время старта участника —
+ *                              актуально только при [StartTimeMode.BY_START_STATION], где обязательно к
+ *                              заполнению в UI; для остальных режимов не используется и может быть `null`.
  */
 data class Distance(
     val id: Long = 0,
@@ -35,7 +39,8 @@ data class Distance(
     val serverUpdatedAt: Long? = null,
     val syncError: String? = null,
     val controlPoints: List<ControlPoint>,
-    val finishControlPoint: Int? = null
+    val finishControlPoint: Int? = null,
+    val startControlPoint: Int? = null
 )
 
 /**

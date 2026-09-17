@@ -9,6 +9,7 @@ import com.competra.center.data.participant_list.TestParticipantFixtures
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
 import com.competra.domain.models.orienteering.OrienteeringParticipant
+import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
 import com.competra.ui.BaseAction
@@ -43,8 +44,15 @@ class ParticipantListViewModel(
                 val group = groupData.group
                 val intervalMs = ((stateValue.competition?.startIntervalSeconds) ?: 60) * 1000L
                 val isDrawConducted = stateValue.competition?.isDrawConducted == true
+                val isByStartStation = stateValue.competition?.startTimeMode == StartTimeMode.BY_START_STATION
 
-                val (nextStartNumber, startTime) = if (isDrawConducted) {
+                val (nextStartNumber, startTime) = if (isByStartStation) {
+                    // Жеребьёвки нет, общего времени старта тоже нет — реальное время участник
+                    // получит только по факту отметки на стартовой станции (см. OrientReadCardViewModel).
+                    val existingParticipants = groupData.participants
+                    val nextNum = (existingParticipants.mapNotNull { it.startNumber.toIntOrNull() }.maxOrNull() ?: 0) + 1
+                    nextNum to 0L
+                } else if (isDrawConducted) {
                     val allParticipants = stateValue.participantGroupWithParticipants.flatMap { it.participants }
                     val maxNumber = allParticipants.mapNotNull { it.startNumber.toIntOrNull() }.maxOrNull() ?: 0
                     val latestStartTime = allParticipants.filter { it.startTime > 0L }.maxOfOrNull { it.startTime } ?: 0L

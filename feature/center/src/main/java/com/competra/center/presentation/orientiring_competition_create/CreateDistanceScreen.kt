@@ -16,6 +16,8 @@ import com.competra.designsystem.theme.Dimens
 import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
 import com.competra.domain.models.orienteering.Distance
+import com.competra.domain.models.orienteering.PunchingSystem
+import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.resources.R
 import org.koin.androidx.compose.koinViewModel
 
@@ -57,13 +59,38 @@ private fun CreateDistanceContent(
     onNext: () -> Unit,
     onAction: (OrienteeringCreatorAction) -> Unit
 ) {
+    // Дистанция может быть создана до того, как организатор выбрал текущий режим старта/систему
+    // отметки (например, автозаполнением тестовыми данными или после смены режима на уже созданных
+    // дистанциях) — тогда обязательное поле останется незаполненным и чтение чипа на старте/финише
+    // потом уйдёт в DSQ. Не даём продолжить мастер, пока такие дистанции не исправлены.
+    val isStartCpRequired = state.startTimeMode == StartTimeMode.BY_START_STATION
+    val isFinishCpRequired = state.punchingSystem in setOf(
+        PunchingSystem.SPORTIDUINO,
+        PunchingSystem.SPORTIDENT,
+        PunchingSystem.SFR
+    )
+    val incompleteDistances = state.distances.filter { d ->
+        (isFinishCpRequired && d.finishControlPoint == null) || (isStartCpRequired && d.startControlPoint == null)
+    }
+
     Scaffold(
         bottomBar = {
-            NavigationButtons(
-                onBack = onBack,
-                onNext = onNext,
-                nextEnabled = state.distances.isNotEmpty()
-            )
+            Column {
+                if (incompleteDistances.isNotEmpty()) {
+                    Text(
+                        text = "У дистанций (${incompleteDistances.joinToString { it.name ?: "без названия" }}) " +
+                            "не заполнено обязательное поле — отредактируйте их перед тем, как продолжить",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp)
+                    )
+                }
+                NavigationButtons(
+                    onBack = onBack,
+                    onNext = onNext,
+                    nextEnabled = state.distances.isNotEmpty() && incompleteDistances.isEmpty()
+                )
+            }
         }
     ) { padding ->
         Column(

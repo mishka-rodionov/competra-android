@@ -81,7 +81,8 @@ fun DistanceResponse.toDomain(competitionId: String): Distance {
         isSynced = true,
         serverUpdatedAt = updatedAt.takeIf { it > 0L },
         controlPoints = controlPoints.map { it.toDomain() },
-        finishControlPoint = finishControlPoint
+        finishControlPoint = finishControlPoint,
+        startControlPoint = startControlPoint
     )
 }
 

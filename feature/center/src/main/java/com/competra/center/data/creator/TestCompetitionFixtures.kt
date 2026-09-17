@@ -100,7 +100,8 @@ object TestCompetitionFixtures {
             controlsCount = LONG_COURSE_CONTROLS.size,
             description = "Тестовая длинная дистанция",
             controlPoints = LONG_COURSE_CONTROLS.map { ControlPoint(number = it) },
-            finishControlPoint = FINISH_CONTROL
+            finishControlPoint = FINISH_CONTROL,
+            startControlPoint = START_CONTROL
         ),
         Distance(
             id = 0L,
@@ -111,7 +112,8 @@ object TestCompetitionFixtures {
             controlsCount = SHORT_COURSE_CONTROLS.size,
             description = "Тестовая короткая дистанция",
             controlPoints = SHORT_COURSE_CONTROLS.map { ControlPoint(number = it) },
-            finishControlPoint = FINISH_CONTROL
+            finishControlPoint = FINISH_CONTROL,
+            startControlPoint = START_CONTROL
         ),
         Distance(
             id = 0L,
@@ -122,7 +124,8 @@ object TestCompetitionFixtures {
             controlsCount = SHORT_COURSE_CONTROLS.size,
             description = "Тестовая короткая дистанция",
             controlPoints = SHORT_COURSE_CONTROLS.map { ControlPoint(number = it) },
-            finishControlPoint = FINISH_CONTROL
+            finishControlPoint = FINISH_CONTROL,
+            startControlPoint = START_CONTROL
         ),
         Distance(
             id = 0L,
@@ -198,6 +201,13 @@ object TestCompetitionFixtures {
 
     /** Номер финишного КП (станция финиша), общий для тестовых дистанций. */
     private const val FINISH_CONTROL = 45
+
+    /**
+     * Номер стартового КП (станция старта) для теста BY_START_STATION — 240 совпадает с
+     * зарезервированным протоколом Sportiduino кодом старт-станции (см. [com.competra.nfchelper.nfccard.Config.START_STATION]),
+     * так что реальная физическая станция даст отметку с этим же номером.
+     */
+    private const val START_CONTROL = 240
 
     /** Набор КП длинной дистанции (М21). */
     private val LONG_COURSE_CONTROLS = listOf(36, 37, 42, 46)

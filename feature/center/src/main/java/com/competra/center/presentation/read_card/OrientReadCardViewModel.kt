@@ -14,12 +14,14 @@ import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.ControlPoint
 import com.competra.domain.models.orienteering.ControlPointRole
+import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.ReadChipData
 import com.competra.domain.models.orienteering.ResultConflictEvent
 import com.competra.domain.models.orienteering.SplitTime
+import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.repository.ResultConflictRepository
 import com.competra.nfchelper.SportiduinoHelper
 import com.competra.center.data.read_card.OrientReadCardAction
@@ -83,25 +85,45 @@ class OrientReadCardViewModel(
         val rawSplits = stateValue.rawSplits ?: return
         if (rawSplits.isEmpty()) return
         val expected = getExpectedControlPoints(participant.groupId)
-        val checkResult = computeCheckResult(participant.groupId, participant.startTime, expected, rawSplits)
-        val lastValidPunch = checkResult.validSplits.lastOrNull() ?: rawSplits.last()
-        val finishTime = lastValidPunch.timestamp
-        val totalTime = (finishTime - participant.startTime) / 1000L
-        val newResult = OrienteeringResult(
-            competitionId = participant.competitionId,
-            participantId = participant.id,
-            groupId = participant.groupId,
-            startTime = participant.startTime,
-            finishTime = finishTime,
-            totalTime = totalTime,
-            rank = -1,
-            status = checkResult.status,
-            penaltyTime = 0,
-            totalScore = checkResult.totalScore,
-            scorePenalty = checkResult.scorePenalty,
-            splits = checkResult.validSplits,
-            isEdited = true
-        )
+        val startTime = resolveStartTime(participant, rawSplits)
+        val newResult = if (startTime == null) {
+            OrienteeringResult(
+                competitionId = participant.competitionId,
+                participantId = participant.id,
+                groupId = participant.groupId,
+                startTime = participant.startTime,
+                finishTime = null,
+                totalTime = null,
+                rank = -1,
+                status = ResultStatus.DSQ,
+                penaltyTime = 0,
+                splits = rawSplits,
+                isEdited = true
+            )
+        } else {
+            val checkResult = computeCheckResult(participant.groupId, startTime, expected, rawSplits)
+            val lastValidPunch = checkResult.validSplits.lastOrNull() ?: rawSplits.last()
+            val finishTime = lastValidPunch.timestamp
+            val totalTime = (finishTime - startTime) / 1000L
+            if (stateValue.startTimeMode == StartTimeMode.BY_START_STATION && startTime != participant.startTime) {
+                orienteeringCompetitionInteractor.updateParticipantLocally(participant.copy(startTime = startTime))
+            }
+            OrienteeringResult(
+                competitionId = participant.competitionId,
+                participantId = participant.id,
+                groupId = participant.groupId,
+                startTime = startTime,
+                finishTime = finishTime,
+                totalTime = totalTime,
+                rank = -1,
+                status = checkResult.status,
+                penaltyTime = 0,
+                totalScore = checkResult.totalScore,
+                scorePenalty = checkResult.scorePenalty,
+                splits = checkResult.validSplits,
+                isEdited = true
+            )
+        }
         updateState { copy(participantResult = newResult, editingSplitIndex = null) }
         val existing = orienteeringCompetitionInteractor.getResultByParticipantId(participant.id)
         if (existing != null) {
@@ -130,8 +152,9 @@ class OrientReadCardViewModel(
                     updateState { copy(isCompetitionFinished = true) }
                 }
                 val direction = competition?.direction
+                val startTimeMode = competition?.startTimeMode
                 if (direction != null) {
-                    updateState { copy(competitionDirection = direction) }
+                    updateState { copy(competitionDirection = direction, startTimeMode = startTimeMode ?: this.startTimeMode) }
                     // updateState — fire-and-forget (постит апдейт на Main.immediate и не ждёт его
                     // применения). Если чип уже лежит на ридере в момент открытия экрана (обычный
                     // рабочий процесс судьи), скан может дойти до subscribeToReadCard раньше, чем
@@ -183,10 +206,7 @@ class OrientReadCardViewModel(
     }
 
     suspend fun getExpectedControlPoints(groupId: Long): List<ControlPoint> {
-        val group = orienteeringCompetitionInteractor.getParticipantGroup(groupId).getOrNull()
-            ?: return emptyList()
-        val distance = orienteeringCompetitionInteractor.getDistanceById(group.distanceId).getOrNull()
-            ?: return emptyList()
+        val distance = getDistance(groupId) ?: return emptyList()
         val base = distance.controlPoints
         val finishNumber = distance.finishControlPoint
         return if (finishNumber != null) {
@@ -194,6 +214,31 @@ class OrientReadCardViewModel(
         } else {
             base
         }
+    }
+
+    private suspend fun getDistance(groupId: Long): Distance? {
+        val group = orienteeringCompetitionInteractor.getParticipantGroup(groupId).getOrNull()
+            ?: return null
+        return orienteeringCompetitionInteractor.getDistanceById(group.distanceId).getOrNull()
+    }
+
+    /**
+     * Реальное время старта участника для текущего режима старта соревнования.
+     *
+     * Для [StartTimeMode.BY_START_STATION] — это timestamp отметки на стартовом КП дистанции
+     * среди прочитанных с чипа сплитов (участник отмечается на отдельной физической старт-станции
+     * самостоятельно, до начала дистанции), а не заранее назначенное на жеребьёвке
+     * [OrienteeringParticipant.startTime]. Возвращает `null`, если режим BY_START_STATION, а
+     * отметки на старте в чипе нет — участник ещё не стартовал (это не то же самое, что "время
+     * не назначено", и требует отдельной обработки на стороне вызывающего кода — см.
+     * [computeParticipantResult]).
+     *
+     * Для остальных режимов поведение не меняется — возвращается [OrienteeringParticipant.startTime].
+     */
+    private suspend fun resolveStartTime(participant: OrienteeringParticipant, splits: List<SplitTime>): Long? {
+        if (stateValue.startTimeMode != StartTimeMode.BY_START_STATION) return participant.startTime
+        val startCp = getDistance(participant.groupId)?.startControlPoint ?: return null
+        return splits.firstOrNull { it.controlPoint == startCp }?.timestamp
     }
 
     suspend fun computeParticipantResult(
@@ -206,17 +251,35 @@ class OrientReadCardViewModel(
         val expected = getExpectedControlPoints(participant.groupId)
         Log.d("LOG_TAG", "computeParticipantResult: $expected")
         val expectedCpNumbers = expected.map { it.number }
+
+        val startTime = resolveStartTime(participant, splits)
+        if (startTime == null) {
+            // BY_START_STATION без отметки на стартовой станции — считать результат не по чему.
+            createParticipantResult(
+                participant = participant,
+                startTime = participant.startTime,
+                finishTime = 0L,
+                totalTime = 0L,
+                result = CheckResult(status = ResultStatus.DSQ, message = "Нет отметки на стартовой станции"),
+                rawSplits = splits,
+                expectedCpNumbers = expectedCpNumbers,
+                expectedControlPoints = expected
+            )
+            return
+        }
+
         val result = computeCheckResult(
             groupId = participant.groupId,
-            startTime = participant.startTime,
+            startTime = startTime,
             expected = expected,
             actual = splits
         )
         val lastValidPunch = result.validSplits.lastOrNull() ?: splits.last()
         val finishTime = lastValidPunch.timestamp
-        val totalTime = (finishTime - participant.startTime) / 1000L
+        val totalTime = (finishTime - startTime) / 1000L
         createParticipantResult(
             participant = participant,
+            startTime = startTime,
             finishTime = finishTime,
             totalTime = totalTime,
             result = result,
@@ -228,6 +291,7 @@ class OrientReadCardViewModel(
 
     private suspend fun createParticipantResult(
         participant: OrienteeringParticipant,
+        startTime: Long,
         finishTime: Long,
         totalTime: Long,
         result: CheckResult,
@@ -239,7 +303,7 @@ class OrientReadCardViewModel(
             competitionId = participant.competitionId,
             participantId = participant.id,
             groupId = participant.groupId,
-            startTime = participant.startTime,
+            startTime = startTime,
             finishTime = finishTime,
             totalTime = totalTime,
             rank = -1,
@@ -249,6 +313,15 @@ class OrientReadCardViewModel(
             scorePenalty = result.scorePenalty,
             splits = if (result.status == ResultStatus.DSQ) rawSplits else result.validSplits
         )
+
+        // При старте по стартовой станции реальное время старта узнаётся только сейчас, из чипа —
+        // сохраняем его в участника, чтобы протокол/список участников тоже показывали факт, а не 0L.
+        if (!stateValue.isCompetitionFinished &&
+            stateValue.startTimeMode == StartTimeMode.BY_START_STATION &&
+            startTime != participant.startTime
+        ) {
+            orienteeringCompetitionInteractor.updateParticipantLocally(participant.copy(startTime = startTime))
+        }
 
         if (stateValue.isCompetitionFinished) {
             // Соревнование завершено — режим «только просмотр»: показываем данные,
@@ -317,25 +390,42 @@ class OrientReadCardViewModel(
         val rawSplits = stateValue.rawSplits ?: return
         if (rawSplits.isEmpty()) return
         val expected = getExpectedControlPoints(participant.groupId)
-        val checkResult = computeCheckResult(participant.groupId, participant.startTime, expected, rawSplits)
-        val lastValidPunch = checkResult.validSplits.lastOrNull() ?: rawSplits.last()
-        val finishTime = lastValidPunch.timestamp
-        val totalTime = (finishTime - participant.startTime) / 1000L
-        val newResult = OrienteeringResult(
-            competitionId = participant.competitionId,
-            participantId = participant.id,
-            groupId = participant.groupId,
-            startTime = participant.startTime,
-            finishTime = finishTime,
-            totalTime = totalTime,
-            rank = -1,
-            status = checkResult.status,
-            penaltyTime = 0,
-            totalScore = checkResult.totalScore,
-            scorePenalty = checkResult.scorePenalty,
-            splits = if (checkResult.status == ResultStatus.DSQ) rawSplits else checkResult.validSplits,
-            isEdited = true,
-        )
+        val startTime = resolveStartTime(participant, rawSplits)
+        val newResult = if (startTime == null) {
+            OrienteeringResult(
+                competitionId = participant.competitionId,
+                participantId = participant.id,
+                groupId = participant.groupId,
+                startTime = participant.startTime,
+                finishTime = null,
+                totalTime = null,
+                rank = -1,
+                status = ResultStatus.DSQ,
+                penaltyTime = 0,
+                splits = rawSplits,
+                isEdited = true
+            )
+        } else {
+            val checkResult = computeCheckResult(participant.groupId, startTime, expected, rawSplits)
+            val lastValidPunch = checkResult.validSplits.lastOrNull() ?: rawSplits.last()
+            val finishTime = lastValidPunch.timestamp
+            val totalTime = (finishTime - startTime) / 1000L
+            OrienteeringResult(
+                competitionId = participant.competitionId,
+                participantId = participant.id,
+                groupId = participant.groupId,
+                startTime = startTime,
+                finishTime = finishTime,
+                totalTime = totalTime,
+                rank = -1,
+                status = checkResult.status,
+                penaltyTime = 0,
+                totalScore = checkResult.totalScore,
+                scorePenalty = checkResult.scorePenalty,
+                splits = if (checkResult.status == ResultStatus.DSQ) rawSplits else checkResult.validSplits,
+                isEdited = true,
+            )
+        }
         updateState { copy(participantResult = newResult) }
     }
 
@@ -343,6 +433,12 @@ class OrientReadCardViewModel(
     private suspend fun saveResultFromPending() {
         val participant = stateValue.participant ?: return
         val newResult = stateValue.participantResult ?: return
+        val resultStartTime = newResult.startTime
+        if (stateValue.startTimeMode == StartTimeMode.BY_START_STATION &&
+            resultStartTime != null && resultStartTime != participant.startTime
+        ) {
+            orienteeringCompetitionInteractor.updateParticipantLocally(participant.copy(startTime = resultStartTime))
+        }
         val existing = orienteeringCompetitionInteractor.getResultByParticipantId(participant.id)
         if (existing != null) {
             resultConflictRepository.emit(

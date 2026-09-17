@@ -32,6 +32,8 @@ data class DistanceResponse(
     val controlPoints: List<ControlPointResponse> = emptyList(),
     @SerializedName("finishControlPoint")
     val finishControlPoint: Int? = null,
+    @SerializedName("startControlPoint")
+    val startControlPoint: Int? = null,
     @SerializedName("updatedAt")
     val updatedAt: Long = 0L
 )

@@ -40,6 +40,7 @@ import com.competra.domain.models.orienteering.ControlPointRole
 import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.PunchingSystem
+import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.resources.R
 
 /**
@@ -78,6 +79,10 @@ fun DistanceEditor(
         mutableStateOf(initialDistance?.finishControlPoint?.toString() ?: "")
     }
     var showFinishCpError by remember { mutableStateOf(false) }
+    var startCpInput by remember {
+        mutableStateOf(initialDistance?.startControlPoint?.toString() ?: "")
+    }
+    var showStartCpError by remember { mutableStateOf(false) }
     var description by remember { mutableStateOf(initialDistance?.description ?: "") }
 
     // Финишное КП обязательно для электронных систем отметки.
@@ -87,6 +92,10 @@ fun DistanceEditor(
         PunchingSystem.SFR
     )
 
+    // Стартовое КП (номер отдельной физической старт-станции) обязательно только при старте
+    // по отметке на стартовой станции — только там реальное время старта участника берётся из чипа.
+    val isStartCpRequired = state.startTimeMode == StartTimeMode.BY_START_STATION
+
     // Создаем реквизиторы фокуса для каждого поля
     val titleFocus = remember { FocusRequester() }
     val lengthFocus = remember { FocusRequester() }
@@ -94,6 +103,7 @@ fun DistanceEditor(
     val controlsFocus = remember { FocusRequester() }
     val pointsFocus = remember { FocusRequester() }
     val finishCpFocus = remember { FocusRequester() }
+    val startCpFocus = remember { FocusRequester() }
     val descFocus = remember { FocusRequester() }
     
     LaunchedEffect(controlPointsList) {
@@ -376,7 +386,7 @@ fun DistanceEditor(
                         imeAction = ImeAction.Next
                     ),
                     keyboardActions = KeyboardActions(
-                        onNext = { descFocus.requestFocus() }
+                        onNext = { if (isStartCpRequired) startCpFocus.requestFocus() else descFocus.requestFocus() }
                     ),
                     text = finishCpInput,
                     onValueChanged = { newValue ->
@@ -388,6 +398,40 @@ fun DistanceEditor(
                 )
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+                // Стартовое КП — номер отдельной физической старт-станции (только при старте
+                // по отметке на стартовой станции).
+                if (isStartCpRequired) {
+                    DSTextInput(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(startCpFocus),
+                        label = { Text("Стартовое КП *") },
+                        supportingText = {
+                            val errorText = "Укажите номер стартового КП — по нему определяется реальное время старта"
+                            val hintText = "Номер КП на стартовой станции — по нему рассчитывается время старта"
+                            Text(if (showStartCpError) errorText else hintText)
+                        },
+                        isError = showStartCpError,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { descFocus.requestFocus() }
+                        ),
+                        text = startCpInput,
+                        onValueChanged = { newValue ->
+                            startCpInput = newValue.filter { it.isDigit() }
+                            if (showStartCpError && startCpInput.toIntOrNull() != null) {
+                                showStartCpError = false
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                }
 
                 // Описание
                 DSTextInput(
@@ -431,6 +475,13 @@ fun DistanceEditor(
                             return@Button
                         }
 
+                        val startCp = startCpInput.toIntOrNull()
+                        if (isStartCpRequired && startCp == null) {
+                            showStartCpError = true
+                            startCpFocus.requestFocus()
+                            return@Button
+                        }
+
                         // Сбрасываем фокус и скрываем клавиатуру при нажатии кнопки сохранения
                         focusManager.clearFocus()
                         keyboardController?.hide()
@@ -448,7 +499,8 @@ fun DistanceEditor(
                                     controlsCount = controlsCount.toIntOrNull() ?: 0,
                                     description = description,
                                     controlPoints = points,
-                                    finishControlPoint = finishCp
+                                    finishControlPoint = finishCp,
+                                    startControlPoint = startCp
                                 ),
                                 index = state.editDistanceIndex
                             )

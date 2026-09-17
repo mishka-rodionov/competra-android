@@ -15,7 +15,9 @@ import com.competra.domain.exception.NetworkException
 import com.competra.domain.models.Coordinates
 import com.competra.domain.models.CropRect
 import com.competra.domain.models.NetworkErrorEvent
+import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.RegistrationEndMode
+import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.user.User
 import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.NetworkErrorRepository
@@ -217,7 +219,19 @@ class OrienteeringCreatorViewModel(
             }
 
             is OrienteeringCreatorAction.UpdateStartTimeMode -> updateState {
-                copy(startTimeMode = action.startTimeMode)
+                // При переходе на "по стартовой станции" механическая/бумажная отметка (PENCIL/PUNCH)
+                // теряет смысл — стартовая станция требует электронной системы. Если организатор уже
+                // выбрал такую систему (PunchingSystemSelector отрисовывается раньше StartTimeModeSelector
+                // на экране), сбрасываем на дефолтную электронную, чтобы не остался невалидный выбор.
+                val punching = if (
+                    action.startTimeMode == StartTimeMode.BY_START_STATION &&
+                    punchingSystem !in setOf(PunchingSystem.SPORTIDUINO, PunchingSystem.SPORTIDENT, PunchingSystem.SFR)
+                ) {
+                    PunchingSystem.SPORTIDUINO
+                } else {
+                    punchingSystem
+                }
+                copy(startTimeMode = action.startTimeMode, punchingSystem = punching)
             }
 
             is OrienteeringCreatorAction.UpdatePunchingSystem -> updateState {

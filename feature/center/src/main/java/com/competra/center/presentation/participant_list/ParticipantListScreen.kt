@@ -18,6 +18,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import com.competra.utils.isValidStartTimestamp
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -738,11 +739,8 @@ fun ParticipantCard(
     }
 }
 
-/** Минимальный допустимый timestamp — 1 января 2000 года. */
-private const val MIN_VALID_TIMESTAMP_MS = 946_684_800_000L
-
 /** Возвращает true, если [ms] — это реальная дата (не плейсхолдер и не отрицательное значение). */
-private fun isValidTimestamp(ms: Long): Boolean = ms >= MIN_VALID_TIMESTAMP_MS
+private fun isValidTimestamp(ms: Long): Boolean = ms.isValidStartTimestamp()
 
 private fun formatStartTime(startTimeMs: Long): String {
     val calendar = Calendar.getInstance()

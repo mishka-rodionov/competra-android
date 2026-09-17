@@ -19,6 +19,7 @@ import com.competra.ui.CompetitionServiceController
 import com.competra.ui.CompetitionStartTimeRepository
 import com.competra.ui.viewmodel.BaseViewModel
 import com.competra.utils.constants.EventsConstants
+import com.competra.utils.isValidStartTimestamp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -266,12 +267,17 @@ class OrienteeringEventControlViewModel(
             orienteeringCompetitionInteractor.publishCompetitionToServer(updatedCompetition)
                 .onFailure { handleFailure(it) }
 
-            competitionId?.let { id ->
-                val intervalMs = (competition.startIntervalSeconds ?: 60) * 1000L
-                val participants = orienteeringCompetitionInteractor.getParticipants(id).getOrNull()
-                if (!participants.isNullOrEmpty()) {
-                    val updatedParticipants = rebaseStartTimes(participants, startTime, intervalMs)
-                    orienteeringCompetitionInteractor.updateParticipants(updatedParticipants)
+            // При старте по стартовой станции нет общего времени старта — участники не привязаны
+            // к нему интервалом, каждый получает своё время позже, из отметки на чипе
+            // (см. OrientReadCardViewModel). Пересчитывать startTime участников здесь нельзя.
+            if (competition.startTimeMode != StartTimeMode.BY_START_STATION) {
+                competitionId?.let { id ->
+                    val intervalMs = (competition.startIntervalSeconds ?: 60) * 1000L
+                    val participants = orienteeringCompetitionInteractor.getParticipants(id).getOrNull()
+                    if (!participants.isNullOrEmpty()) {
+                        val updatedParticipants = rebaseStartTimes(participants, startTime, intervalMs)
+                        orienteeringCompetitionInteractor.updateParticipants(updatedParticipants)
+                    }
                 }
             }
 
@@ -436,11 +442,11 @@ class OrienteeringEventControlViewModel(
     ): List<OrienteeringParticipant> {
         val baseStartTime = participants
             .map { it.startTime }
-            .filter { it >= MIN_VALID_TIMESTAMP_MS }
+            .filter { it.isValidStartTimestamp() }
             .minOrNull() ?: return participants
         val firstStartTime = newStartTime + intervalMs
         return participants.map { p ->
-            if (p.startTime < MIN_VALID_TIMESTAMP_MS) p
+            if (!p.startTime.isValidStartTimestamp()) p
             else p.copy(startTime = firstStartTime + (p.startTime - baseStartTime))
         }
     }
@@ -456,10 +462,5 @@ class OrienteeringEventControlViewModel(
         super.onCleared()
         timerJob?.cancel()
         stopwatchJob?.cancel()
-    }
-
-    private companion object {
-        /** Минимальный допустимый timestamp — 1 января 2000 года. */
-        const val MIN_VALID_TIMESTAMP_MS = 946_684_800_000L
     }
 }

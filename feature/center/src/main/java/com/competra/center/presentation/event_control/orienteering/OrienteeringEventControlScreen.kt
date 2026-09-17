@@ -83,7 +83,11 @@ private fun OrienteeringEventControlScreenContent(
 ) {
     val scrollState = rememberScrollState()
 
-    val isDrawConducted = state.isDrawConducted
+    val startTimeMode = state.competition?.startTimeMode
+    val isByStartStation = startTimeMode == StartTimeMode.BY_START_STATION
+    // Для старта по стартовой станции жеребьёвки не бывает вообще — секции, зависящие от неё
+    // (выдача чипов, старт), открываются сразу, без условия isDrawConducted.
+    val isDrawConducted = state.isDrawConducted || isByStartStation
     val showStartSection = !state.isFinished && isDrawConducted &&
         (state.isCompetitionRunning || state.allChipsDistributed)
 
@@ -142,16 +146,18 @@ private fun OrienteeringEventControlScreenContent(
                 onClick = { onAction(OrientEventControlAction.OpenParticipantLists) }
             )
 
-            // 2. Жеребьёвка — если добавлены участники и соревнование не запущено
-            if (!state.isFinished && !state.isCompetitionRunning && state.participantGroups.isNotEmpty()) {
+            // 2. Жеребьёвка — если добавлены участники и соревнование не запущено. При старте по
+            // стартовой станции жеребьёвки не бывает вообще — время старта берётся из отметки на чипе.
+            if (!state.isFinished && !state.isCompetitionRunning && state.participantGroups.isNotEmpty() && !isByStartStation) {
                 NavigationRow(
                     text = "Жеребьёвка",
                     onClick = { onAction(OrientEventControlAction.OpenDrawParticipants) }
                 )
             }
 
-            // 3. Стартовая решётка — после жеребьёвки (до запуска как предпросмотр и во время старта)
-            if (isDrawConducted) {
+            // 3. Стартовая решётка — после жеребьёвки (до запуска как предпросмотр и во время старта).
+            // Без жеребьёвки (BY_START_STATION) концепция стартовых минут неприменима — скрываем.
+            if (isDrawConducted && !isByStartStation) {
                 NavigationRow(
                     text = "Стартовая решётка",
                     onClick = { onAction(OrientEventControlAction.OpenStartGrid) }
@@ -180,9 +186,9 @@ private fun OrienteeringEventControlScreenContent(
                 SectionHeader(title = "Старт")
 
                 if (!state.isCompetitionRunning) {
-                    val startTimeMode = state.competition?.startTimeMode
                     val canLaunch = startTimeMode == StartTimeMode.USER_SET ||
-                        startTimeMode == StartTimeMode.STRICT
+                        startTimeMode == StartTimeMode.STRICT ||
+                        startTimeMode == StartTimeMode.BY_START_STATION
 
                     if (startTimeMode == StartTimeMode.USER_SET) {
                         DSTextInput(
@@ -215,7 +221,10 @@ private fun OrienteeringEventControlScreenContent(
                             shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
-                            Text("ЗАПУСТИТЬ ТАЙМЕР", fontWeight = FontWeight.Bold)
+                            Text(
+                                if (isByStartStation) "ОТКРЫТЬ СТАРТ" else "ЗАПУСТИТЬ ТАЙМЕР",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -246,6 +255,7 @@ private fun OrienteeringEventControlScreenContent(
             onDismiss = { onAction(OrientEventControlAction.HideStartConfirmDialog) },
             sheetContent = {
                 StartConfirmContent(
+                    isByStartStation = isByStartStation,
                     onConfirm = { onAction(OrientEventControlAction.StartCompetition) },
                     onCancel = { onAction(OrientEventControlAction.HideStartConfirmDialog) }
                 )
@@ -269,20 +279,28 @@ private fun OrienteeringEventControlScreenContent(
 }
 
 @Composable
-private fun StartConfirmContent(onConfirm: () -> Unit, onCancel: () -> Unit) {
+private fun StartConfirmContent(
+    isByStartStation: Boolean = false,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit
+) {
     Column(
         modifier = Modifier
             .padding(Dimens.SIZE_BASE.dp)
             .fillMaxWidth()
     ) {
         Text(
-            text = "Запустить соревнование?",
+            text = if (isByStartStation) "Открыть старт?" else "Запустить соревнование?",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
         Text(
-            text = "Участники начнут стартовать согласно расписанию. Убедитесь, что всё готово.",
+            text = if (isByStartStation) {
+                "Участники смогут начинать дистанцию по своей отметке на стартовой станции — общего времени старта нет."
+            } else {
+                "Участники начнут стартовать согласно расписанию. Убедитесь, что всё готово."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -294,7 +312,7 @@ private fun StartConfirmContent(onConfirm: () -> Unit, onCancel: () -> Unit) {
                 .height(56.dp),
             shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
         ) {
-            Text("Запустить", fontWeight = FontWeight.Bold)
+            Text(if (isByStartStation) "Открыть старт" else "Запустить", fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
         OutlinedButton(

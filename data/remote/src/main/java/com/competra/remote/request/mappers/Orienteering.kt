@@ -58,6 +58,7 @@ fun Distance.toRequest(): DistanceRequest {
         description = description,
         controlPoints = controlPoints.map { it.toRequest() },
         finishControlPoint = finishControlPoint,
+        startControlPoint = startControlPoint,
         serverUpdatedAt = serverUpdatedAt
     )
 }
