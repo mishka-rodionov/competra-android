@@ -597,6 +597,10 @@ class OrienteeringCompetitionInteractor(
      * 2. Перезагружает дистанции из локальной БД, строит карту remoteId → localId
      * 3. Получает группы с сервера, конвертирует distanceId (remote → local), сохраняет в БД
      *
+     * Локальная дистанция с несинхронизированными изменениями (isSynced == false) серверной копией
+     * не перезаписывается — иначе ещё не запушенная правка (например, номера финишного КП) тихо
+     * затиралась бы устаревшими серверными данными и навсегда помечалась бы как синхронизированная.
+     *
      * @param remoteCompetitionId Серверный ID соревнования.
      * @param localCompetitionId Локальный ID соревнования в Room.
      */
@@ -612,7 +616,9 @@ class OrienteeringCompetitionInteractor(
         serverDistances.forEach { serverDist ->
             val existing = serverDist.remoteId?.let { existingByRemoteId[it] }
             if (existing != null) {
-                localRepository.updateDistance(serverDist.copy(id = existing.id), markUnsynced = false)
+                if (existing.isSynced) {
+                    localRepository.updateDistance(serverDist.copy(id = existing.id), markUnsynced = false)
+                }
             } else {
                 localRepository.saveDistance(serverDist, markUnsynced = false)
             }
