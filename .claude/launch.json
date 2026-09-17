@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "competra-web-dev",
+      "runtimeExecutable": "/Users/rodionov/web_projects/competra-web/gradlew",
+      "runtimeArgs": [
+        "-p",
+        "/Users/rodionov/web_projects/competra-web",
+        "-Pkotlin.daemon.jvmargs=-Xmx4g",
+        ":web:wasmJsBrowserDevelopmentRun"
+      ],
+      "port": 8080
+    }
+  ]
+}

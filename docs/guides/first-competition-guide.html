@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Первое соревнование в Competra</title>
+<style>
+  :root{ color-scheme: light dark; }
+  html,body{ margin:0; padding:0; }
+  img{ max-width:100%; }
+
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  :root{
+    --bg:#F6F2E8;
+    --surface:#FFFFFF;
+    --surface-2:#ECE6D4;
+    --ink:#1E2A20;
+    --ink-soft:#54604F;
+    --accent:#2E6B4E;
+    --accent-strong:#1F4D38;
+    --flag:#BE4B2A;
+    --line:#DAD2B9;
+    --font-display:'Unbounded', 'Arial Narrow', sans-serif;
+    --font-body:'Manrope', 'Segoe UI', sans-serif;
+    --font-mono:'JetBrains Mono', 'Courier New', monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14190F;
+      --surface:#1C2317;
+      --surface-2:#24301F;
+      --ink:#E9E7D8;
+      --ink-soft:#9FAC93;
+      --accent:#75C596;
+      --accent-strong:#9BDBB4;
+      --flag:#E58A63;
+      --line:#333F2B;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14190F;
+    --surface:#1C2317;
+    --surface-2:#24301F;
+    --ink:#E9E7D8;
+    --ink-soft:#9FAC93;
+    --accent:#75C596;
+    --accent-strong:#9BDBB4;
+    --flag:#E58A63;
+    --line:#333F2B;
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .page{
+    max-width:740px;
+    margin:0 auto;
+    padding:56px 24px 88px;
+  }
+
+  header.intro{
+    margin-bottom:40px;
+  }
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--flag);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:22px;
+    height:1px;
+    background:var(--flag);
+    display:inline-block;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:clamp(28px,5vw,40px);
+    line-height:1.14;
+    letter-spacing:-0.01em;
+    margin:0 0 18px;
+    text-wrap:balance;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-size:16.5px;
+    line-height:1.65;
+    color:var(--ink-soft);
+    max-width:60ch;
+    margin:0;
+  }
+
+  .checklist{
+    margin:36px 0 8px;
+    border:1px solid var(--line);
+    background:var(--surface);
+    border-radius:14px;
+    padding:20px 22px;
+  }
+  .checklist-title{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    font-weight:700;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 14px;
+  }
+  .checklist ul{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px 20px;
+  }
+  .checklist li{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    font-size:14.5px;
+    line-height:1.45;
+    color:var(--ink);
+  }
+  .checklist svg{
+    flex:none;
+    width:18px;
+    height:18px;
+    margin-top:1px;
+    stroke:var(--accent);
+  }
+
+  .stages{
+    margin-top:52px;
+    border-top:1px solid var(--line);
+  }
+  .stage{
+    display:grid;
+    grid-template-columns:64px 1fr;
+    gap:22px;
+    padding:30px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .stage-num{
+    font-family:var(--font-mono);
+    font-weight:700;
+    font-size:26px;
+    color:var(--flag);
+    line-height:1;
+    padding-top:4px;
+    font-variant-numeric:tabular-nums;
+  }
+  .stage h2{
+    font-family:var(--font-display);
+    font-weight:500;
+    font-size:19px;
+    margin:0 0 10px;
+    color:var(--ink);
+    text-wrap:balance;
+  }
+  .stage p{
+    font-size:15px;
+    line-height:1.68;
+    color:var(--ink);
+    margin:0 0 14px;
+    max-width:62ch;
+  }
+  .stage p strong{ color:var(--accent-strong); font-weight:700; }
+
+  .tags{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .tag{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    font-weight:500;
+    letter-spacing:.02em;
+    color:var(--ink-soft);
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:5px 9px;
+    white-space:nowrap;
+  }
+
+  .wizard{
+    margin:18px 0 4px;
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    border-radius:12px;
+    padding:18px 20px 20px;
+  }
+  .wizard-title{
+    font-family:var(--font-mono);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 14px;
+  }
+  .wizard-steps{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+  }
+  .wizard-steps li{
+    padding:14px 0 0;
+    margin-top:14px;
+    border-top:1px solid var(--line);
+  }
+  .wizard-steps li:first-child{
+    padding-top:0;
+    margin-top:0;
+    border-top:none;
+  }
+  .wizard-step-title{
+    display:block;
+    font-family:var(--font-display);
+    font-weight:500;
+    font-size:14.5px;
+    color:var(--ink);
+    margin-bottom:6px;
+  }
+  .wizard-steps p{
+    font-size:13.5px;
+    line-height:1.62;
+    color:var(--ink-soft);
+    margin:0 0 10px;
+    max-width:60ch;
+  }
+  .required{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:7px;
+  }
+  .req-label{
+    font-family:var(--font-mono);
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--flag);
+  }
+  .req-tag{
+    font-family:var(--font-mono);
+    font-size:11px;
+    font-weight:700;
+    color:var(--flag);
+    background:transparent;
+    border:1px solid var(--flag);
+    border-radius:6px;
+    padding:3px 8px;
+  }
+
+  .callout{
+    margin:26px 0 0;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:3px solid var(--accent);
+    border-radius:0 10px 10px 0;
+    padding:16px 18px;
+  }
+  .callout-label{
+    font-family:var(--font-mono);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 6px;
+  }
+  .callout p{
+    margin:0;
+    font-size:14px;
+    line-height:1.6;
+    color:var(--ink-soft);
+  }
+
+  footer.closing{
+    margin-top:48px;
+    padding-top:8px;
+  }
+  footer.closing p{
+    font-size:15px;
+    line-height:1.68;
+    color:var(--ink-soft);
+    max-width:62ch;
+    margin:0 0 14px;
+  }
+  footer.closing p:last-child{ margin-bottom:0; }
+  footer.closing strong{ color:var(--ink); font-weight:700; }
+
+  @media (max-width:520px){
+    .stage{ grid-template-columns:1fr; gap:8px; }
+    .stage-num{ font-size:20px; }
+    .checklist ul{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="intro">
+    <div class="eyebrow">Competra · гид организатора</div>
+    <h1>Как провести своё первое соревнование</h1>
+    <p class="subtitle">Инструкция для тех, кто впервые открывает приложение и хочет организовать старт по спортивному ориентированию — от создания события до публикации результатов участникам.</p>
+  </header>
+
+  <div class="checklist">
+    <p class="checklist-title">Что понадобится до начала</p>
+    <ul>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/></svg>Телефон с NFC — для записи и чтения чипов</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Чистые NFC-чипы — по одному на участника</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M15 20c.3-2.6 2-4.6 4-5"/></svg>Список участников — фамилия, имя, группа</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l6-16 4 10 3-6 3 12"/></svg>Карта дистанций с контрольными пунктами</li>
+    </ul>
+  </div>
+
+  <div class="stages">
+
+    <section class="stage">
+      <div class="stage-num">01</div>
+      <div>
+        <h2>Создайте событие</h2>
+        <p>Откройте вкладку <strong>«Управление»</strong> в нижней панели — это экран «Управление событиями». Нажмите <strong>«Создать новое событие»</strong>, выберите вид спорта («Спортивное ориентирование») и пройдите мастер из пяти шагов.</p>
+        <div class="tags"><span class="tag">Управление</span><span class="tag">Управление событиями</span><span class="tag">Создать новое событие</span></div>
+
+        <div class="wizard">
+          <p class="wizard-title">Мастер создания события</p>
+          <ol class="wizard-steps">
+            <li>
+              <span class="wizard-step-title">Шаг 1 · Общая информация</span>
+              <p>Название соревнования, обложка, дата и время старта, часовой пояс, место проведения и точка старта на карте, направление ориентирования, тип отметки, тип стартового времени, интервал между стартами, описание.</p>
+              <div class="required"><span class="req-label">Обязательно</span><span class="req-tag">Название</span><span class="req-tag">Адрес</span></div>
+            </li>
+            <li>
+              <span class="wizard-step-title">Шаг 2 · Параметры регистрации</span>
+              <p>Открыть регистрацию сразу или назначить дату начала; момент закрытия — в момент старта или за сутки до него; платное участие, размер взноса и валюта.</p>
+              <div class="required"><span class="req-label">Обязательно</span><span class="req-tag">Дата и время начала регистрации — если она не открывается сразу</span></div>
+            </li>
+            <li>
+              <span class="wizard-step-title">Шаг 3 · Контакты и медиа</span>
+              <p>Карта района дистанций (файл или ссылка), контактный телефон, email, клуб-организатор.</p>
+              <div class="required"><span class="req-label">Обязательно</span><span class="req-tag">Контактный телефон</span></div>
+            </li>
+            <li>
+              <span class="wizard-step-title">Шаг 4 · Дистанции</span>
+              <p>Название дистанции, длина, набор высоты, список контрольных пунктов, финишное КП, описание. Дистанций может быть несколько.</p>
+              <div class="required"><span class="req-label">Обязательно</span><span class="req-tag">Хотя бы одна дистанция</span></div>
+            </li>
+            <li>
+              <span class="wizard-step-title">Шаг 5 · Группы участников</span>
+              <p>Название группы, возрастные рамки, лимит участников, лимит времени и штрафы. При создании группы вы <strong>выбираете для неё одну из дистанций</strong>, заданных на шаге 4, — поэтому дистанции нужно создать раньше групп. Нажмите «Завершить», чтобы закончить мастер.</p>
+              <div class="required"><span class="req-label">Обязательно</span><span class="req-tag">Хотя бы одна группа</span><span class="req-tag">Дистанция для группы</span></div>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="stage-num">02</div>
+      <div>
+        <h2>Соберите стартовый протокол</h2>
+        <p>Откройте карточку своего события в «Управление событиями» — вы попадёте на экран события с блоком NFC-кнопок и списком <strong>«Разделы»</strong>. Выберите «Стартовый протокол» и нажмите <strong>«Добавить участника»</strong> — укажите имя и фамилию. Стартовое время можно задать позже, при редактировании уже добавленного участника.</p>
+        <div class="tags"><span class="tag">Разделы</span><span class="tag">Стартовый протокол</span><span class="tag">Добавить участника</span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="stage-num">03</div>
+      <div>
+        <h2>Проведите жеребьёвку</h2>
+        <p>В разделе «Жеребьёвка» выберите режим — «Общая жеребьёвка», «По группам» или «По дистанциям» — и нажмите <strong>«Начать»</strong>. Результат сразу появится тут же, а также отдельно на экране «Стартовая решётка».</p>
+        <div class="tags"><span class="tag">Жеребьёвка</span><span class="tag">Начать</span><span class="tag">Стартовая решётка</span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="stage-num">04</div>
+      <div>
+        <h2>Запишите чипы участникам</h2>
+        <p>Откройте раздел <strong>«Выдача чипов»</strong>, впишите номер чипа в поле «Чип» напротив нужного участника и отметьте чекбокс выдачи. Нажмите <strong>«Сохранить изменения»</strong> и вручите чип участнику.</p>
+        <div class="tags"><span class="tag">Выдача чипов</span><span class="tag">Сохранить изменения</span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="stage-num">05</div>
+      <div>
+        <h2>Дайте старт</h2>
+        <p>Когда все участники получили чипы, найдите на экране события блок «Старт» и нажмите <strong>«ЗАПУСТИТЬ ТАЙМЕР»</strong>. В диалоге подтвердите — начнётся отсчёт, и появится баннер «Соревнование начато • Старт дан».</p>
+        <div class="tags"><span class="tag">Старт</span><span class="tag">Запустить таймер</span><span class="tag">Старт дан</span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="stage-num">06</div>
+      <div>
+        <h2>Считайте результаты на финише</h2>
+        <p>Когда участник финиширует, нажмите <strong>«Сканировать»</strong> — откроется экран «Результат участника». Приложите чип к телефону: приложение покажет «Сплиты по пунктам» и отметит нештатные пункты — «Пропущенный КП», «Лишняя отметка (нет в дистанции)» или «Взят не в том порядке». Нажмите <strong>«Сохранить результат»</strong> и переходите к следующему участнику.</p>
+        <div class="tags"><span class="tag">Сканировать</span><span class="tag">Результат участника</span><span class="tag">Сплиты по пунктам</span><span class="tag">Сохранить результат</span></div>
+      </div>
+    </section>
+
+    <section class="stage" style="border-bottom:none;">
+      <div class="stage-num">07</div>
+      <div>
+        <h2>Завершите и опубликуйте</h2>
+        <p>После финиша последнего участника нажмите <strong>«ЗАВЕРШИТЬ СОРЕВНОВАНИЕ»</strong> — тем, кто не финишировал, будет проставлен статус DNF. В разделе «Результаты» проверьте таблицу, при необходимости откройте «Корректировка времени» и поправьте время старта или финиша вручную, затем нажмите <strong>«Утвердить результаты»</strong>.</p>
+        <p>Дальше — на выбор: кнопка <strong>«Опубликовать результаты участникам»</strong> отправит push-уведомление зарегистрированным участникам, а пункт «Опубликовать результаты» в меню «поделиться» сформирует отдельную ссылку с результатами, которой можно поделиться где угодно.</p>
+        <div class="tags"><span class="tag">Завершить соревнование</span><span class="tag">Утвердить результаты</span><span class="tag">Опубликовать результаты участникам</span><span class="tag">Ссылка на результаты</span></div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="closing">
+    <p>Участники, у которых есть ссылка на событие, увидят таблицу результатов, сплиты и график прямо в приложении — без вашего участия.</p>
+    <p><strong>На этом первое соревнование готово.</strong> Остальные возможности — клубы и команды, экспорт в CSV или PDF, ручная корректировка времени — осваиваются по ходу дела, когда они понадобятся.</p>
+  </footer>
+
+</div>
+
+</body>
+</html>
