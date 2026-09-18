@@ -225,6 +225,10 @@
     <string name="rating_detail_delete_confirm_title">Удалить рейтинг?</string>
     <string name="rating_detail_delete_confirm_message">Все соревнования и маппинг групп будут удалены из рейтинга. Действие необратимо.</string>
 
+    <string name="rating_athlete_starts_empty">Стартов пока нет</string>
+    <string name="rating_athlete_starts_place_label">Место: %1$s</string>
+    <string name="rating_athlete_starts_unknown_competition">Соревнование %1$s</string>
+
     <string name="rating_add_competition_title">Добавить соревнование</string>
     <string name="rating_add_competition_search_hint">Поиск соревнования</string>
     <string name="rating_add_competition_empty">Соревнования не найдены</string>

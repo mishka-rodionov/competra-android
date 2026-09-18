@@ -40,6 +40,14 @@ class RatingDetailViewModel(
                 updateState { copy(selectedGroupId = action.groupId) }
                 loadStandings(action.groupId)
             }
+            is RatingDetailAction.StandingClick -> {
+                val groupId = stateValue.selectedGroupId ?: return
+                viewModelScope.launch {
+                    navigation.navigate(
+                        RatingNavigation.AthleteStartsRoute(stateValue.ratingId, groupId, action.participantKey)
+                    )
+                }
+            }
             is RatingDetailAction.AddCompetitionClick -> {
                 viewModelScope.launch {
                     navigation.navigate(RatingNavigation.AddCompetitionRoute(stateValue.ratingId))

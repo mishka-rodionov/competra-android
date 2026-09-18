@@ -1,6 +1,7 @@
 package com.competra.rating.presentation.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -137,7 +138,10 @@ fun RatingDetailScreen(ratingId: String, viewModel: RatingDetailViewModel = koin
             } else {
                 items(state.standings, key = { "standing_${it.participantKey}" }) { standing ->
                     Box(modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp)) {
-                        StandingRow(standing)
+                        StandingRow(
+                            standing = standing,
+                            onClick = { viewModel.onAction(RatingDetailAction.StandingClick(standing.participantKey)) }
+                        )
                     }
                 }
             }
@@ -184,7 +188,7 @@ fun RatingDetailScreen(ratingId: String, viewModel: RatingDetailViewModel = koin
 }
 
 @Composable
-private fun StandingRow(standing: RatingStanding) {
+private fun StandingRow(standing: RatingStanding, onClick: () -> Unit) {
     val startsCount = standing.breakdown.size
     val isTopThree = standing.rank in 1..3
     val badgeContainer = when (standing.rank) {
@@ -196,7 +200,7 @@ private fun StandingRow(standing: RatingStanding) {
     val badgeContent = if (isTopThree) Color(0xFF2A2A2A) else MaterialTheme.colorScheme.onSurfaceVariant
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = if (isTopThree) {
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
         } else {

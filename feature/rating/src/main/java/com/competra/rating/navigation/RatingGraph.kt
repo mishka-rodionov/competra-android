@@ -4,7 +4,9 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.competra.data.navigation.RatingNavigation
+import com.competra.eventdetails.navigation.eventDetailsGraph
 import com.competra.rating.presentation.add_competition.AddCompetitionScreen
+import com.competra.rating.presentation.athlete_starts.AthleteStartsScreen
 import com.competra.rating.presentation.detail.RatingDetailScreen
 import com.competra.rating.presentation.form.RatingFormScreen
 import com.competra.rating.presentation.group_mapping.GroupMappingScreen
@@ -44,4 +46,13 @@ fun NavGraphBuilder.ratingGraph() {
         val route: RatingNavigation.GroupMappingRoute = backStackEntry.toRoute()
         GroupMappingScreen(ratingId = route.ratingId, competitionId = route.competitionId)
     }
+
+    composable<RatingNavigation.AthleteStartsRoute> { backStackEntry ->
+        val route: RatingNavigation.AthleteStartsRoute = backStackEntry.toRoute()
+        AthleteStartsScreen(ratingId = route.ratingId, groupId = route.groupId, participantKey = route.participantKey)
+    }
+
+    // Переход со старта спортсмена на результаты соревнования (EventResultsRoute) ведёт сюда же —
+    // граф деталей события подключается прямо здесь, как и в profileNavigation()/eventsGraph().
+    eventDetailsGraph()
 }

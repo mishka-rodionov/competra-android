@@ -38,4 +38,8 @@ sealed class RatingNavigation : BaseNavigation {
     /** Подтверждение/правка маппинга групп соревнования [competitionId] на канонические группы рейтинга [ratingId]. */
     @Serializable
     data class GroupMappingRoute(val ratingId: String, val competitionId: String) : RatingNavigation()
+
+    /** Старты спортсмена [participantKey] в группе [groupId] рейтинга [ratingId] (соревнование + занятое место). */
+    @Serializable
+    data class AthleteStartsRoute(val ratingId: String, val groupId: Long, val participantKey: String) : RatingNavigation()
 }
