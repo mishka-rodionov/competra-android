@@ -12,7 +12,9 @@ data class ParticipantGroupDetailResponse(
     @SerializedName("distanceLengthMeters") val distanceLengthMeters: Int? = null,
     @SerializedName("distanceClimbMeters") val distanceClimbMeters: Int? = null,
     @SerializedName("distanceControlsCount") val distanceControlsCount: Int? = null,
-    @SerializedName("distanceDescription") val distanceDescription: String? = null
+    @SerializedName("distanceDescription") val distanceDescription: String? = null,
+    /** Итоговое КВ группы: своё значение группы либо унаследованное от соревнования. */
+    @SerializedName("controlTimeMinutes") val controlTimeMinutes: Int? = null
 )
 
 data class CompetitionDetailResponse(
@@ -45,6 +47,8 @@ data class CompetitionDetailResponse(
     @SerializedName("website") val website: String? = null,
     @SerializedName("timeZoneId") val timeZoneId: String? = null,
     @SerializedName("resultsStatus") val resultsStatus: String,
+    /** IGNORE / DISQUALIFY / SCORE_PENALTY — как соревнование обходится с превышением КВ. */
+    @SerializedName("overtimePolicy") val overtimePolicy: String? = null,
     @SerializedName("participantGroups") val participantGroups: List<ParticipantGroupDetailResponse>,
     @SerializedName("isUserRegistered") val isUserRegistered: Boolean = false,
     @SerializedName("imageUrl") val imageUrl: String? = null,

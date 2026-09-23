@@ -42,6 +42,12 @@ data class OrienteeringCompetitionResponse(
     @SerializedName("startIntervalSeconds")
     val startIntervalSeconds: Int? = null,
 
+    @SerializedName("controlTimeMinutes")
+    val controlTimeMinutes: Int? = null,
+
+    @SerializedName("overtimePolicy")
+    val overtimePolicy: String? = null,
+
     @SerializedName("updatedAt")
     val updatedAt: Long = 0L
 )

@@ -30,6 +30,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.competra.designsystem.components.DSTextInput
@@ -41,6 +42,7 @@ import com.competra.designsystem.theme.Dimens
 import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
 import com.competra.domain.models.orienteering.OrienteeringDirection
+import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.resources.R
@@ -330,6 +332,9 @@ private fun CommonCompetitionFieldContent(
                 FieldDescription("Промежуток между стартами участников при стартах по протоколу")
             }
 
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+            ControlTimeBlock(state = state, userAction = onAction)
+
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
 
             // Поле ввода описания
@@ -555,6 +560,70 @@ private fun PunchingSystemSelector(
             }
         }
     )
+}
+
+/**
+ * Контрольное время (КВ) соревнования и политика его применения.
+ *
+ * КВ здесь — умолчание для всех групп; группа может переопределить его своим значением
+ * (см. ParticipantGroupCreator). Селектор политики показывается только когда КВ задано:
+ * без КВ выбирать нечего.
+ */
+@Composable
+private fun ControlTimeBlock(
+    state: OrienteeringCreatorState,
+    userAction: (OrienteeringCreatorAction) -> Unit
+) {
+    val isByChoice = state.competitionDirection == OrienteeringDirection.BY_CHOICE
+    val policies = if (isByChoice) {
+        OvertimePolicy.entries
+    } else {
+        // Штраф очками осмыслен только в score-О: в остальных форматах очков нет.
+        OvertimePolicy.entries.filter { it != OvertimePolicy.SCORE_PENALTY }
+    }
+
+    Column {
+        DSTextInput(
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Контрольное время (мин)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+            text = state.controlTimeMinutes?.toString() ?: "",
+            onValueChanged = { raw ->
+                userAction.invoke(
+                    OrienteeringCreatorAction.UpdateControlTime(raw.filter { it.isDigit() }.toIntOrNull())
+                )
+            }
+        )
+        FieldDescription("За сколько минут участник должен уложиться. Группа может задать своё КВ")
+
+        if (state.controlTimeMinutes != null) {
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+            ExposedDropdownMenuOutlined(
+                label = "При превышении КВ",
+                items = policies,
+                selectedItem = state.overtimePolicy,
+                onItemSelected = { userAction.invoke(OrienteeringCreatorAction.UpdateOvertimePolicy(it)) },
+                itemToString = {
+                    when (it) {
+                        OvertimePolicy.IGNORE -> "Не учитывать"
+                        OvertimePolicy.DISQUALIFY -> "Дисквалифицировать"
+                        OvertimePolicy.SCORE_PENALTY -> "Штраф очками"
+                    }
+                }
+            )
+            FieldDescription(
+                when (state.overtimePolicy) {
+                    OvertimePolicy.IGNORE ->
+                        "КВ показывается участникам, но результаты засчитываются всем"
+                    OvertimePolicy.DISQUALIFY ->
+                        "Превысившие КВ снимаются и не получают места"
+                    OvertimePolicy.SCORE_PENALTY ->
+                        "Опоздание штрафуется очками — настраивается у каждой группы"
+                }
+            )
+        }
+    }
 }
 
 @Composable

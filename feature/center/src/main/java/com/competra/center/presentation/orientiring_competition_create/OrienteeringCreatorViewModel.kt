@@ -238,6 +238,14 @@ class OrienteeringCreatorViewModel(
                 copy(punchingSystem = action.punchingSystem)
             }
 
+            is OrienteeringCreatorAction.UpdateControlTime -> updateState {
+                copy(controlTimeMinutes = action.minutes)
+            }
+
+            is OrienteeringCreatorAction.UpdateOvertimePolicy -> updateState {
+                copy(overtimePolicy = action.policy)
+            }
+
             is OrienteeringCreatorAction.UpdateStartInterval -> updateState {
                 copy(startIntervalSeconds = action.seconds)
             }
@@ -398,6 +406,8 @@ class OrienteeringCreatorViewModel(
                     startTimeMode = comp.startTimeMode,
                     countdownTimer = comp.countdownTimer,
                     startIntervalSeconds = comp.startIntervalSeconds,
+                    controlTimeMinutes = comp.controlTimeMinutes,
+                    overtimePolicy = comp.overtimePolicy,
                     isTest = comp.competition.isTest,
                     organizingClubId = comp.competition.organizingClubId,
                 )

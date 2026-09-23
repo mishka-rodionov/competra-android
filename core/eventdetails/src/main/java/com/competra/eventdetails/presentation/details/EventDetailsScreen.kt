@@ -642,7 +642,8 @@ private fun buildDistanceSummary(group: EventParticipantGroup): String? {
         group.distanceName,
         group.distanceLengthMeters?.let { formatMeters(it) },
         group.distanceClimbMeters?.takeIf { it > 0 }?.let { "набор ${it} м" },
-        group.distanceControlsCount?.takeIf { it > 0 }?.let { "$it КП" }
+        group.distanceControlsCount?.takeIf { it > 0 }?.let { "$it КП" },
+        group.controlTimeMinutes?.let { "КВ $it мин" }
     )
     return parts.takeIf { it.isNotEmpty() }?.joinToString(" • ")
 }

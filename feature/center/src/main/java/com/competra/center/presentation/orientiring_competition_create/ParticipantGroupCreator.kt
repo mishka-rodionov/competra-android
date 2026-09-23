@@ -54,8 +54,10 @@ fun ParticipantGroupEditor(
     var maxParticipants by remember { mutableStateOf(initialGroup?.maxParticipants?.toString() ?: "") }
     var selectedGender by remember { mutableStateOf(initialGroup?.gender) }
     val isByChoice = state.competitionDirection == OrienteeringDirection.BY_CHOICE
+    // Пусто = наследовать КВ соревнования. Дефолт для BY_CHOICE не подставляем: иначе
+    // организатор случайно переопределит КВ во всех группах.
     var timeLimitMinutes by remember {
-        mutableStateOf(initialGroup?.timeLimitMinutes?.toString() ?: if (isByChoice) "60" else "")
+        mutableStateOf(initialGroup?.timeLimitMinutes?.toString() ?: "")
     }
     var scorePenaltyPerMinute by remember {
         mutableStateOf(initialGroup?.scorePenaltyPerMinute?.toString() ?: if (isByChoice) "1" else "")
@@ -183,6 +185,26 @@ fun ParticipantGroupEditor(
                     onValueChanged = { maxParticipants = it }
                 )
 
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+                DSTextInput(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Контрольное время (мин)") },
+                    supportingText = {
+                        Text(
+                            if (state.controlTimeMinutes != null) {
+                                "Пусто — как у соревнования: ${state.controlTimeMinutes} мин"
+                            } else {
+                                "Через сколько минут после старта нужно финишировать"
+                            }
+                        )
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    text = timeLimitMinutes,
+                    onValueChanged = { timeLimitMinutes = it.filter { c -> c.isDigit() } }
+                )
+
                 if (isByChoice) {
                     Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
@@ -191,19 +213,7 @@ fun ParticipantGroupEditor(
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    FieldDescription("Лимит времени и штраф за опоздание для этой группы")
-
-                    DSTextInput(
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Лимит времени (мин)") },
-                        supportingText = { Text("Через сколько минут после старта нужно финишировать") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                        text = timeLimitMinutes,
-                        onValueChanged = { timeLimitMinutes = it.filter { c -> c.isDigit() } }
-                    )
-
-                    Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                    FieldDescription("Штраф за опоздание сверх контрольного времени")
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DSTextInput(
@@ -247,7 +257,7 @@ fun ParticipantGroupEditor(
                                     maxAge = maxAge.toIntOrNull(),
                                     distanceId = selectedDistanceId, // Сохраняем ID выбранной дистанции
                                     maxParticipants = maxParticipants.toIntOrNull(),
-                                    timeLimitMinutes = if (isByChoice) timeLimitMinutes.toIntOrNull() else null,
+                                    timeLimitMinutes = timeLimitMinutes.toIntOrNull(),
                                     scorePenaltyPerMinute = if (isByChoice) scorePenaltyPerMinute.toIntOrNull() else null,
                                     maxLatenessMinutes = if (isByChoice) maxLatenessMinutes.toIntOrNull() else null,
                                     isSynced = false,

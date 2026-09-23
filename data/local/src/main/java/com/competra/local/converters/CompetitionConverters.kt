@@ -3,6 +3,7 @@ package com.competra.local.converters
 import androidx.room.TypeConverter
 import com.competra.domain.models.KindOfSport
 import com.competra.domain.models.orienteering.OrienteeringDirection
+import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
 
 /**
@@ -42,5 +43,16 @@ class CompetitionConverters {
     @TypeConverter
     fun toPunchingSystem(value: String?): PunchingSystem? {
         return value?.let { PunchingSystem.valueOf(it) }
+    }
+
+    @TypeConverter
+    fun fromOvertimePolicy(policy: OvertimePolicy?): String? {
+        return policy?.name
+    }
+
+    /** Неизвестное значение (данные с более новой версии) трактуем как умолчание, а не падаем. */
+    @TypeConverter
+    fun toOvertimePolicy(value: String?): OvertimePolicy? {
+        return value?.let { OvertimePolicy.fromString(it) }
     }
 }

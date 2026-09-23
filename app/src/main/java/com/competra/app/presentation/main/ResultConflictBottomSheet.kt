@@ -213,6 +213,7 @@ private fun buildDiffList(
 
 private fun ResultStatus.label(): String = when (this) {
     ResultStatus.FINISHED -> "Финиш"
+    ResultStatus.OVERTIME -> "Превышено КВ"
     ResultStatus.DSQ -> "Снят"
     ResultStatus.DNS -> "Не стартовал"
     ResultStatus.DNF -> "Сошёл"

@@ -15,6 +15,9 @@ import com.competra.domain.models.Competition
  * старт по отметке - время старта участника определяется по его отметке на стартовой станции
  * @property countdownTimer Время отсчета перед стартом (в минутах), если [startTimeMode] равен [StartTimeMode.USER_SET]
  * @property startTime Фактическое время старта соревнования (timestamp)
+ * @property controlTimeMinutes Контрольное время соревнования в минутах — умолчание для групп
+ * без своего КВ (группа переопределяет его через ParticipantGroup.timeLimitMinutes)
+ * @property overtimePolicy Что делать с результатами, превысившими КВ
  */
 data class OrienteeringCompetition(
     val competitionId: String,
@@ -25,6 +28,8 @@ data class OrienteeringCompetition(
     val countdownTimer: Int? = null,
     val startTime: Long? = null,
     val startIntervalSeconds: Int? = null,
+    val controlTimeMinutes: Int? = null,
+    val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
     val isDrawConducted: Boolean = false,
     val serverUpdatedAt: Long? = null
 )

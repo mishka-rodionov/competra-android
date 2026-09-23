@@ -19,6 +19,8 @@ import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.ReadChipData
+import com.competra.domain.models.orienteering.applyOvertimePolicy
+import com.competra.domain.models.orienteering.effectiveControlTimeMinutes
 import com.competra.domain.models.orienteering.ResultConflictEvent
 import com.competra.domain.models.orienteering.SplitTime
 import com.competra.domain.models.orienteering.StartTimeMode
@@ -105,6 +107,7 @@ class OrientReadCardViewModel(
             val lastValidPunch = checkResult.validSplits.lastOrNull() ?: rawSplits.last()
             val finishTime = lastValidPunch.timestamp
             val totalTime = (finishTime - startTime) / 1000L
+            val effectiveStatus = applyControlTime(participant.groupId, totalTime, checkResult.status)
             if (stateValue.startTimeMode == StartTimeMode.BY_START_STATION && startTime != participant.startTime) {
                 orienteeringCompetitionInteractor.updateParticipantLocally(participant.copy(startTime = startTime))
             }
@@ -116,7 +119,7 @@ class OrientReadCardViewModel(
                 finishTime = finishTime,
                 totalTime = totalTime,
                 rank = -1,
-                status = checkResult.status,
+                status = effectiveStatus,
                 penaltyTime = 0,
                 totalScore = checkResult.totalScore,
                 scorePenalty = checkResult.scorePenalty,
@@ -153,6 +156,12 @@ class OrientReadCardViewModel(
                 }
                 val direction = competition?.direction
                 val startTimeMode = competition?.startTimeMode
+                updateState {
+                    copy(
+                        competitionControlTimeMinutes = competition?.controlTimeMinutes,
+                        overtimePolicy = competition?.overtimePolicy ?: this.overtimePolicy
+                    )
+                }
                 if (direction != null) {
                     updateState { copy(competitionDirection = direction, startTimeMode = startTimeMode ?: this.startTimeMode) }
                     // updateState — fire-and-forget (постит апдейт на Main.immediate и не ждёт его
@@ -311,6 +320,11 @@ class OrientReadCardViewModel(
         expectedControlPoints: List<ControlPoint> = emptyList(),
         startControlPoint: Int? = null
     ) {
+        val effectiveStatus = applyControlTime(participant.groupId, totalTime, result.status)
+        // Причину показываем организатору на экране: результат с временем, но без места
+        // иначе выглядит сбоем.
+        val statusText = result.message
+            ?: "Превышено контрольное время".takeIf { effectiveStatus == ResultStatus.OVERTIME }
         val newResult = OrienteeringResult(
             competitionId = participant.competitionId,
             participantId = participant.id,
@@ -319,7 +333,7 @@ class OrientReadCardViewModel(
             finishTime = finishTime,
             totalTime = totalTime,
             rank = -1,
-            status = result.status,
+            status = effectiveStatus,
             penaltyTime = 0,
             totalScore = result.totalScore,
             scorePenalty = result.scorePenalty,
@@ -353,7 +367,7 @@ class OrientReadCardViewModel(
                     expectedCpNumbers = expectedCpNumbers,
                     expectedControlPoints = expectedControlPoints,
                     isPendingSave = false,
-                    statusMessage = result.message,
+                    statusMessage = statusText,
                     startControlPoint = startControlPoint,
                 )
             }
@@ -370,7 +384,7 @@ class OrientReadCardViewModel(
                     expectedCpNumbers = expectedCpNumbers,
                     expectedControlPoints = expectedControlPoints,
                     isPendingSave = true,
-                    statusMessage = result.message,
+                    statusMessage = statusText,
                     startControlPoint = startControlPoint,
                 )
             }
@@ -384,7 +398,7 @@ class OrientReadCardViewModel(
                 rawSplits = rawSplits,
                 expectedCpNumbers = expectedCpNumbers,
                 expectedControlPoints = expectedControlPoints,
-                statusMessage = result.message,
+                statusMessage = statusText,
                 startControlPoint = startControlPoint,
             )
         }
@@ -435,6 +449,7 @@ class OrientReadCardViewModel(
             val lastValidPunch = checkResult.validSplits.lastOrNull() ?: rawSplits.last()
             val finishTime = lastValidPunch.timestamp
             val totalTime = (finishTime - startTime) / 1000L
+            val effectiveStatus = applyControlTime(participant.groupId, totalTime, checkResult.status)
             OrienteeringResult(
                 competitionId = participant.competitionId,
                 participantId = participant.id,
@@ -481,6 +496,27 @@ class OrientReadCardViewModel(
             refreshGroupRank(participant)
         }
         updateState { copy(isPendingSave = false) }
+    }
+
+    /**
+     * Приводит статус к контрольному времени: КВ группы (или соревнования, если у группы своего
+     * нет) и политика соревнования. Та же логика, что на сервере — см. applyOvertimePolicy.
+     */
+    private suspend fun applyControlTime(
+        groupId: Long,
+        totalTimeSeconds: Long?,
+        status: ResultStatus
+    ): ResultStatus {
+        val group = orienteeringCompetitionInteractor.getParticipantGroup(groupId).getOrNull()
+        return applyOvertimePolicy(
+            status = status,
+            totalTimeSeconds = totalTimeSeconds,
+            controlTimeMinutes = effectiveControlTimeMinutes(
+                groupLimitMinutes = group?.timeLimitMinutes,
+                competitionControlTimeMinutes = stateValue.competitionControlTimeMinutes
+            ),
+            policy = stateValue.overtimePolicy
+        )
     }
 
     /** Выбирает алгоритм проверки отметок в зависимости от формата соревнования. */

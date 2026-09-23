@@ -4,6 +4,7 @@ import com.competra.domain.models.orienteering.ControlPoint
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
+import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.SplitTime
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.ui.BaseState
@@ -22,6 +23,10 @@ data class OrientReadCardState(
      * [OrienteeringParticipant.startTime], назначенного заранее.
      */
     val startTimeMode: StartTimeMode = StartTimeMode.STRICT,
+    /** КВ соревнования в минутах — умолчание для групп без своего значения. */
+    val competitionControlTimeMinutes: Int? = null,
+    /** Политика применения КВ, выбранная организатором для всего соревнования. */
+    val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
     val editingSplitIndex: Int? = null,
     val groupRank: Int? = null,
     val groupTotalFinished: Int = 0,

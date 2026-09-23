@@ -265,6 +265,7 @@ class OrienteeringCompetitionResultsViewModel(
                 val total = pw.result?.totalTime?.toRaceTime() ?: ""
                 val status = when (pw.result?.status) {
                     ResultStatus.FINISHED -> "Финиш"
+                    ResultStatus.OVERTIME -> "Превышено КВ"
                     ResultStatus.DSQ      -> "Снят"
                     ResultStatus.DNS      -> "Не стартовал"
                     ResultStatus.DNF      -> "Сошёл"
@@ -359,6 +360,7 @@ class OrienteeringCompetitionResultsViewModel(
                 val total  = (pw.result?.totalTime?.toRaceTime() ?: "").padEnd(10)
                 val status = when (pw.result?.status) {
                     ResultStatus.FINISHED -> "Финиш"
+                    ResultStatus.OVERTIME -> "Превышено КВ"
                     ResultStatus.DSQ      -> "Снят"
                     ResultStatus.DNS      -> "Не стартовал"
                     ResultStatus.DNF      -> "Сошёл"
@@ -566,6 +568,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
                     } else {
                         totalTime
                     }
+                    ResultStatus.OVERTIME -> "превышено кв"
                     ResultStatus.DSQ      -> "снят"
                     ResultStatus.DNS      -> "н/с"
                     ResultStatus.DNF      -> "не финишировал"

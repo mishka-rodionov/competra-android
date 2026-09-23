@@ -63,7 +63,9 @@ class CyclicEventDetailsRepositoryImpl(
                                 distanceLengthMeters = group.distanceLengthMeters,
                                 distanceClimbMeters = group.distanceClimbMeters,
                                 distanceControlsCount = group.distanceControlsCount,
-                                distanceDescription = group.distanceDescription
+                                distanceDescription = group.distanceDescription,
+                                controlTimeMinutes = group.controlTimeMinutes,
+                                overtimePolicy = dto.overtimePolicy
                             )
                         },
                         status = mapStatus(dto.status),

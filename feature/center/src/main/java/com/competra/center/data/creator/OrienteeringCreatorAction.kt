@@ -4,6 +4,7 @@ import android.net.Uri
 import com.competra.domain.models.CropRect
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.RegistrationEndMode
 import com.competra.domain.models.orienteering.StartTimeMode
@@ -41,6 +42,8 @@ sealed class OrienteeringCreatorAction : BaseAction {
     data class UpdateStartTimeMode(val startTimeMode: StartTimeMode): OrienteeringCreatorAction()
     data class UpdatePunchingSystem(val punchingSystem: PunchingSystem): OrienteeringCreatorAction()
     data class UpdateStartInterval(val seconds: Int?): OrienteeringCreatorAction()
+    data class UpdateControlTime(val minutes: Int?): OrienteeringCreatorAction()
+    data class UpdateOvertimePolicy(val policy: OvertimePolicy): OrienteeringCreatorAction()
     
     // Действия для регистрации
     data class UpdateRegistrationStartDate(val date: Long) : OrienteeringCreatorAction()

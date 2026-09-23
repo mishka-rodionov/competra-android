@@ -296,11 +296,13 @@ fun List<ParticipantWithResult>.sortedForResults(
 
 private fun statusSortOrder(status: ResultStatus?): Int = when (status) {
     ResultStatus.FINISHED -> 0
-    ResultStatus.DSQ -> 1
-    ResultStatus.DNF -> 2
-    ResultStatus.DNS -> 3
-    ResultStatus.STARTED -> 4
-    ResultStatus.REGISTERED -> 5
+    // Превысившие КВ идут сразу за финишировавшими: результат показан, но места нет.
+    ResultStatus.OVERTIME -> 1
+    ResultStatus.DSQ -> 2
+    ResultStatus.DNF -> 3
+    ResultStatus.DNS -> 4
+    ResultStatus.STARTED -> 5
+    ResultStatus.REGISTERED -> 6
     null -> 9
 }
 

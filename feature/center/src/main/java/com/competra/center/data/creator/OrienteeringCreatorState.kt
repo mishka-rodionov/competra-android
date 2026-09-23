@@ -93,6 +93,10 @@ data class OrienteeringCreatorState(
     val startTimeMode: StartTimeMode = StartTimeMode.STRICT,
     val countdownTimer: Int? = null,
     val startIntervalSeconds: Int? = null,
+    /** Контрольное время соревнования в минутах (null — не задано); умолчание для групп. */
+    val controlTimeMinutes: Int? = null,
+    /** Что делать с результатами, превысившими КВ. */
+    val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
 
     val editGroupIndex: Int = -1,
     val isShowGroupCreateDialog: Boolean = false,
@@ -150,7 +154,9 @@ data class OrienteeringCreatorState(
             punchingSystem = punchingSystem,
             startTimeMode = startTimeMode,
             countdownTimer = countdownTimer,
-            startIntervalSeconds = startIntervalSeconds
+            startIntervalSeconds = startIntervalSeconds,
+            controlTimeMinutes = controlTimeMinutes,
+            overtimePolicy = overtimePolicy
         )
     }
 }

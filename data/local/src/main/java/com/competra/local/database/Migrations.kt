@@ -322,3 +322,24 @@ val MIGRATION_48_49 = object : Migration(48, 49) {
         db.execSQL("ALTER TABLE distances ADD COLUMN startControlPoint INTEGER")
     }
 }
+
+/**
+ * Миграция с версии 49 на 50.
+ * Контрольное время (КВ) для любого направления: КВ соревнования как умолчание для групп
+ * (группа переопределяет его уже существующим timeLimitMinutes) и политика применения —
+ * IGNORE / DISQUALIFY / SCORE_PENALTY.
+ *
+ * Существующим BY_CHOICE-стартам проставляем SCORE_PENALTY: их лимит времени со штрафом
+ * очками работал и до появления политики.
+ */
+val MIGRATION_49_50 = object : Migration(49, 50) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN controlTimeMinutes INTEGER")
+        db.execSQL(
+            "ALTER TABLE orienteering_competitions ADD COLUMN overtimePolicy TEXT NOT NULL DEFAULT 'IGNORE'"
+        )
+        db.execSQL(
+            "UPDATE orienteering_competitions SET overtimePolicy = 'SCORE_PENALTY' WHERE direction = 'BY_CHOICE'"
+        )
+    }
+}

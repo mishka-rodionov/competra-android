@@ -14,6 +14,8 @@ import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.StartTimeMode
+import com.competra.domain.models.orienteering.applyOvertimePolicy
+import com.competra.domain.models.orienteering.effectiveControlTimeMinutes
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionRemoteRepository
 import com.competra.domain.sync.SyncTrigger
@@ -78,6 +80,7 @@ class OrienteeringCompetitionInteractor(
         silent: Boolean = false
     ): Result<OrienteeringCompetition> {
         return localRepository.updateCompetition(orienteeringCompetition).mapCatching { orienteeringCompetition }
+            .also { applyControlTimeToStoredResults(orienteeringCompetition.competitionId) }
             .also { if (!silent) touch() }
     }
 
@@ -109,6 +112,7 @@ class OrienteeringCompetitionInteractor(
             participantGroups?.let {
                 localRepository.updateParticipantsGroups(orienteeringCompetition.competitionId, participantGroups)
             }
+            applyControlTimeToStoredResults(orienteeringCompetition.competitionId)
         }.onFailure {
 
         }
@@ -289,6 +293,7 @@ class OrienteeringCompetitionInteractor(
         silent: Boolean = false
     ) {
         localRepository.saveParticipantsGroups(participantGroups)
+        participantGroups.firstOrNull()?.let { applyControlTimeToStoredResults(it.competitionId) }
         if (!silent) touch()
     }
 
@@ -296,7 +301,49 @@ class OrienteeringCompetitionInteractor(
         participantGroup: ParticipantGroup,
         silent: Boolean = false
     ): Result<Any> {
-        return localRepository.updateParticipantGroup(participantGroup).also { if (!silent) touch() }
+        return localRepository.updateParticipantGroup(participantGroup)
+            .also { applyControlTimeToStoredResults(participantGroup.competitionId) }
+            .also { if (!silent) touch() }
+    }
+
+    /**
+     * Приводит уже сохранённые результаты соревнования в соответствие с текущим контрольным
+     * временем и политикой его применения, пересчитывая места.
+     *
+     * Сервер делает то же самое у себя при изменении настроек (ResultRanking в проекте eSport);
+     * локальный пересчёт нужен, чтобы судья видел актуальные статусы сразу и офлайн.
+     * Статусы выводятся заново, поэтому снятие обратимо: вернули IGNORE — вернулись места.
+     */
+    suspend fun applyControlTimeToStoredResults(competitionId: String) {
+        val competition = localRepository.getCompetition(competitionId).getOrNull() ?: return
+        val groups = localRepository.getResultByGroups(competitionId).getOrNull() ?: return
+
+        val updated = groups.flatMap { groupData ->
+            val controlTimeMinutes = effectiveControlTimeMinutes(groupData.group, competition)
+            val results = groupData.participants.mapNotNull { it.result }
+            val derived = results.map { result ->
+                val status = applyOvertimePolicy(
+                    status = result.status,
+                    totalTimeSeconds = result.totalTime,
+                    controlTimeMinutes = controlTimeMinutes,
+                    policy = competition.overtimePolicy
+                )
+                if (status == result.status) {
+                    result
+                } else {
+                    result.copy(
+                        status = status,
+                        rank = if (status == ResultStatus.OVERTIME) null else result.rank
+                    )
+                }
+            }
+            // Ничего не поменялось — не трогаем БД: функция вызывается при каждом сохранении настроек.
+            if (derived == results) emptyList() else derived.withRecalculatedRanks(competition.direction)
+        }
+
+        if (updated.isNotEmpty()) {
+            localRepository.updateResults(updated)
+        }
     }
 
     /**
@@ -760,7 +807,9 @@ class OrienteeringCompetitionInteractor(
     suspend fun areAllParticipantsFinished(competitionId: String): Boolean {
         val participants = localRepository.getParticipants(competitionId).getOrNull() ?: return false
         if (participants.isEmpty()) return false
-        val terminalStatuses = setOf(ResultStatus.FINISHED, ResultStatus.DSQ, ResultStatus.DNS, ResultStatus.DNF)
+        val terminalStatuses = setOf(
+            ResultStatus.FINISHED, ResultStatus.OVERTIME, ResultStatus.DSQ, ResultStatus.DNS, ResultStatus.DNF
+        )
         return participants.all { p ->
             localRepository.getResultByParticipant(p.id).getOrNull()?.status in terminalStatuses
         }
@@ -813,7 +862,7 @@ class OrienteeringCompetitionInteractor(
         if (participants.isEmpty()) return false
 
         val terminalStatuses = setOf(
-            ResultStatus.FINISHED, ResultStatus.DSQ, ResultStatus.DNS, ResultStatus.DNF
+            ResultStatus.FINISHED, ResultStatus.OVERTIME, ResultStatus.DSQ, ResultStatus.DNS, ResultStatus.DNF
         )
         val allDone = participants.all { p ->
             localRepository.getResultByParticipant(p.id).getOrNull()?.status in terminalStatuses
@@ -839,7 +888,9 @@ class OrienteeringCompetitionInteractor(
      */
     suspend fun markNonFinishedAsDNF(competitionId: String) {
         val participants = localRepository.getParticipants(competitionId).getOrNull() ?: return
-        val terminalStatuses = setOf(ResultStatus.FINISHED, ResultStatus.DSQ, ResultStatus.DNS)
+        val terminalStatuses = setOf(
+            ResultStatus.FINISHED, ResultStatus.OVERTIME, ResultStatus.DSQ, ResultStatus.DNS
+        )
 
         participants.forEach { participant ->
             val existing = localRepository.getResultByParticipant(participant.id).getOrNull()

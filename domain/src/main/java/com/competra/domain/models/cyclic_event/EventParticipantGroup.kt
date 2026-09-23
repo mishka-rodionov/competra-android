@@ -16,5 +16,9 @@ data class EventParticipantGroup(
     val distanceLengthMeters: Int? = null,
     val distanceClimbMeters: Int? = null,
     val distanceControlsCount: Int? = null,
-    val distanceDescription: String? = null
+    val distanceDescription: String? = null,
+    /** Контрольное время группы в минутах (итоговое, с учётом умолчания соревнования). */
+    val controlTimeMinutes: Int? = null,
+    /** Политика применения КВ, выбранная для соревнования: IGNORE / DISQUALIFY / SCORE_PENALTY. */
+    val overtimePolicy: String? = null
 )

@@ -139,6 +139,7 @@ private fun DistanceInfoBlock(group: EventParticipantGroup) {
         || group.distanceLengthMeters != null
         || group.distanceClimbMeters != null
         || group.distanceControlsCount != null
+        || group.controlTimeMinutes != null
 
     if (!hasDistanceInfo) return
 
@@ -147,7 +148,16 @@ private fun DistanceInfoBlock(group: EventParticipantGroup) {
             group.distanceName,
             group.distanceLengthMeters?.let { formatMeters(it) },
             group.distanceClimbMeters?.let { "набор $it м" },
-            group.distanceControlsCount?.let { "КП: $it" }
+            group.distanceControlsCount?.let { "КП: $it" },
+            group.controlTimeMinutes?.let { minutes ->
+                // При IGNORE КВ носит справочный характер — говорим об этом прямо,
+                // иначе участник решит, что его снимут.
+                when (group.overtimePolicy) {
+                    "DISQUALIFY" -> "КВ: $minutes мин"
+                    "SCORE_PENALTY" -> "КВ: $minutes мин (штраф очками)"
+                    else -> "КВ: $minutes мин (справочно)"
+                }
+            }
         )
         if (stats.isNotEmpty()) {
             Text(

@@ -37,6 +37,7 @@ internal fun formatResultTime(result: OrienteeringResult?): String {
     if (result == null) return "—"
     return when (result.status) {
         ResultStatus.FINISHED -> result.totalTime?.toRaceTime() ?: "—"
+        ResultStatus.OVERTIME -> "КВ"
         ResultStatus.DSQ -> "DSQ"
         ResultStatus.DNF -> "DNF"
         ResultStatus.DNS -> "DNS"

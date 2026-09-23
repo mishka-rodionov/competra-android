@@ -8,6 +8,7 @@ import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import com.competra.domain.models.Competition
 import com.competra.domain.models.orienteering.OrienteeringDirection
+import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.local.converters.CompetitionConverters
@@ -22,6 +23,8 @@ import com.competra.local.converters.CompetitionConverters
  * @property startTimeMode Режим начала соревнования
  * @property countdownTimer Время отсчета перед стартом (в минутах)
  * @property startTime Фактическое время начала соревнования (timestamp)
+ * @property controlTimeMinutes Контрольное время соревнования в минутах (умолчание для групп)
+ * @property overtimePolicy Что делать с результатами, превысившими КВ
  */
 @Entity(
     tableName = "orienteering_competitions",
@@ -39,6 +42,9 @@ data class OrienteeringCompetitionEntity(
     val countdownTimer: Int? = null,
     val startTime: Long? = null,
     val startIntervalSeconds: Int? = null,
+    val controlTimeMinutes: Int? = null,
+    @ColumnInfo(defaultValue = "IGNORE")
+    val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
     @ColumnInfo(defaultValue = "0")
     val isDrawConducted: Boolean = false,
     // Хранит orient.updatedAt (таблица OrienteeringCompetitions), а НЕ comp.updatedAt.

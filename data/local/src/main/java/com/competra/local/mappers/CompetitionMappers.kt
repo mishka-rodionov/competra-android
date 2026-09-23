@@ -24,6 +24,8 @@ fun OrienteeringCompetition.toEntity(): OrienteeringCompetitionEntity {
         countdownTimer = this.countdownTimer,
         startTime = this.startTime,
         startIntervalSeconds = this.startIntervalSeconds,
+        controlTimeMinutes = this.controlTimeMinutes,
+        overtimePolicy = this.overtimePolicy,
         isDrawConducted = this.isDrawConducted,
         serverUpdatedAt = this.serverUpdatedAt
     )
@@ -52,6 +54,8 @@ fun OrienteeringCompetitionEntity.toDomain(): OrienteeringCompetition {
         countdownTimer = this.countdownTimer,
         startTime = this.startTime,
         startIntervalSeconds = this.startIntervalSeconds,
+        controlTimeMinutes = this.controlTimeMinutes,
+        overtimePolicy = this.overtimePolicy,
         isDrawConducted = this.isDrawConducted,
         serverUpdatedAt = this.serverUpdatedAt
     )
