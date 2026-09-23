@@ -118,6 +118,13 @@
 - `docker-compose`: сервис `tracking`, `mem_limit: 512m`, `cpus: "1.0"`, `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`. nginx upstream `tracking_backend`, `proxy_connect_timeout 2s`, `proxy_read_timeout 10s`.
 - Postgres (тот же инстанс): БД `competra_tracking`, роль `competra_tracking` (`CONNECTION LIMIT 10`); роль `competra_tracking_ro` в БД `competra` — `SELECT` на `orienteering_participants`, `participant_groups`, `distances`, `competitions`, `orienteering_competitions`, `orienteering_results`; `CONNECTION LIMIT 3`, `statement_timeout = 3s`.
 
+**Реализовано (этап 2):** `AppMode` + `Application.module()` → `trackingModule()` (`tracking/TrackingModule.kt`, `tracking/TrackingDatabases.kt`); `scripts/setup_tracking_db.sh` (идемпотентный, генерирует пароли в `.env`, вызывается CI после выкатки app и reload nginx); сервис `tracking` в compose; nginx `location /api/live-track/` с upstream через переменную и `resolver 127.0.0.11` — иначе недоступный контейнер tracking ронял бы `nginx -t`/старт nginx целиком; метка `service` в Loki.
+
+Грабли для этапа 3:
+- `newSuspendedTransaction` в Exposed при недоступном пуле Hikari падает **фатальной ошибкой корутин** («Fatal exception in coroutines machinery»), а не обычным исключением. Health-check поэтому идёт напрямую через JDBC (`HikariDataSource.connection.isValid`). Для рабочих запросов — `withContext(Dispatchers.IO) { transaction(db) { … } }` (как `HealthCheck.kt` основного приложения), не `newSuspendedTransaction`.
+- `DatabaseConfig.defaultMaxAttempts = 1` для обеих БД трекинга: по умолчанию Exposed делает 3 попытки × `connectionTimeout`, и запрос висел ~9 с на каждую БД.
+- Пулы с `initializationFailTimeout = -1`: процесс стартует и при недоступной БД, `/api/live-track/health` честно показывает DOWN (проверено: ответ ≤ 3 с, процесс жив).
+
 ### 6.2. Таблицы (`competra_tracking`)
 
 **live_track_sessions**
