@@ -103,9 +103,10 @@
 
 ### 5.3. Изменения
 - **mapper:** `showCompetraBounds` отдаёт 6 значений (`mapTopLeftLat/Lng`, `mapTopRightLat/Lng`, `mapBottomRightLat/Lng`) — это `p0`, `p1`, `p2` без сведения к bbox.
-- **eSport:** колонки, `DistanceRequest`/`DistanceResponse`, `DistanceService`.
-- **web:** `AttachMapDialog` — 6 полей (+ разбор вставленного из mapper текста); `DistanceMapView` — при наличии TR использовать `Leaflet.ImageOverlay.Rotated` (принимает TL, TR, BL).
-- **Android:** в модели дистанции сейчас **нет** ни `mapUrl`, ни углов — добавить в domain / Room (миграция) / DTO / маппинг. Рендер — osmdroid `GroundOverlay` с 4 углами, либо собственный `Overlay` с `Matrix.setPolyToPoly`, если `GroundOverlay` 6.1.20 даст артефакты.
+- **eSport:** колонки, `DistanceRequest`/`DistanceResponse`, `DistanceService`. При обновлении дистанции поля карты перезаписываются **только если в запросе есть `mapUrl`** — Android и формы редактирования дистанции карту не присылают, и раньше любое их сохранение стирало карту, прикреплённую через веб (открепления карты в клиентах нет).
+- **web:** `AttachMapDialog` — 6 полей (+ разбор вставленного из mapper текста); `DistanceMapView` рисует растр по углам из `distanceMapCorners` (`lib/mapCorners.ts`).
+- **Android:** `Distance.map: DistanceMap?` (domain, `corners()` достраивает 4-й угол / bbox), Room-колонки (миграция 50→51), `DistanceResponse`. В `DistanceRequest` карта не отправляется; локальный `updateDistance` подставляет карту из существующей записи. Рендер (этап 5) — osmdroid `GroundOverlay` с 4 углами, либо собственный `Overlay` с `Matrix.setPolyToPoly`, если `GroundOverlay` 6.1.20 даст артефакты.
+- **web (сделано):** собственный `RotatedImageOverlay` (CSS-матрица по трём углам, без стороннего плагина — у `Leaflet.ImageOverlay.Rotated` лицензия Beerware и зависимость от глобального `L`).
 
 ---
 

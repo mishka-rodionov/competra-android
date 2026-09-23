@@ -23,6 +23,8 @@ package com.competra.domain.models.orienteering
  *                              Отметка этого КП в чипе используется как реальное время старта участника —
  *                              актуально только при [StartTimeMode.BY_START_STATION], где обязательно к
  *                              заполнению в UI; для остальных режимов не используется и может быть `null`.
+ * @property map Геопривязанная растровая карта дистанции или `null`, если она не прикреплена. Прикрепляется
+ *               через веб, на Android только читается с сервера.
  */
 data class Distance(
     val id: Long = 0,
@@ -40,7 +42,8 @@ data class Distance(
     val syncError: String? = null,
     val controlPoints: List<ControlPoint>,
     val finishControlPoint: Int? = null,
-    val startControlPoint: Int? = null
+    val startControlPoint: Int? = null,
+    val map: DistanceMap? = null
 )
 
 /**

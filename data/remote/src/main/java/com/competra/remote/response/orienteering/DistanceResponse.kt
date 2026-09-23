@@ -12,6 +12,9 @@ import com.google.gson.annotations.SerializedName
  * @property climbMeters Набор высоты в метрах.
  * @property controlsCount Количество контрольных пунктов.
  * @property description Описание дистанции.
+ * @property mapUrl Адрес растровой карты дистанции; углы `map*` — её геопривязка в WGS84.
+ *                  Если задан верхний правый угол, углы точные (привязка по трём точкам),
+ *                  иначе верхний левый и нижний правый задают bbox «север вверх».
  */
 data class DistanceResponse(
     @SerializedName("id")
@@ -34,6 +37,20 @@ data class DistanceResponse(
     val finishControlPoint: Int? = null,
     @SerializedName("startControlPoint")
     val startControlPoint: Int? = null,
+    @SerializedName("mapUrl")
+    val mapUrl: String? = null,
+    @SerializedName("mapTopLeftLat")
+    val mapTopLeftLat: Double? = null,
+    @SerializedName("mapTopLeftLng")
+    val mapTopLeftLng: Double? = null,
+    @SerializedName("mapTopRightLat")
+    val mapTopRightLat: Double? = null,
+    @SerializedName("mapTopRightLng")
+    val mapTopRightLng: Double? = null,
+    @SerializedName("mapBottomRightLat")
+    val mapBottomRightLat: Double? = null,
+    @SerializedName("mapBottomRightLng")
+    val mapBottomRightLng: Double? = null,
     @SerializedName("updatedAt")
     val updatedAt: Long = 0L
 )

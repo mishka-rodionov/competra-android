@@ -5,6 +5,7 @@ import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.Distance
+import com.competra.domain.models.orienteering.DistanceMap
 import com.competra.local.entities.orienteering.OrienteeringCompetitionEntity
 import com.competra.local.entities.orienteering.OrienteeringParticipantEntity
 import com.competra.local.entities.orienteering.ParticipantGroupEntity
@@ -257,7 +258,14 @@ fun Distance.toEntity(): DistanceEntity {
         syncError = this.syncError,
         controlPoints = this.controlPoints,
         finishControlPoint = this.finishControlPoint,
-        startControlPoint = this.startControlPoint
+        startControlPoint = this.startControlPoint,
+        mapUrl = this.map?.url,
+        mapTopLeftLat = this.map?.topLeft?.latitude,
+        mapTopLeftLng = this.map?.topLeft?.longitude,
+        mapTopRightLat = this.map?.topRight?.latitude,
+        mapTopRightLng = this.map?.topRight?.longitude,
+        mapBottomRightLat = this.map?.bottomRight?.latitude,
+        mapBottomRightLng = this.map?.bottomRight?.longitude
     )
 }
 
@@ -281,6 +289,15 @@ fun DistanceEntity.toDomain(): Distance {
         syncError = this.syncError,
         controlPoints = this.controlPoints.orEmpty(),
         finishControlPoint = this.finishControlPoint,
-        startControlPoint = this.startControlPoint
+        startControlPoint = this.startControlPoint,
+        map = DistanceMap.fromFields(
+            url = mapUrl,
+            topLeftLat = mapTopLeftLat,
+            topLeftLng = mapTopLeftLng,
+            topRightLat = mapTopRightLat,
+            topRightLng = mapTopRightLng,
+            bottomRightLat = mapBottomRightLat,
+            bottomRightLng = mapBottomRightLng
+        )
     )
 }

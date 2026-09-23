@@ -12,6 +12,9 @@ import com.google.gson.annotations.SerializedName
  * @property climbMeters Набор высоты в метрах.
  * @property controlsCount Количество контрольных пунктов.
  * @property description Описание дистанции.
+ *
+ * Поля карты (`mapUrl`, углы) намеренно не отправляются: карту прикрепляет веб, а сервер при
+ * отсутствии `mapUrl` в запросе оставляет существующую карту как есть.
  */
 data class DistanceRequest(
     @SerializedName("distanceId")

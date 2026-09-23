@@ -344,7 +344,10 @@ class OrienteeringCompetitionLocalRepositoryImpl(
                 val existing = distanceDao.getDistanceById(distance.id)?.toDomain()
                 distance.copy(
                     remoteId = distance.remoteId ?: existing?.remoteId,
-                    serverUpdatedAt = distance.serverUpdatedAt ?: existing?.serverUpdatedAt
+                    serverUpdatedAt = distance.serverUpdatedAt ?: existing?.serverUpdatedAt,
+                    // Карта на Android только читается с сервера — форма редактирования её не знает
+                    // и присылает null; без подстановки локальная правка стирала бы карту.
+                    map = distance.map ?: existing?.map
                 ).applyUnsynced()
             } else {
                 distance

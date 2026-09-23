@@ -3,6 +3,7 @@ package com.competra.remote.response.mappers
 import com.competra.domain.models.Gender
 import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.Distance
+import com.competra.domain.models.orienteering.DistanceMap
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.ParticipantGroup
@@ -85,7 +86,16 @@ fun DistanceResponse.toDomain(competitionId: String): Distance {
         serverUpdatedAt = updatedAt.takeIf { it > 0L },
         controlPoints = controlPoints.map { it.toDomain() },
         finishControlPoint = finishControlPoint,
-        startControlPoint = startControlPoint
+        startControlPoint = startControlPoint,
+        map = DistanceMap.fromFields(
+            url = mapUrl,
+            topLeftLat = mapTopLeftLat,
+            topLeftLng = mapTopLeftLng,
+            topRightLat = mapTopRightLat,
+            topRightLng = mapTopRightLng,
+            bottomRightLat = mapBottomRightLat,
+            bottomRightLng = mapBottomRightLng
+        )
     )
 }
 

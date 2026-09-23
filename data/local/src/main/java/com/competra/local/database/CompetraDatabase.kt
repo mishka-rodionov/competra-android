@@ -38,7 +38,7 @@ import com.competra.local.entities.user.UserEntity
 // totalScore/scorePenalty у OrienteeringResult.
 // v48: опциональный клуб-организатор соревнования (organizingClubId).
 // v49: номер стартового КП дистанции (startControlPoint) — для StartTimeMode.BY_START_STATION.
-private const val DB_VERSION = 50
+private const val DB_VERSION = 51
 
 /**
  * Основной класс базы данных приложения (Room).

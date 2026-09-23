@@ -43,5 +43,13 @@ data class DistanceEntity(
     val syncError: String? = null,
     val controlPoints: List<ControlPoint> = emptyList(),
     val finishControlPoint: Int? = null,
-    val startControlPoint: Int? = null
+    val startControlPoint: Int? = null,
+    // Геопривязанная карта дистанции (см. DistanceMap): плоские колонки, как на сервере.
+    val mapUrl: String? = null,
+    val mapTopLeftLat: Double? = null,
+    val mapTopLeftLng: Double? = null,
+    val mapTopRightLat: Double? = null,
+    val mapTopRightLng: Double? = null,
+    val mapBottomRightLat: Double? = null,
+    val mapBottomRightLng: Double? = null
 )

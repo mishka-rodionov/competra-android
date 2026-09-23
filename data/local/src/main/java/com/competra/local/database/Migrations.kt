@@ -343,3 +343,21 @@ val MIGRATION_49_50 = object : Migration(49, 50) {
         )
     }
 }
+
+/**
+ * Миграция с версии 50 на 51.
+ * Геопривязанная карта дистанции (прикрепляется через веб, на Android только читается): адрес
+ * растра и углы в WGS84. Верхний правый угол задаёт привязку по трём точкам для повёрнутых карт;
+ * без него верхний левый и нижний правый — bbox «север вверх» (см. DistanceMap).
+ */
+val MIGRATION_50_51 = object : Migration(50, 51) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE distances ADD COLUMN mapUrl TEXT")
+        db.execSQL("ALTER TABLE distances ADD COLUMN mapTopLeftLat REAL")
+        db.execSQL("ALTER TABLE distances ADD COLUMN mapTopLeftLng REAL")
+        db.execSQL("ALTER TABLE distances ADD COLUMN mapTopRightLat REAL")
+        db.execSQL("ALTER TABLE distances ADD COLUMN mapTopRightLng REAL")
+        db.execSQL("ALTER TABLE distances ADD COLUMN mapBottomRightLat REAL")
+        db.execSQL("ALTER TABLE distances ADD COLUMN mapBottomRightLng REAL")
+    }
+}

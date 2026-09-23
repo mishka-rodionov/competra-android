@@ -11,6 +11,19 @@
         ":web:wasmJsBrowserDevelopmentRun"
       ],
       "port": 8080
+    },
+    {
+      "name": "competra-web-ts-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "/Users/rodionov/web_projects/competra-web-ts",
+        "dev",
+        "--port",
+        "3000",
+        "--strictPort"
+      ],
+      "port": 3000
     }
   ]
 }
