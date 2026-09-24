@@ -31,6 +31,7 @@ import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.CopyrightOverlay
 
 /**
  * Спутниковые тайлы Esri с глобальным покрытием.
@@ -119,6 +120,9 @@ fun MapPickerScreen(
                         mapViewRef.value = mapView
                         mapView.setTileSource(currentMapType.tileSource)
                         mapView.setMultiTouchControls(true)
+                        // Атрибуция источника тайлов обязательна (OSM Tile Usage Policy); подпись
+                        // берётся у текущего tileSource, поэтому меняется при переключении слоя.
+                        mapView.overlays.add(CopyrightOverlay(ctx))
                         mapView.controller.setZoom(15.0)
 
                         val center = when {

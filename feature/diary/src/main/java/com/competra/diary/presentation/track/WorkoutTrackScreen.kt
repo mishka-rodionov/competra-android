@@ -43,6 +43,7 @@ import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
 
@@ -158,6 +159,8 @@ private fun FullTrackMap(startedAtMs: Long, trackEncoded: String) {
             MapView(ctx).apply {
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(true)
+                // Атрибуция OSM обязательна по правилам использования тайлов (Tile Usage Policy).
+                overlays.add(CopyrightOverlay(ctx))
                 zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
                 overlays.add(Polyline().apply { setPoints(geoPoints) })
                 post {

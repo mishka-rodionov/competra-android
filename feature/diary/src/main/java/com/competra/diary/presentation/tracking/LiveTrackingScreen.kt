@@ -58,6 +58,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 
@@ -102,6 +103,8 @@ private fun LiveTrackingContent(state: LiveTrackingState, onAction: (LiveTrackin
                     mapViewRef.value = mapView
                     mapView.setTileSource(TileSourceFactory.MAPNIK)
                     mapView.setMultiTouchControls(true)
+                    // Атрибуция OSM обязательна по правилам использования тайлов (Tile Usage Policy).
+                    mapView.overlays.add(CopyrightOverlay(ctx))
                     mapView.zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
                     mapView.overlays.add(polyline)
 

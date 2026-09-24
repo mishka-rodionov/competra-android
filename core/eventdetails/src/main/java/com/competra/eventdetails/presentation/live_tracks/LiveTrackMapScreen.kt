@@ -238,8 +238,8 @@ private fun LiveTrackOsmMap(state: LiveTrackMapState, focus: SharedFlow<ViewerTr
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
+            // load() сам выставляет User-Agent = имя пакета — OSM требует, чтобы приложение представлялось.
             Configuration.getInstance().load(ctx, PreferenceManager.getDefaultSharedPreferences(ctx))
-            Configuration.getInstance().userAgentValue = ctx.packageName
             MapView(ctx).apply {
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(true)
