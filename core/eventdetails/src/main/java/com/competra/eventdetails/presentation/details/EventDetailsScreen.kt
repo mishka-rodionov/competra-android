@@ -211,6 +211,17 @@ private fun EventActionButtons(
 ) {
     LiveTrackButton(state = state, onAction = onAction)
 
+    if (state.isLiveTracksButtonVisible) {
+        OutlinedButton(
+            onClick = { onAction(EventDetailsAction.ToLiveTracks) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Text("Онлайн-треки участников")
+        }
+    }
+
     val status = state.eventDetails?.status
     when (status) {
         EventStatus.CREATED, EventStatus.REGISTRATION -> {

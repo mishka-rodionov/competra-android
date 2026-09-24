@@ -2,6 +2,8 @@ package com.competra.eventdetails.data.details
 
 import com.competra.domain.models.cyclic_event.CyclicEventDetails
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
+import com.competra.domain.models.events.EventStatus
+import com.competra.domain.models.events.EventType
 import com.competra.ui.BaseState
 
 /**
@@ -17,6 +19,7 @@ import com.competra.ui.BaseState
  * @param liveTrackEntry Что показывать на кнопке онлайн-трека бегуна.
  * @param isLiveTrackConsentVisible Видимость диалога согласия на публикацию трека.
  * @param isStartingLiveTrack Идёт старт сессии трекинга на сервере.
+ * @param hasLiveTracks По соревнованию есть онлайн-треки участников (для зрителя).
  */
 data class EventDetailsState(
     val eventDetails: CyclicEventDetails? = null,
@@ -29,8 +32,15 @@ data class EventDetailsState(
     val organizerClubName: String? = null,
     val liveTrackEntry: LiveTrackEntry = LiveTrackEntry.HIDDEN,
     val isLiveTrackConsentVisible: Boolean = false,
-    val isStartingLiveTrack: Boolean = false
-) : BaseState
+    val isStartingLiveTrack: Boolean = false,
+    val hasLiveTracks: Boolean = false
+) : BaseState {
+
+    /** Показывать зрителю кнопку «Онлайн-треки»: соревнование идёт или треки уже есть. */
+    val isLiveTracksButtonVisible: Boolean
+        get() = eventDetails?.eventType == EventType.CyclicEvent.Orienteering &&
+            (eventDetails.status == EventStatus.STARTED || hasLiveTracks)
+}
 
 /** Кнопка онлайн-трека бегуна на деталях события. */
 enum class LiveTrackEntry {

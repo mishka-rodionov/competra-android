@@ -67,6 +67,9 @@ dependencies {
     implementation(libs.androidx.material3)
     // Запрос разрешений на геолокацию перед стартом онлайн-трека (rememberLauncherForActivityResult).
     implementation(libs.androidx.activity.compose)
+    // Карта онлайн-треков для зрителя: osmdroid + растр карты дистанции через Coil.
+    implementation(libs.osmdroid)
+    implementation(libs.coil.compose)
 
     //koin
     implementation(libs.koin.core)

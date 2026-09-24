@@ -69,6 +69,21 @@ sealed class EventsNavigation: BaseNavigation {
     data class LiveTrackRunnerRoute(val eventId: String) : EventsNavigation()
 
     /**
+     * Роут онлайн-треков для зрителя: выбор дистанции соревнования.
+     * @param eventId Идентификатор соревнования.
+     */
+    @Serializable
+    data class LiveTracksRoute(val eventId: String) : EventsNavigation()
+
+    /**
+     * Роут карты онлайн-треков одной дистанции (живые и архивные треки её участников).
+     * @param eventId Идентификатор соревнования.
+     * @param distanceId Серверный идентификатор дистанции.
+     */
+    @Serializable
+    data class LiveTrackMapRoute(val eventId: String, val distanceId: Long) : EventsNavigation()
+
+    /**
      * Роут таблицы сплитов группы события.
      * @param eventId Идентификатор события.
      * @param groupId Идентификатор группы участников.

@@ -1,5 +1,7 @@
 package com.competra.eventdetails.navigation
 
+import com.competra.eventdetails.presentation.live_tracks.LiveTrackMapScreen
+import com.competra.eventdetails.presentation.live_tracks.LiveTracksScreen
 import com.competra.eventdetails.presentation.live_track_runner.LiveTrackRunnerScreen
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
@@ -45,6 +47,14 @@ fun NavGraphBuilder.eventDetailsGraph() {
     composable<EventsNavigation.LiveTrackRunnerRoute> {
         val route = it.toRoute<EventsNavigation.LiveTrackRunnerRoute>()
         LiveTrackRunnerScreen(eventId = route.eventId)
+    }
+    composable<EventsNavigation.LiveTracksRoute> {
+        val route = it.toRoute<EventsNavigation.LiveTracksRoute>()
+        LiveTracksScreen(eventId = route.eventId)
+    }
+    composable<EventsNavigation.LiveTrackMapRoute> {
+        val route = it.toRoute<EventsNavigation.LiveTrackMapRoute>()
+        LiveTrackMapScreen(eventId = route.eventId, distanceId = route.distanceId)
     }
     composable<EventsNavigation.EventSplitsTableRoute> {
         val route = it.toRoute<EventsNavigation.EventSplitsTableRoute>()

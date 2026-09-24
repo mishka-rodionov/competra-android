@@ -24,6 +24,7 @@ import com.competra.domain.models.events.EventType
 import com.competra.domain.models.livetrack.LiveTrackRejectedException
 import com.competra.domain.models.livetrack.RunnerTrackSession
 import com.competra.domain.repository.livetrack.LiveTrackLocalRepository
+import com.competra.domain.repository.livetrack.LiveTrackViewerRepository
 import com.competra.eventdetails.data.details.EventDetailsState
 import com.competra.eventdetails.data.details.LiveTrackEntry
 import com.competra.ui.BaseAction
@@ -48,6 +49,7 @@ import java.util.concurrent.TimeUnit
  * @param liveTrackLocalRepository Локальная сессия онлайн-трека бегуна и согласие на публикацию.
  * @param liveTrackEngine Старт сессии онлайн-трекинга на сервере.
  * @param trackingController Запуск сервиса записи трека.
+ * @param liveTrackViewerRepository Есть ли у соревнования онлайн-треки (кнопка для зрителя).
  */
 class EventDetailsViewModel(
     private val cyclicEventDetailsRepository: CyclicEventDetailsRepository,
@@ -61,6 +63,7 @@ class EventDetailsViewModel(
     private val liveTrackLocalRepository: LiveTrackLocalRepository,
     private val liveTrackEngine: LiveTrackEngine,
     private val trackingController: CompetitionTrackingController,
+    private val liveTrackViewerRepository: LiveTrackViewerRepository,
 ) : BaseViewModel<EventDetailsState>(
     EventDetailsState(eventDetails = null)
 ) {
@@ -88,6 +91,7 @@ class EventDetailsViewModel(
             is EventDetailsAction.CommandNameChanged -> updateState { copy(commandName = action.commandName) }
             is EventDetailsAction.ConfirmRegistration -> confirmRegistration()
             is EventDetailsAction.CancelRegistration -> cancelRegistration()
+            is EventDetailsAction.ToLiveTracks -> navigateToLiveTracks()
             is EventDetailsAction.LiveTrackClick -> onLiveTrackClick()
             is EventDetailsAction.LiveTrackConsentAccepted -> onLiveTrackConsentAccepted()
             is EventDetailsAction.LiveTrackConsentDismissed -> updateState { copy(isLiveTrackConsentVisible = false) }
@@ -114,6 +118,7 @@ class EventDetailsViewModel(
                     }
                     loadOrganizerClubName(details?.organizingClubId)
                     observeLiveTrack(eventId)
+                    loadHasLiveTracks(eventId)
                 }
                 .onFailure {
                     handleFailure(it)
@@ -348,6 +353,23 @@ class EventDetailsViewModel(
         }
     }
 
+    /** Есть ли треки для зрителя. Ошибка не критична — кнопка просто не появится (кроме идущего старта). */
+    private fun loadHasLiveTracks(eventId: String) {
+        viewModelScope.launch {
+            liveTrackViewerRepository.distances(eventId).onSuccess { distances ->
+                updateState { copy(hasLiveTracks = distances.isNotEmpty()) }
+            }
+        }
+    }
+
+    private fun navigateToLiveTracks() {
+        val eventId = stateValue.eventDetails?.eventId ?: return
+        analytics.trackEvent(AnalyticsEvent.EventLiveTracksOpened(eventId))
+        viewModelScope.launch {
+            navigation.navigate(EventsNavigation.LiveTracksRoute(eventId = eventId))
+        }
+    }
+
     private fun navigateToLiveTrackRunner() {
         val eventId = stateValue.eventDetails?.eventId ?: return
         viewModelScope.launch {
@@ -376,6 +398,9 @@ sealed interface EventDetailsAction : BaseAction {
     data class CommandNameChanged(val commandName: String) : EventDetailsAction
     data object ConfirmRegistration : EventDetailsAction
     data object CancelRegistration : EventDetailsAction
+
+    /** Зритель открывает онлайн-треки участников. */
+    data object ToLiveTracks : EventDetailsAction
 
     /** Кнопка онлайн-трека: включить или открыть экран идущей записи. */
     data object LiveTrackClick : EventDetailsAction

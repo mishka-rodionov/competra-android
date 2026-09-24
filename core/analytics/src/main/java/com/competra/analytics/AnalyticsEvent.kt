@@ -73,6 +73,19 @@ sealed class AnalyticsEvent(
         mapOf("competition_id" to competitionId, "is_resumed" to isResumed),
     )
 
+    /** Зритель открыл онлайн-треки соревнования (кнопка на деталях события). */
+    class EventLiveTracksOpened(eventId: String) :
+        AnalyticsEvent("event_live_tracks_opened", mapOf("event_id" to eventId))
+
+    /** В каком режиме открыта карта треков: пока идут участники или архив после финиша. */
+    enum class LiveTrackMapMode { LIVE, ARCHIVE }
+
+    /** Зритель открыл карту треков дистанции. */
+    class LiveTrackMapOpened(competitionId: String, distanceId: Long, mode: LiveTrackMapMode) : AnalyticsEvent(
+        "live_track_map_opened",
+        mapOf("competition_id" to competitionId, "distance_id" to distanceId, "mode" to mode.name.lowercase()),
+    )
+
     /** Почему закончилась запись трека. */
     enum class LiveTrackStopReason { MANUAL, RESULT_SAVED, CONTROL_TIME, INACTIVITY, SESSION_LOST }
 

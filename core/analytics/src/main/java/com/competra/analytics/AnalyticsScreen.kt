@@ -16,6 +16,8 @@ enum class AnalyticsScreen(val screenName: String) {
     EventGroupSplitsTable("event_group_splits_table"),
     EventRaceGraph("event_race_graph"),
     EventLiveTrackRunner("event_live_track_runner"),
+    EventLiveTracks("event_live_tracks"),
+    EventLiveTrackMap("event_live_track_map"),
 
     // Center
     CenterHome("center_home"),
@@ -89,6 +91,8 @@ enum class AnalyticsScreen(val screenName: String) {
                 route.contains("EventSplitsTableRoute") -> EventGroupSplitsTable
                 route.contains("EventRaceGraphRoute") -> EventRaceGraph
                 route.contains("LiveTrackRunnerRoute") -> EventLiveTrackRunner
+                route.contains("LiveTracksRoute") -> EventLiveTracks
+                route.contains("LiveTrackMapRoute") -> EventLiveTrackMap
 
                 route.contains("CenterRoute") -> CenterHome
                 route.contains("KindOfSportRoute") -> CenterKindOfSport
