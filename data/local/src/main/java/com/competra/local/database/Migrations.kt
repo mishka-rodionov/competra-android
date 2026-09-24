@@ -361,3 +361,33 @@ val MIGRATION_50_51 = object : Migration(50, 51) {
         db.execSQL("ALTER TABLE distances ADD COLUMN mapBottomRightLng REAL")
     }
 }
+
+/**
+ * Миграция с версии 51 на 52.
+ * Буфер онлайн-трекинга бегуна: локальная сессия и неотправленные точки. Переживает потерю сети,
+ * убийство процесса и перезапуск телефона; точки удаляются после подтверждения сервером.
+ */
+val MIGRATION_51_52 = object : Migration(51, 52) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS live_track_runner_sessions (" +
+                "sessionId TEXT NOT NULL PRIMARY KEY, competitionId TEXT NOT NULL, status TEXT NOT NULL, " +
+                "closeReason TEXT, startedAt INTEGER NOT NULL, deadlineAt INTEGER NOT NULL, " +
+                "uploadIntervalSec INTEGER NOT NULL, lastAckedBatchSeq INTEGER NOT NULL, inFlightBatchSeq INTEGER, " +
+                "stopRequested INTEGER NOT NULL, stopDelivered INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_live_track_runner_sessions_competitionId " +
+                "ON live_track_runner_sessions (competitionId)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS live_track_runner_points (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, sessionId TEXT NOT NULL, t INTEGER NOT NULL, " +
+                "lat REAL NOT NULL, lon REAL NOT NULL, accuracy REAL, batchSeq INTEGER)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_live_track_runner_points_sessionId_batchSeq " +
+                "ON live_track_runner_points (sessionId, batchSeq)"
+        )
+    }
+}

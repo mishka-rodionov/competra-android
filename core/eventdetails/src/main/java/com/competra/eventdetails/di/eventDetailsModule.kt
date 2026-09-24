@@ -1,5 +1,6 @@
 package com.competra.eventdetails.di
 
+import com.competra.eventdetails.presentation.live_track_runner.LiveTrackRunnerViewModel
 import com.competra.eventdetails.presentation.details.EventDetailsViewModel
 import com.competra.eventdetails.presentation.group_splits.EventGroupSplitsTableViewModel
 import com.competra.eventdetails.presentation.live_results.LiveResultsViewModel
@@ -18,4 +19,5 @@ val eventDetailsModule = module {
     viewModelOf(::EventRaceGraphViewModel)
     viewModelOf(::EventScoreGraphViewModel)
     viewModelOf(::LiveResultsViewModel)
+    viewModelOf(::LiveTrackRunnerViewModel)
 }

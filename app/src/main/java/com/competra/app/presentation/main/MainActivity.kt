@@ -73,6 +73,8 @@ import com.competra.profile.navigation.profileNavigation
 import com.competra.app.BottomNavItem
 import com.competra.app.service.CompetitionForegroundService
 import com.competra.app.service.WorkoutTrackingService
+import com.competra.app.service.CompetitionTrackingService
+import com.competra.core.tracking.CompetitionTrackingCommand
 import com.competra.app.ui.theme.CompetraTheme
 import com.competra.ui.CompetitionServiceCommand
 import com.competra.ui.WorkoutTrackingCommand
@@ -112,6 +114,7 @@ class MainActivity : ComponentActivity() {
         }
         observeServiceCommands()
         observeWorkoutTrackingCommands()
+        observeCompetitionTrackingCommands()
         handlePushIntent(intent)
     }
 
@@ -159,6 +162,26 @@ class MainActivity : ComponentActivity() {
                             startService(WorkoutTrackingService.resumeIntent(this@MainActivity))
                         is WorkoutTrackingCommand.Stop ->
                             startService(WorkoutTrackingService.stopIntent(this@MainActivity, cmd.discard))
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Подписка на команды сервиса онлайн-трекинга бегуна. Старт — через `startForegroundService`
+     * (сервис сам промоутится в foreground с типом location), стоп — обычной командой в уже
+     * работающий сервис: он прекращает GPS и досылает буфер.
+     */
+    private fun observeCompetitionTrackingCommands() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.competitionTrackingCommands.collect { cmd ->
+                    when (cmd) {
+                        is CompetitionTrackingCommand.StartRecording ->
+                            startForegroundService(CompetitionTrackingService.startIntent(this@MainActivity, cmd.sessionId))
+                        is CompetitionTrackingCommand.StopRecording ->
+                            startService(CompetitionTrackingService.stopIntent(this@MainActivity, cmd.sessionId))
                     }
                 }
             }

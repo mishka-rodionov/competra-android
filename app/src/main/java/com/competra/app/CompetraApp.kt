@@ -16,6 +16,10 @@ import com.competra.core.sync.WorkoutSyncBootstrap
 import com.competra.core.sync.di.syncModule
 import com.competra.app.service.CompetitionForegroundService
 import com.competra.app.service.WorkoutTrackingService
+import com.competra.app.service.CompetitionTrackingService
+import com.competra.core.tracking.LiveTrackFlushWorker
+import com.competra.core.tracking.di.liveTrackingModule
+import com.competra.remote.di.liveTrackDataModule
 import com.competra.data.navigation.di.navigationModule
 import com.competra.eventdetails.di.eventDetailsModule
 import com.competra.events.di.eventsModule
@@ -71,13 +75,13 @@ class CompetraApp : Application(), Configuration.Provider {
             // core modules
             modules(
                 retrofitModule, databaseModule, navigationModule, resourceModule, nfcModule,
-                localModule, syncModule
+                localModule, syncModule, liveTrackingModule
             )
 
             // data modules
             modules(
                 authModule, orienteeringModule, eventsDataModule, uploadModule, deviceModule, diaryDataModule,
-                clubsDataModule, ratingDataModule
+                clubsDataModule, ratingDataModule, liveTrackDataModule
             )
 
             // feature modules
@@ -98,6 +102,7 @@ class CompetraApp : Application(), Configuration.Provider {
 
         createNotificationChannel()
         createWorkoutTrackingNotificationChannel()
+        createLiveTrackNotificationChannel()
         createPushNotificationChannel()
 
         // Подписываемся на появление сети — каждое появление триггерит SyncCenterWorker и
@@ -105,10 +110,13 @@ class CompetraApp : Application(), Configuration.Provider {
         networkObserver.start {
             SyncBootstrap.enqueue(this)
             WorkoutSyncBootstrap.enqueue(this)
+            LiveTrackFlushWorker.enqueue(this)
         }
         // Дополнительный enqueue на старте — на случай, если сеть уже есть и есть unsynced.
         SyncBootstrap.enqueue(this)
         WorkoutSyncBootstrap.enqueue(this)
+        // Недосланный хвост онлайн-трека (стоп без сети, сервис убит системой).
+        LiveTrackFlushWorker.enqueue(this)
     }
 
     /**
@@ -133,6 +141,19 @@ class CompetraApp : Application(), Configuration.Provider {
             "Тренировка",
             NotificationManager.IMPORTANCE_LOW
         ).apply { description = "Live-трекинг тренировки: время, дистанция" }
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    /**
+     * Создаёт канал уведомлений для сервиса онлайн-трекинга бегуна на соревновании.
+     */
+    private fun createLiveTrackNotificationChannel() {
+        val channel = NotificationChannel(
+            CompetitionTrackingService.CHANNEL_ID,
+            "Онлайн-трек",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply { description = "Запись и передача трека на соревновании" }
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
     }

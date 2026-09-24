@@ -1,5 +1,7 @@
 package com.competra.local.di
 
+import com.competra.domain.repository.livetrack.LiveTrackLocalRepository
+import com.competra.local.repository.livetrack.LiveTrackLocalRepositoryImpl
 import com.competra.domain.repository.auth.TokenRepository
 import com.competra.domain.repository.diary.WorkoutLocalRepository
 import com.competra.domain.repository.onboarding.OnboardingRepository
@@ -23,4 +25,5 @@ val localModule = module {
     singleOf(::OnboardingRepositoryImpl) bind OnboardingRepository::class
     singleOf(::WorkoutLocalRepositoryImpl) bind WorkoutLocalRepository::class
     singleOf(::PushPreferencesRepositoryImpl) bind PushPreferencesRepository::class
+    singleOf(::LiveTrackLocalRepositoryImpl) bind LiveTrackLocalRepository::class
 }

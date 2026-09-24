@@ -16,10 +16,24 @@ import com.competra.domain.repository.NetworkErrorRepository
 import com.competra.domain.repository.clubs.ClubRepository
 import com.competra.domain.repository.events.CyclicEventDetailsRepository
 import com.competra.domain.repository.user.UserRepository
+import com.competra.core.tracking.CompetitionTrackingController
+import com.competra.core.tracking.LiveTrackEngine
+import com.competra.domain.models.cyclic_event.CyclicEventDetails
+import com.competra.domain.models.events.EventStatus
+import com.competra.domain.models.events.EventType
+import com.competra.domain.models.livetrack.LiveTrackRejectedException
+import com.competra.domain.models.livetrack.RunnerTrackSession
+import com.competra.domain.repository.livetrack.LiveTrackLocalRepository
 import com.competra.eventdetails.data.details.EventDetailsState
+import com.competra.eventdetails.data.details.LiveTrackEntry
 import com.competra.ui.BaseAction
 import com.competra.ui.viewmodel.BaseViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 /**
  * ViewModel для экрана деталей события.
@@ -31,6 +45,9 @@ import kotlinx.coroutines.launch
  * @param pendingRegistrationRepository Хранилище отложенного действия регистрации.
  * @param networkErrorRepository Репозиторий для передачи сетевых ошибок в MainActivity.
  * @param clubRepository Репозиторий клубов — используется для резолва названия клуба-организатора.
+ * @param liveTrackLocalRepository Локальная сессия онлайн-трека бегуна и согласие на публикацию.
+ * @param liveTrackEngine Старт сессии онлайн-трекинга на сервере.
+ * @param trackingController Запуск сервиса записи трека.
  */
 class EventDetailsViewModel(
     private val cyclicEventDetailsRepository: CyclicEventDetailsRepository,
@@ -41,11 +58,24 @@ class EventDetailsViewModel(
     private val loadingRepository: LoadingRepository,
     private val analytics: AnalyticsTracker,
     private val clubRepository: ClubRepository,
+    private val liveTrackLocalRepository: LiveTrackLocalRepository,
+    private val liveTrackEngine: LiveTrackEngine,
+    private val trackingController: CompetitionTrackingController,
 ) : BaseViewModel<EventDetailsState>(
     EventDetailsState(eventDetails = null)
 ) {
 
     private var currentUser: User? = null
+    private var liveTrackSession: RunnerTrackSession? = null
+    private var liveTrackJob: Job? = null
+
+    private val _liveTrackPermissionRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /**
+     * Запросы экрану проверить/запросить разрешения на геолокацию перед стартом трекинга
+     * (нужен Activity-контекст, поэтому это делает экран и отвечает [EventDetailsAction.LiveTrackPermissionsResult]).
+     */
+    val liveTrackPermissionRequests: SharedFlow<Unit> = _liveTrackPermissionRequests.asSharedFlow()
 
     override fun onAction(action: BaseAction) {
         when (action) {
@@ -58,6 +88,10 @@ class EventDetailsViewModel(
             is EventDetailsAction.CommandNameChanged -> updateState { copy(commandName = action.commandName) }
             is EventDetailsAction.ConfirmRegistration -> confirmRegistration()
             is EventDetailsAction.CancelRegistration -> cancelRegistration()
+            is EventDetailsAction.LiveTrackClick -> onLiveTrackClick()
+            is EventDetailsAction.LiveTrackConsentAccepted -> onLiveTrackConsentAccepted()
+            is EventDetailsAction.LiveTrackConsentDismissed -> updateState { copy(isLiveTrackConsentVisible = false) }
+            is EventDetailsAction.LiveTrackPermissionsResult -> onLiveTrackPermissionsResult(action.locationGranted)
         }
     }
 
@@ -79,6 +113,7 @@ class EventDetailsViewModel(
                         )
                     }
                     loadOrganizerClubName(details?.organizingClubId)
+                    observeLiveTrack(eventId)
                 }
                 .onFailure {
                     handleFailure(it)
@@ -159,6 +194,7 @@ class EventDetailsViewModel(
                             isUserRegistered = true
                         )
                     }
+                    refreshLiveTrackEntry()
                 }
                 .onFailure { e ->
                     updateState {
@@ -183,6 +219,7 @@ class EventDetailsViewModel(
             cyclicEventDetailsRepository.cancelRegistration(eventId)
                 .onSuccess {
                     updateState { copy(isRegistering = false, isUserRegistered = false) }
+                    refreshLiveTrackEntry()
                 }
                 .onFailure { e ->
                     updateState { copy(isRegistering = false, error = e.message) }
@@ -218,6 +255,106 @@ class EventDetailsViewModel(
         }
     }
 
+    /** Следит за локальной сессией онлайн-трека этого соревнования (она живёт в Room). */
+    private fun observeLiveTrack(eventId: String) {
+        liveTrackJob?.cancel()
+        liveTrackJob = viewModelScope.launch {
+            liveTrackLocalRepository.observeSession(eventId).collect { session ->
+                liveTrackSession = session
+                refreshLiveTrackEntry()
+            }
+        }
+    }
+
+    private fun refreshLiveTrackEntry() {
+        val details = stateValue.eventDetails
+        val session = liveTrackSession
+        val entry = when {
+            session != null && (session.isRecording || (session.stopRequested && !session.stopDelivered)) -> LiveTrackEntry.RECORDING
+            details != null && stateValue.isUserRegistered && isLiveTrackAvailable(details) -> LiveTrackEntry.START
+            else -> LiveTrackEntry.HIDDEN
+        }
+        updateState { copy(liveTrackEntry = entry) }
+    }
+
+    /**
+     * Трекинг включают только в день соревнования по ориентированию (± сутки — часовые пояса и
+     * многодневки; окончательно решает сервер).
+     */
+    private fun isLiveTrackAvailable(details: CyclicEventDetails): Boolean {
+        if (details.eventType != EventType.CyclicEvent.Orienteering) return false
+        if (details.status == EventStatus.FINISHED || details.status == EventStatus.CANCELLED) return false
+        val day = TimeUnit.DAYS.toMillis(1)
+        val now = System.currentTimeMillis()
+        return now in (details.startDate - day)..(maxOf(details.endDate, details.startDate) + day)
+    }
+
+    private fun onLiveTrackClick() {
+        when (stateValue.liveTrackEntry) {
+            LiveTrackEntry.RECORDING -> navigateToLiveTrackRunner()
+            LiveTrackEntry.START -> viewModelScope.launch {
+                if (liveTrackLocalRepository.isConsentGiven()) {
+                    _liveTrackPermissionRequests.emit(Unit)
+                } else {
+                    updateState { copy(isLiveTrackConsentVisible = true) }
+                }
+            }
+            LiveTrackEntry.HIDDEN -> Unit
+        }
+    }
+
+    private fun onLiveTrackConsentAccepted() {
+        updateState { copy(isLiveTrackConsentVisible = false) }
+        viewModelScope.launch {
+            liveTrackLocalRepository.setConsentGiven()
+            _liveTrackPermissionRequests.emit(Unit)
+        }
+    }
+
+    private fun onLiveTrackPermissionsResult(locationGranted: Boolean) {
+        if (!locationGranted) {
+            viewModelScope.launch {
+                networkErrorRepository.emit(
+                    NetworkErrorEvent(code = null, message = "Без доступа к геолокации трек не записать")
+                )
+            }
+            return
+        }
+        startLiveTrack()
+    }
+
+    /** Старт сессии на сервере → запуск сервиса записи → экран записи. */
+    private fun startLiveTrack() {
+        val eventId = stateValue.eventDetails?.eventId ?: return
+        if (stateValue.isStartingLiveTrack) return
+        viewModelScope.launch {
+            updateState { copy(isStartingLiveTrack = true) }
+            liveTrackEngine.start(eventId)
+                .onSuccess { session ->
+                    trackingController.startRecording(session.sessionId)
+                    navigation.navigate(EventsNavigation.LiveTrackRunnerRoute(eventId = eventId))
+                }
+                .onFailure { error ->
+                    // Отказ сервера (не тот день, уже есть результат…) — показываем его текст.
+                    val rejected = error as? LiveTrackRejectedException
+                    networkErrorRepository.emit(
+                        NetworkErrorEvent(
+                            code = rejected?.httpCode,
+                            message = rejected?.message ?: "Сервер онлайн-трекинга недоступен, попробуйте ещё раз"
+                        )
+                    )
+                }
+            updateState { copy(isStartingLiveTrack = false) }
+        }
+    }
+
+    private fun navigateToLiveTrackRunner() {
+        val eventId = stateValue.eventDetails?.eventId ?: return
+        viewModelScope.launch {
+            navigation.navigate(EventsNavigation.LiveTrackRunnerRoute(eventId = eventId))
+        }
+    }
+
     private fun handleFailure(throwable: Throwable) {
         viewModelScope.launch {
             val code = (throwable as? NetworkException)?.code
@@ -239,4 +376,16 @@ sealed interface EventDetailsAction : BaseAction {
     data class CommandNameChanged(val commandName: String) : EventDetailsAction
     data object ConfirmRegistration : EventDetailsAction
     data object CancelRegistration : EventDetailsAction
+
+    /** Кнопка онлайн-трека: включить или открыть экран идущей записи. */
+    data object LiveTrackClick : EventDetailsAction
+
+    /** Бегун согласился на публикацию трека. */
+    data object LiveTrackConsentAccepted : EventDetailsAction
+
+    /** Бегун закрыл диалог согласия. */
+    data object LiveTrackConsentDismissed : EventDetailsAction
+
+    /** Экран проверил/запросил разрешения; [locationGranted] — есть точная геолокация. */
+    data class LiveTrackPermissionsResult(val locationGranted: Boolean) : EventDetailsAction
 }

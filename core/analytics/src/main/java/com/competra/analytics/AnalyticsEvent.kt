@@ -65,6 +65,25 @@ sealed class AnalyticsEvent(
 
     // endregion
 
+    // region Live track (онлайн-трекинг бегуна)
+
+    /** Бегун включил онлайн-трекинг (или возобновил уже идущую на сервере сессию). */
+    class LiveTrackStarted(competitionId: String, isResumed: Boolean) : AnalyticsEvent(
+        "live_track_started",
+        mapOf("competition_id" to competitionId, "is_resumed" to isResumed),
+    )
+
+    /** Почему закончилась запись трека. */
+    enum class LiveTrackStopReason { MANUAL, RESULT_SAVED, CONTROL_TIME, INACTIVITY, SESSION_LOST }
+
+    /** Запись онлайн-трека закончилась (бегун остановил, сервер закрыл по результату/таймауту). */
+    class LiveTrackStopped(competitionId: String, reason: LiveTrackStopReason, durationMin: Int) : AnalyticsEvent(
+        "live_track_stopped",
+        mapOf("competition_id" to competitionId, "reason" to reason.name.lowercase(), "duration_min" to durationMin),
+    )
+
+    // endregion
+
     // region Create competition (центр)
 
     /** Начато создание соревнования. */

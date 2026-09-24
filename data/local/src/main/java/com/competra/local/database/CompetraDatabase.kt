@@ -1,5 +1,8 @@
 package com.competra.local.database
 
+import com.competra.local.dao.livetrack.LiveTrackDao
+import com.competra.local.entities.livetrack.LiveTrackPointEntity
+import com.competra.local.entities.livetrack.LiveTrackSessionEntity
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -38,7 +41,8 @@ import com.competra.local.entities.user.UserEntity
 // totalScore/scorePenalty у OrienteeringResult.
 // v48: опциональный клуб-организатор соревнования (organizingClubId).
 // v49: номер стартового КП дистанции (startControlPoint) — для StartTimeMode.BY_START_STATION.
-private const val DB_VERSION = 51
+// v52: буфер онлайн-трекинга бегуна (live_track_runner_sessions / live_track_runner_points).
+private const val DB_VERSION = 52
 
 /**
  * Основной класс базы данных приложения (Room).
@@ -56,7 +60,9 @@ private const val DB_VERSION = 51
         WorkoutEntity::class,
         RunDetailsEntity::class,
         BikeDetailsEntity::class,
-        SkiDetailsEntity::class
+        SkiDetailsEntity::class,
+        LiveTrackSessionEntity::class,
+        LiveTrackPointEntity::class
     ],
     version = DB_VERSION,
     exportSchema = false
@@ -75,4 +81,5 @@ abstract class CompetraDatabase : RoomDatabase() {
     abstract fun orienteeringResultDao(): OrienteeringResultDao
     abstract fun distanceDao(): DistanceDao
     abstract fun workoutDao(): WorkoutDao
+    abstract fun liveTrackDao(): LiveTrackDao
 }

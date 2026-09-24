@@ -17,6 +17,7 @@ import com.competra.remote.network.retrofit.TokenAuthenticator
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -25,16 +26,38 @@ import java.util.concurrent.TimeUnit
 
 private const val TIMEOUT_SECONDS = 60
 
+/**
+ * Таймауты клиента онлайн-трекинга: в лесу связь то есть, то нет — лучше быстро отказаться и
+ * повторить батч, чем минуту держать соединение.
+ */
+private const val LIVE_TRACK_TIMEOUT_SECONDS = 10
+
+/** Qualifier отдельного Retrofit онлайн-трекинга (свой OkHttp-пул, короткие таймауты). */
+val LIVE_TRACK_RETROFIT = named("liveTrackRetrofit")
+
 val retrofitModule = module {
     singleOf(::createGson)
     singleOf(::retrofit)
+    single(LIVE_TRACK_RETROFIT) { liveTrackRetrofit(get(), get(), get()) }
 }
 
 fun retrofit(
     gson: Gson,
     tokenRepository: TokenRepository,
     context: Context
-): Retrofit {
+): Retrofit = buildRetrofit(gson, buildOkHttpClient(tokenRepository, context, TIMEOUT_SECONDS))
+
+/**
+ * Retrofit онлайн-трекинга: отдельный OkHttp-клиент, чтобы отправка точек не занимала соединения
+ * основного API (синхронизация результатов, загрузка экранов), и короткие таймауты.
+ */
+fun liveTrackRetrofit(
+    gson: Gson,
+    tokenRepository: TokenRepository,
+    context: Context
+): Retrofit = buildRetrofit(gson, buildOkHttpClient(tokenRepository, context, LIVE_TRACK_TIMEOUT_SECONDS))
+
+private fun buildOkHttpClient(tokenRepository: TokenRepository, context: Context, timeoutSeconds: Int): OkHttpClient {
     val builder = OkHttpClient.Builder()
     val collector = ChuckerCollector(context, true)
     val interceptor = ChuckerInterceptor
@@ -51,16 +74,19 @@ fun retrofit(
     } else {
         HttpLoggingInterceptor.Level.NONE
     }
-    val okClient = builder
+    return builder
         .addInterceptor(AuthInterceptor(tokenRepository = tokenRepository))
         .addInterceptor(HttpLoggingInterceptor().setLevel(logLevel))
         .authenticator(TokenAuthenticator(tokenRepository = tokenRepository))
 //        .addInterceptor(MockInterceptor())
         .retryOnConnectionFailure(true)
-        .connectTimeout(TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
-        .readTimeout(TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
-        .writeTimeout(TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+        .connectTimeout(timeoutSeconds.toLong(), TimeUnit.SECONDS)
+        .readTimeout(timeoutSeconds.toLong(), TimeUnit.SECONDS)
+        .writeTimeout(timeoutSeconds.toLong(), TimeUnit.SECONDS)
         .build()
+}
+
+private fun buildRetrofit(gson: Gson, okClient: OkHttpClient): Retrofit {
     // Базовый URL задаётся по buildType через BuildConfig (debug -> тест/override,
     // release -> прод). Старые dev-адреса оставлены для быстрого ручного переключения.
 //    val localBaseUrl = "http://192.168.1.113:8080/"

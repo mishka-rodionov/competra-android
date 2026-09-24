@@ -54,6 +54,7 @@ dependencies {
     implementation(project(":core:resources"))
     implementation(project(":core:ui"))
     implementation(project(":core:analytics"))
+    implementation(project(":core:tracking"))
     implementation(project(":utils"))
 
     //compose navigation
@@ -64,6 +65,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    // Запрос разрешений на геолокацию перед стартом онлайн-трека (rememberLauncherForActivityResult).
+    implementation(libs.androidx.activity.compose)
 
     //koin
     implementation(libs.koin.core)

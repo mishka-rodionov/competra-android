@@ -61,6 +61,14 @@ sealed class EventsNavigation: BaseNavigation {
     data class LiveResultsRoute(val eventId: String) : EventsNavigation()
 
     /**
+     * Роут экрана онлайн-трека бегуна: статус записи и передачи трека на соревновании (без карты —
+     * бегуну позиция не показывается).
+     * @param eventId Идентификатор соревнования.
+     */
+    @Serializable
+    data class LiveTrackRunnerRoute(val eventId: String) : EventsNavigation()
+
+    /**
      * Роут таблицы сплитов группы события.
      * @param eventId Идентификатор события.
      * @param groupId Идентификатор группы участников.

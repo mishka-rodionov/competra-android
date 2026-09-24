@@ -1,19 +1,14 @@
 package com.competra.app.service
 
-import android.Manifest
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
-import android.os.Bundle
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import com.competra.app.R
+import com.competra.core.tracking.GpsLocationSource
 import com.competra.diary.data.interactors.WorkoutInteractor
 import com.competra.domain.diary.TrackCodec
 import com.competra.domain.diary.TrackPoint
@@ -70,17 +65,8 @@ class WorkoutTrackingService : Service() {
     private val recentSpeedSamples = ArrayDeque<SpeedSample>()
     private var currentSpeedMps = 0.0
 
-    private val locationManager by lazy { getSystemService(Context.LOCATION_SERVICE) as LocationManager }
+    private val gps: GpsLocationSource by inject()
     private val notificationManager by lazy { getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager }
-
-    private val locationListener = object : LocationListener {
-        override fun onLocationChanged(location: Location) = handleNewLocation(location)
-
-        @Deprecated("Устарел с API 29, но метод всё ещё часть интерфейса")
-        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
-        override fun onProviderEnabled(provider: String) = Unit
-        override fun onProviderDisabled(provider: String) = Unit
-    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -144,20 +130,10 @@ class WorkoutTrackingService : Service() {
         }
     }
 
+    /** Без разрешения или с выключенным GPS подписки нет — время тикает, точки не пишутся. */
     private fun requestLocationUpdates() {
-        if (!hasLocationPermission()) return
-        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) return
-        locationManager.requestLocationUpdates(
-            LocationManager.GPS_PROVIDER,
-            MIN_TIME_MS,
-            MIN_DISTANCE_M,
-            locationListener
-        )
+        gps.start(MIN_TIME_MS, MIN_DISTANCE_M) { location -> handleNewLocation(location) }
     }
-
-    private fun hasLocationPermission(): Boolean = ContextCompat.checkSelfPermission(
-        this, Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
 
     private fun handleNewLocation(location: Location) {
         if (status != WorkoutTrackingStatus.RUNNING) return
@@ -250,7 +226,7 @@ class WorkoutTrackingService : Service() {
         if (status != WorkoutTrackingStatus.RUNNING) return
         pausedAccumulatedMs += System.currentTimeMillis() - lastResumeMs
         status = WorkoutTrackingStatus.PAUSED
-        locationManager.removeUpdates(locationListener)
+        gps.stop()
         recentSpeedSamples.clear()
         currentSpeedMps = 0.0
         pushSnapshot()
@@ -267,7 +243,7 @@ class WorkoutTrackingService : Service() {
     }
 
     private fun stopTracking(discard: Boolean) {
-        locationManager.removeUpdates(locationListener)
+        gps.stop()
         val id = workoutId
 
         if (id == 0L) {
@@ -324,7 +300,7 @@ class WorkoutTrackingService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        locationManager.removeUpdates(locationListener)
+        gps.stop()
         serviceScope.cancel()
     }
 

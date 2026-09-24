@@ -149,6 +149,7 @@ dependencies {
     implementation(project(":core:eventdetails"))
     implementation(project(":core:sync"))
     implementation(project(":core:analytics"))
+    implementation(project(":core:tracking"))
 
     implementation(libs.kotlinx.serialization.json)
 

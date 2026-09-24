@@ -1,5 +1,11 @@
 package com.competra.eventdetails.presentation.details
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +38,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +62,8 @@ import com.competra.domain.models.events.EventType
 import com.competra.domain.models.orienteering.ResultsStatus
 import com.competra.resources.R
 import com.competra.eventdetails.data.details.EventDetailsState
+import com.competra.eventdetails.data.details.LiveTrackEntry
+import androidx.core.content.ContextCompat
 import com.competra.ui.components.toFractionalRect
 import com.competra.utils.DateTimeFormat
 import org.koin.androidx.compose.koinViewModel
@@ -77,6 +88,15 @@ fun EventDetailsScreen(
 
     LaunchedEffect(idEvent) {
         viewModel.initialize(idEvent)
+    }
+
+    LiveTrackPermissionsHandler(viewModel)
+
+    if (state.isLiveTrackConsentVisible) {
+        LiveTrackConsentDialog(
+            onAccept = { viewModel.onAction(EventDetailsAction.LiveTrackConsentAccepted) },
+            onDismiss = { viewModel.onAction(EventDetailsAction.LiveTrackConsentDismissed) }
+        )
     }
 
     ScrollableColumnScreenWithImageAnimation(
@@ -189,6 +209,8 @@ private fun EventActionButtons(
     state: EventDetailsState,
     onAction: (EventDetailsAction) -> Unit
 ) {
+    LiveTrackButton(state = state, onAction = onAction)
+
     val status = state.eventDetails?.status
     when (status) {
         EventStatus.CREATED, EventStatus.REGISTRATION -> {
@@ -265,6 +287,111 @@ private fun EventActionButtons(
         }
     }
 }
+
+/**
+ * Кнопка онлайн-трека бегуна: включить запись или открыть экран уже идущей записи.
+ */
+@Composable
+private fun LiveTrackButton(
+    state: EventDetailsState,
+    onAction: (EventDetailsAction) -> Unit
+) {
+    when (state.liveTrackEntry) {
+        LiveTrackEntry.HIDDEN -> Unit
+        LiveTrackEntry.START -> {
+            OutlinedButton(
+                onClick = { onAction(EventDetailsAction.LiveTrackClick) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                enabled = !state.isStartingLiveTrack
+            ) {
+                if (state.isStartingLiveTrack) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Включить онлайн-трек")
+                }
+            }
+            Text(
+                text = "Зрители увидят ваш трек на карте соревнования",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        LiveTrackEntry.RECORDING -> {
+            Button(
+                onClick = { onAction(EventDetailsAction.LiveTrackClick) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary
+                )
+            ) {
+                Text("Онлайн-трек: идёт запись")
+            }
+        }
+    }
+}
+
+/**
+ * Согласие на публикацию трека — один раз, перед первым включением трекинга.
+ */
+@Composable
+private fun LiveTrackConsentDialog(
+    onAccept: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Онлайн-трек") },
+        text = {
+            Text(
+                "Пока вы на дистанции, телефон будет передавать ваше местоположение. Трек увидят " +
+                    "все зрители соревнования в приложении и на сайте Competra, после финиша он " +
+                    "останется в архиве соревнования.\n\nКарту и своё положение во время забега вы " +
+                    "не увидите — это требование правил. Остановить запись можно в любой момент."
+            )
+        },
+        confirmButton = { TextButton(onClick = onAccept) { Text("Согласен, включить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+    )
+}
+
+/**
+ * Проверяет и при необходимости запрашивает разрешения по просьбе ViewModel (перед стартом трека):
+ * точная геолокация обязательна, уведомления (Android 13+) — чтобы было видно, что запись идёт.
+ */
+@Composable
+private fun LiveTrackPermissionsHandler(viewModel: EventDetailsViewModel) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        viewModel.onAction(EventDetailsAction.LiveTrackPermissionsResult(context.hasFineLocation()))
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.liveTrackPermissionRequests.collect {
+            val missing = liveTrackPermissions().filter {
+                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+            }
+            if (missing.isEmpty()) {
+                viewModel.onAction(EventDetailsAction.LiveTrackPermissionsResult(locationGranted = true))
+            } else {
+                launcher.launch(missing.toTypedArray())
+            }
+        }
+    }
+}
+
+private fun liveTrackPermissions(): List<String> = buildList {
+    add(Manifest.permission.ACCESS_FINE_LOCATION)
+    add(Manifest.permission.ACCESS_COARSE_LOCATION)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+}
+
+private fun Context.hasFineLocation(): Boolean =
+    ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
 /**
  * Строит строку с диапазоном дат события: одна дата или "старт – финиш",

@@ -64,6 +64,12 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
+        <!-- Онлайн-трекинг бегуна на соревновании (GPS + отправка батчей на сервер трекинга). -->
+        <service
+            android:name=".service.CompetitionTrackingService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
         <!-- Firebase Cloud Messaging -->
         <service
             android:name=".fcm.CompetraMessagingService"
