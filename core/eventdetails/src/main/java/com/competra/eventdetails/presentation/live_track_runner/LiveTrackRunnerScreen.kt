@@ -165,12 +165,17 @@ private fun gpsText(recorder: LiveTrackRecorderSnapshot, now: Long): String {
 private fun uploadText(state: LiveTrackRunnerState, session: RunnerTrackSession): String {
     val queued = if (state.pendingPoints > 0) " • в очереди ${state.pendingPoints} точек" else ""
     val lastUploadAt = state.recorder.lastUploadAt
+    // После окончания записи «Отправлено N назад» читается как продолжающаяся передача — показываем итог.
+    val isDraining = state.pendingPoints > 0 || (session.stopRequested && !session.stopDelivered)
     return when {
-        state.recorder.lastUploadFailed -> "Нет связи — точки сохраняются в телефоне$queued"
-        lastUploadAt != null -> "Отправлено ${formatAgo(state.now - lastUploadAt)} назад$queued"
-        session.isRecording -> "Ожидание первой отправки$queued"
-        state.pendingPoints > 0 -> "Досылка при появлении сети$queued"
-        else -> "Все данные отправлены"
+        session.isRecording -> when {
+            state.recorder.lastUploadFailed -> "Нет связи — точки сохраняются в телефоне$queued"
+            lastUploadAt != null -> "Отправлено ${formatAgo(state.now - lastUploadAt)} назад$queued"
+            else -> "Ожидание первой отправки$queued"
+        }
+        !isDraining -> "Все данные отправлены"
+        state.recorder.lastUploadFailed -> "Досылка при появлении сети$queued"
+        else -> "Досылаем записанные точки$queued"
     }
 }
 
