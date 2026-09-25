@@ -69,6 +69,13 @@
     <string name="registration_submit">Зарегистрироваться</string>
     <string name="registration_code_hint">На этот адрес придёт код для входа</string>
     <string name="error_invalid_email">Некорректный адрес почты</string>
+    <string name="auth_title">Вход в Competra</string>
+    <string name="auth_subtitle">Введите email, указанный при регистрации, — мы пришлём на него код для входа</string>
+    <string name="auth_get_code">Получить код</string>
+    <string name="auth_no_account">Нет аккаунта?</string>
+    <string name="auth_to_registration">Зарегистрироваться</string>
+    <string name="auth_code_title">Введите код</string>
+    <string name="auth_code_subtitle">Мы отправили код для входа на %1$s</string>
 
     <!-- Content Descriptions -->
     <string name="content_description_edit_group">Редактировать группу</string>

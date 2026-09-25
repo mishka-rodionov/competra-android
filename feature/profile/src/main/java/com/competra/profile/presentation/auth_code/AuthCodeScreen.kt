@@ -3,6 +3,7 @@ package com.competra.profile.presentation.auth_code
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
@@ -18,12 +19,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
@@ -33,7 +36,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.key.key // Используем event.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
 import com.competra.profile.data.auth.AuthAction
+import com.competra.profile.presentation.components.AuthHeader
+import com.competra.resources.R
 import org.koin.compose.viewmodel.koinViewModel
 
 const val OTP_LENGTH = 6
@@ -96,18 +102,23 @@ fun OtpInputContent(userEmail: String, isLoading: Boolean = false, userAction: (
     }
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Введите код из СМС",
-                fontSize = 20.sp,
-                modifier = Modifier.padding(bottom = 24.dp)
+            AuthHeader(
+                iconRes = R.drawable.ic_mail_24px,
+                title = stringResource(R.string.auth_code_title),
+                subtitle = stringResource(R.string.auth_code_subtitle, userEmail),
+                modifier = Modifier.padding(bottom = 32.dp)
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 for (i in 0 until OTP_LENGTH) {
                     OtpCell(
@@ -116,6 +127,7 @@ fun OtpInputContent(userEmail: String, isLoading: Boolean = false, userAction: (
                         focusRequester = focusRequesters[i],
                         enabled = !isLoading,
                         modifier = Modifier
+                            .weight(1f)
                             .onKeyEvent { event ->
                                 if (event.key == Key.Backspace && event.type == KeyEventType.KeyDown) {
                                     if (otpValues[i].isEmpty() && i > 0) {
@@ -191,19 +203,22 @@ fun OtpCell(
         ),
         singleLine = true,
         modifier = modifier // Применяем переданный modifier (включая onKeyEvent)
-            .size(50.dp)
+            .height(56.dp)
             .focusRequester(focusRequester)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium)
             .border(
-                1.dp,
-                if (textFieldValueState.text.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray,
+                if (textFieldValueState.text.isNotEmpty()) 2.dp else 1.dp,
+                if (textFieldValueState.text.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                 shape = MaterialTheme.shapes.medium
             )
             .padding(horizontal = 8.dp), // Добавляем горизонтальные отступы для текста внутри
         textStyle = TextStyle(
-            fontSize = 20.sp,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurface
         ),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         decorationBox = { innerTextField ->
             Box(
                 contentAlignment = Alignment.Center,

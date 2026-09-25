@@ -43,6 +43,10 @@ class AuthViewModel(
                 }
             }
 
+            AuthAction.ToRegistration -> viewModelScope.launch {
+                navigation.navigate(destination = ProfileNavigation.RegistrationRoute)
+            }
+
             else -> {}
         }
 

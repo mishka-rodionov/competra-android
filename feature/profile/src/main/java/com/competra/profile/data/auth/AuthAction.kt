@@ -6,4 +6,5 @@ sealed class AuthAction: BaseAction {
 
     data class AuthClicked(val email: String): AuthAction()
     data class AuthCodeEntered(val code: String): AuthAction()
+    data object ToRegistration: AuthAction()
 }

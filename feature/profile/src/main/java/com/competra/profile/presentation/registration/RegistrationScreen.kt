@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,9 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,7 +24,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -51,11 +47,9 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
@@ -65,6 +59,7 @@ import com.competra.designsystem.components.DSTextInput
 import com.competra.profile.data.LegalLinks
 import com.competra.profile.data.registration.RegistrationAction
 import com.competra.profile.data.registration.RegistrationState
+import com.competra.profile.presentation.components.AuthHeader
 import com.competra.profile.presentation.components.GenderSelector
 import com.competra.resources.R
 import com.competra.utils.DateTimeFormat
@@ -121,7 +116,11 @@ fun RegistrationContent(state: RegistrationState, userAction: (RegistrationActio
             .padding(horizontal = 24.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        RegistrationHeader()
+        AuthHeader(
+            iconRes = R.drawable.ic_account_circle_24px,
+            title = stringResource(R.string.registration_title),
+            subtitle = stringResource(R.string.registration_subtitle)
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -241,43 +240,6 @@ fun RegistrationContent(state: RegistrationState, userAction: (RegistrationActio
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
-}
-
-/** Шапка экрана: иконка, заголовок и пояснение. */
-@Composable
-private fun RegistrationHeader() {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        modifier = Modifier.size(72.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_account_circle_24px),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(40.dp)
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    Text(
-        text = stringResource(R.string.registration_title),
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface
-    )
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    Text(
-        text = stringResource(R.string.registration_subtitle),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center
-    )
 }
 
 /** Иконка в начале поля ввода. */
