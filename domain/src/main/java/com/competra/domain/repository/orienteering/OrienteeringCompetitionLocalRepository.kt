@@ -26,6 +26,13 @@ interface OrienteeringCompetitionLocalRepository {
 
     suspend fun saveParticipantsGroups(participantGroups: List<ParticipantGroup>, markUnsynced: Boolean = true): Result<Any>
     suspend fun updateParticipantsGroups(competitionId: String, participantGroups: List<ParticipantGroup>, markUnsynced: Boolean = true): Result<Any>
+
+    /**
+     * Применяет серверный снимок групп соревнования при загрузке с сервера (pull), не затирая
+     * группы с неотправленными локальными изменениями (правка или пометка на удаление).
+     * Правила слияния — см. [com.competra.domain.sync.planServerMerge].
+     */
+    suspend fun mergeParticipantGroupsFromServer(competitionId: String, serverGroups: List<ParticipantGroup>): Result<Any>
     suspend fun updateParticipantGroup(participantGroup: ParticipantGroup, markUnsynced: Boolean = true): Result<Any>
     suspend fun getCompetitionWithDetails(competitionId: String): Result<OrienteeringCompetitionDetails>
     suspend fun getCompetitionsByUserid(userId: String): Result<List<OrienteeringCompetition>>

@@ -8,6 +8,7 @@ import com.competra.domain.models.orienteering.OrienteeringCompetitionDetails
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
+import com.competra.domain.sync.planServerMerge
 import com.competra.local.dao.OrienteeringCompetitionDao
 import com.competra.local.dao.ParticipantGroupDao
 import com.competra.local.dao.orienteering.OrienteeringParticipantDao
@@ -172,6 +173,34 @@ class OrienteeringCompetitionLocalRepositoryImpl(
                 } else {
                     participantGroupDao.insert(entity)
                 }
+            }
+        }
+    }
+
+    override suspend fun mergeParticipantGroupsFromServer(
+        competitionId: String,
+        serverGroups: List<ParticipantGroup>
+    ): Result<Any> {
+        return runCatching {
+            // Включает и помеченные на удаление (isDeleted) — иначе их «воскресит» вставка с сервера
+            val existingGroups = participantGroupDao.getGroupsForCompetition(competitionId)
+            val plan = planServerMerge(
+                local = existingGroups,
+                server = serverGroups.filter { it.remoteId != null },
+                localKey = { it.remoteId },
+                serverKey = { it.remoteId!! },
+                isLocalSynced = { it.isSynced },
+                isLocalOnServer = { it.remoteId != null }
+            )
+
+            plan.toDelete.forEach { participantGroupDao.delete(it) }
+            plan.toUpdate.forEach { (local, server) ->
+                participantGroupDao.updateParticipantGroup(
+                    server.toEntity().copy(competitionId = competitionId, groupId = local.groupId)
+                )
+            }
+            plan.toInsert.forEach { server ->
+                participantGroupDao.insert(server.toEntity().copy(competitionId = competitionId))
             }
         }
     }

@@ -18,6 +18,7 @@ import com.competra.domain.models.orienteering.applyOvertimePolicy
 import com.competra.domain.models.orienteering.effectiveControlTimeMinutes
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionRemoteRepository
+import com.competra.domain.sync.planServerMerge
 import com.competra.domain.sync.SyncTrigger
 
 /**
@@ -640,13 +641,16 @@ class OrienteeringCompetitionInteractor(
      * Загружает дистанции и группы участников с сервера и синхронизирует их в локальную БД.
      *
      * Алгоритм:
-     * 1. Получает дистанции с сервера, делает upsert (update если remoteId совпадает, insert иначе)
+     * 1. Получает дистанции с сервера и сливает с локальными по правилам [planServerMerge]
+     *    (update/insert/удаление пропавших с сервера)
      * 2. Перезагружает дистанции из локальной БД, строит карту remoteId → localId
-     * 3. Получает группы с сервера, конвертирует distanceId (remote → local), сохраняет в БД
+     * 3. Получает группы с сервера, конвертирует distanceId (remote → local) и сливает с локальными
+     *    ([OrienteeringCompetitionLocalRepository.mergeParticipantGroupsFromServer])
      *
-     * Локальная дистанция с несинхронизированными изменениями (isSynced == false) серверной копией
-     * не перезаписывается — иначе ещё не запушенная правка (например, номера финишного КП) тихо
-     * затиралась бы устаревшими серверными данными и навсегда помечалась бы как синхронизированная.
+     * Дистанция или группа с несинхронизированными изменениями (isSynced == false, в т.ч. пометка
+     * на удаление) серверной копией не перезаписывается и не удаляется — иначе ещё не запушенная
+     * правка (например, номера финишного КП) тихо затиралась бы устаревшими серверными данными и
+     * навсегда помечалась бы как синхронизированная.
      *
      * @param remoteCompetitionId Серверный ID соревнования.
      * @param localCompetitionId Локальный ID соревнования в Room.
@@ -656,19 +660,23 @@ class OrienteeringCompetitionInteractor(
             .getDistancesForCompetition(competitionId)
             .getOrNull() ?: return
 
-        val existingByRemoteId = localRepository.getDistances(competitionId)
-            .getOrNull().orEmpty()
-            .associateBy { it.remoteId }
-
-        serverDistances.forEach { serverDist ->
-            val existing = serverDist.remoteId?.let { existingByRemoteId[it] }
-            if (existing != null) {
-                if (existing.isSynced) {
-                    localRepository.updateDistance(serverDist.copy(id = existing.id), markUnsynced = false)
-                }
-            } else {
-                localRepository.saveDistance(serverDist, markUnsynced = false)
-            }
+        // Включает и помеченные на удаление (isDeleted) — иначе их «воскресит» вставка с сервера.
+        // Локальный id дистанции автогенерируемый, поэтому сопоставляем по remoteId.
+        val distancePlan = planServerMerge(
+            local = localRepository.getDistances(competitionId).getOrNull().orEmpty(),
+            server = serverDistances.filter { it.remoteId != null },
+            localKey = { it.remoteId },
+            serverKey = { it.remoteId!! },
+            isLocalSynced = { it.isSynced },
+            isLocalOnServer = { it.remoteId != null }
+        )
+        // Дистанция удалена на сервере (например, из веба) — удаляем и локально
+        distancePlan.toDelete.forEach { localRepository.purgeDistanceLocally(it.id) }
+        distancePlan.toUpdate.forEach { (local, server) ->
+            localRepository.updateDistance(server.copy(id = local.id), markUnsynced = false)
+        }
+        distancePlan.toInsert.forEach { server ->
+            localRepository.saveDistance(server, markUnsynced = false)
         }
 
         val remoteToLocalDistanceId = localRepository.getDistances(competitionId)
@@ -686,7 +694,7 @@ class OrienteeringCompetitionInteractor(
                 distanceId = remoteToLocalDistanceId[group.distanceId] ?: group.distanceId
             )
         }
-        localRepository.updateParticipantsGroups(competitionId, fixedGroups, markUnsynced = false)
+        localRepository.mergeParticipantGroupsFromServer(competitionId, fixedGroups)
     }
 
     /**
@@ -695,10 +703,13 @@ class OrienteeringCompetitionInteractor(
      * Алгоритм:
      * 1. Получает участников с сервера по remoteCompetitionId
      * 2. Строит карту server groupId → local groupId (по remoteId группы)
-     * 3. Для каждого участника: update если remoteId совпадает, insert если новый
-     * 4. Удаляет локальных участников, которые уже были на сервере, но пропали из ответа
-     *    (например, участник отменил регистрацию из веба/приложения — бэкенд удаляет запись).
-     *    Участники с неотправленными локальными изменениями не удаляются.
+     * 3. Сливает серверный снимок с локальным по правилам [planServerMerge]:
+     *    - синхронизированный участник обновляется серверной версией;
+     *    - участник с неотправленными изменениями (правка или пометка на удаление) не трогается —
+     *      его выгрузит push, конфликт решит сервер (409 → ConflictResolver);
+     *    - новый серверный участник вставляется;
+     *    - синхронизированный участник, пропавший с сервера (например, отменил регистрацию
+     *      из веба — бэкенд удаляет запись), удаляется локально.
      *
      * Вызывать ПОСЛЕ fetchAndSyncFromServer, чтобы группы уже были синхронизированы.
      *
@@ -719,33 +730,37 @@ class OrienteeringCompetitionInteractor(
             ?.associate { it.remoteId!! to it.groupId }
             ?: emptyMap()
 
+        // Включает и помеченных на удаление (isDeleted) — иначе их «воскресит» вставка с сервера
         val localParticipants = localRepository.getParticipants(competitionId).getOrNull().orEmpty()
 
-        // Сохраняем локальные isChipGiven — сервер не является источником истины для этого поля
-        val existingChipGivenById = localParticipants.associate { it.id to it.isChipGiven }
+        // id участника общий для клиента и сервера, поэтому сопоставляем по id, а не по remoteId:
+        // remoteId появляется только после успешного push, и участник, чей ответ push потерялся,
+        // иначе попал бы во вставку (REPLACE → CASCADE-удаление его результатов).
+        val plan = planServerMerge(
+            local = localParticipants,
+            server = serverParticipants,
+            localKey = { it.id },
+            serverKey = { it.id },
+            isLocalSynced = { it.isSynced },
+            isLocalOnServer = { it.remoteId != null }
+        )
 
-        // Участник был на сервере (remoteId != null), локальных правок нет (isSynced), а в ответе
-        // сервера его больше нет — значит, удалён на сервере (отмена регистрации). Удаляем точечно,
-        // без пересоздания списка, чтобы не задеть CASCADE-результаты остальных участников.
-        val serverIds = serverParticipants.map { it.id }.toSet()
-        localParticipants
-            .filter { it.remoteId != null && it.isSynced && it.remoteId !in serverIds }
-            .forEach { localRepository.deleteParticipant(it.id) }
+        // Удаляем точечно, без пересоздания списка, чтобы не задеть CASCADE-результаты остальных
+        plan.toDelete.forEach { localRepository.deleteParticipant(it.id) }
 
-        serverParticipants.forEach { serverParticipant ->
-            val localGroupId = remoteToLocalGroupId[serverParticipant.groupId] ?: serverParticipant.groupId
-            val preservedIsChipGiven = existingChipGivenById[serverParticipant.id] ?: serverParticipant.isChipGiven
-            val participantToSave = serverParticipant.copy(
-                competitionId = competitionId,
-                groupId = localGroupId,
-                isChipGiven = preservedIsChipGiven
-            )
-            if (serverParticipant.id in existingChipGivenById) {
-                // Обновляем без DELETE+INSERT, чтобы не триггерить CASCADE удаление результатов
-                localRepository.updateParticipants(listOf(participantToSave), markUnsynced = false)
-            } else {
-                localRepository.saveParticipant(participantToSave, markUnsynced = false)
-            }
+        fun OrienteeringParticipant.toLocal(isChipGiven: Boolean) = copy(
+            competitionId = competitionId,
+            groupId = remoteToLocalGroupId[groupId] ?: groupId,
+            isChipGiven = isChipGiven
+        )
+
+        // Сохраняем локальные isChipGiven — сервер не является источником истины для этого поля.
+        // Обновляем без DELETE+INSERT, чтобы не триггерить CASCADE удаление результатов.
+        val updated = plan.toUpdate.map { (local, server) -> server.toLocal(isChipGiven = local.isChipGiven) }
+        if (updated.isNotEmpty()) localRepository.updateParticipants(updated, markUnsynced = false)
+
+        plan.toInsert.forEach { server ->
+            localRepository.saveParticipant(server.toLocal(isChipGiven = server.isChipGiven), markUnsynced = false)
         }
     }
 
