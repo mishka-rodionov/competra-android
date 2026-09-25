@@ -67,7 +67,7 @@
     <ID>FunctionNaming:DrawParticipantsScreen.kt$@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class) @Composable fun DrawParticipantsScreen(viewModel: DrawViewModel = koinViewModel())</ID>
     <ID>FunctionNaming:GetOrienteeringChipScreen.kt$@Composable private fun EmptyPlaceholder(message: String)</ID>
     <ID>FunctionNaming:GetOrienteeringChipScreen.kt$@Composable private fun LoadingPlaceholder()</ID>
-    <ID>FunctionNaming:GetOrienteeringChipScreen.kt$@Composable private fun ParticipantChipCard( participant: OrienteeringParticipant, onChipNumberChanged: (String) -&gt; Unit, onChipGivenChanged: (Boolean) -&gt; Unit, showGroupName: Boolean = false )</ID>
+    <ID>FunctionNaming:GetOrienteeringChipScreen.kt$@Composable private fun ParticipantChipCard( participant: OrienteeringParticipant, onChipNumberChanged: (String) -&gt; Unit, onChipGivenChanged: (Boolean) -&gt; Unit )</ID>
     <ID>FunctionNaming:GetOrienteeringChipScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun GetOrienteeringChipScreen( competitionId: String, viewModel: GetOrienteeringChipViewModel = koinViewModel() )</ID>
     <ID>FunctionNaming:GroupSplitsTableScreen.kt$@Composable fun GroupSplitsTableScreen( groupId: Long, competitionId: String, viewModel: GroupSplitsTableViewModel = koinViewModel(), )</ID>
     <ID>FunctionNaming:KindOfSportScreen.kt$@Composable fun KindOfSportScreen(viewModel: CenterViewModel = koinViewModel())</ID>

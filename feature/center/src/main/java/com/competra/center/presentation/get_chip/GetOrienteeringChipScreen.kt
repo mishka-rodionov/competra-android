@@ -30,7 +30,8 @@ import org.koin.androidx.compose.koinViewModel
 
 /**
  * Экран для выдачи чипов участникам соревнований.
- * Содержит вкладки по группам участников.
+ * Показывает единый список участников всех групп, отсортированный по номеру чипа,
+ * чтобы чипы можно было раздавать подряд — от первого номера до последнего.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,7 +40,6 @@ fun GetOrienteeringChipScreen(
     viewModel: GetOrienteeringChipViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         viewModel.loadParticipants(competitionId)
@@ -67,69 +67,18 @@ fun GetOrienteeringChipScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (state.participants.isNotEmpty()) {
+                    Text(
+                        text = "Выдано: ${state.participants.count { it.isChipGiven }} из ${state.participants.size}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
-            if (state.groupsWithParticipants.isNotEmpty()) {
-                val groups = state.groupsWithParticipants
-                // Вкладка «Все» показывается только когда групп больше одной.
-                val hasAllTab = groups.size > 1
-                val tabCount = groups.size + if (hasAllTab) 1 else 0
-                val safeTabIndex = selectedTabIndex.coerceIn(0, tabCount - 1)
-                val isAllTab = hasAllTab && safeTabIndex == 0
-
-                // Табы: «Все» (если есть) + по группам
-                SecondaryScrollableTabRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    selectedTabIndex = safeTabIndex,
-                    edgePadding = 16.dp,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    divider = {},
-                    indicator = {}
-                ) {
-                    if (hasAllTab) {
-                        Tab(
-                            selected = isAllTab,
-                            onClick = { selectedTabIndex = 0 },
-                            text = {
-                                Text(
-                                    text = "Все",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = if (isAllTab) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        )
-                    }
-                    groups.forEachIndexed { index, groupWithParticipants ->
-                        val tabIndex = if (hasAllTab) index + 1 else index
-                        Tab(
-                            selected = safeTabIndex == tabIndex,
-                            onClick = { selectedTabIndex = tabIndex },
-                            text = {
-                                Text(
-                                    text = groupWithParticipants.group.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = if (safeTabIndex == tabIndex) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        )
-                    }
-                }
-
-                // На вкладке «Все» — плоский список всех участников, отсортированный по
-                // стартовому времени (затем по стартовому номеру). На вкладке группы — её участники.
-                val participantsToShow = if (isAllTab) {
-                    groups.flatMap { it.participants }
-                        .sortedWith(
-                            compareBy(
-                                { if (isValidTimestamp(it.startTime)) it.startTime else Long.MAX_VALUE },
-                                { it.startNumber.toIntOrNull() ?: Int.MAX_VALUE }
-                            )
-                        )
-                } else {
-                    val groupIndex = if (hasAllTab) safeTabIndex - 1 else safeTabIndex
-                    groups.getOrNull(groupIndex)?.participants ?: emptyList()
-                }
+            if (state.participants.isNotEmpty()) {
+                val participantsToShow = state.participants
 
                 Column(modifier = Modifier.weight(1f)) {
                     LazyColumn(
@@ -142,7 +91,6 @@ fun GetOrienteeringChipScreen(
                         items(participantsToShow, key = { it.id }) { participant ->
                             ParticipantChipCard(
                                 participant = participant,
-                                showGroupName = isAllTab,
                                 onChipGivenChanged = { isGiven ->
                                     viewModel.onAction(
                                         GetOrienteeringChipAction.ToggleChipGiven(
@@ -208,8 +156,7 @@ fun GetOrienteeringChipScreen(
 private fun ParticipantChipCard(
     participant: OrienteeringParticipant,
     onChipNumberChanged: (String) -> Unit,
-    onChipGivenChanged: (Boolean) -> Unit,
-    showGroupName: Boolean = false
+    onChipGivenChanged: (Boolean) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -227,13 +174,23 @@ private fun ParticipantChipCard(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Ввод номера чипа — первым, т.к. список упорядочен именно по нему
+            DSTextInput(
+                modifier = Modifier.width(100.dp),
+                text = participant.chipNumber,
+                onValueChanged = onChipNumberChanged,
+                label = { Text("Чип") }
+            )
+
+            Spacer(modifier = Modifier.width(Dimens.SIZE_BASE.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "${participant.lastName} ${participant.firstName}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                if (showGroupName && participant.groupName.isNotEmpty()) {
+                if (participant.groupName.isNotEmpty()) {
                     Text(
                         text = participant.groupName,
                         style = MaterialTheme.typography.bodySmall,
@@ -253,16 +210,6 @@ private fun ParticipantChipCard(
                 )
             }
 
-            Spacer(modifier = Modifier.width(Dimens.SIZE_BASE.dp))
-
-            // Ввод номера чипа
-            DSTextInput(
-                modifier = Modifier.width(100.dp),
-                text = participant.chipNumber,
-                onValueChanged = onChipNumberChanged,
-                label = { Text("Чип") }
-            )
-
             Spacer(modifier = Modifier.width(Dimens.SIZE_HALF.dp))
 
             // Чекбокс выдачи
@@ -274,9 +221,6 @@ private fun ParticipantChipCard(
         }
     }
 }
-
-/** true, если стартовое время реально установлено (а не 0/мусор). */
-private fun isValidTimestamp(ms: Long): Boolean = ms.isValidStartTimestamp()
 
 @Composable
 private fun LoadingPlaceholder() {

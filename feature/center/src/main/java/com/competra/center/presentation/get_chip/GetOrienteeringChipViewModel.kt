@@ -24,7 +24,7 @@ class GetOrienteeringChipViewModel(
     private var competitionId: String? = null
 
     /**
-     * Загружает группы участников для указанного соревнования.
+     * Загружает участников всех групп соревнования плоским списком, отсортированным по номеру чипа.
      * @param competitionId ID соревнования.
      */
     fun loadParticipants(competitionId: String) {
@@ -34,7 +34,9 @@ class GetOrienteeringChipViewModel(
             orienteeringCompetitionInteractor.getCompetitionWithDetails(competitionId).onSuccess { details ->
                 updateState {
                     copy(
-                        groupsWithParticipants = details.groupsWithParticipants,
+                        participants = details.groupsWithParticipants
+                            .flatMap { it.participants }
+                            .sortedWith(chipOrderComparator),
                         isLoading = false
                     )
                 }
@@ -69,24 +71,44 @@ class GetOrienteeringChipViewModel(
         participantId: String,
         update: (OrienteeringParticipant) -> OrienteeringParticipant
     ) {
-        val updatedGroups = stateValue.groupsWithParticipants.map { group ->
-            group.copy(
-                participants = group.participants.map { participant ->
-                    if (participant.id == participantId) update(participant) else participant
-                }
-            )
+        // Порядок списка сохраняется — пересортировка происходит только при следующей загрузке.
+        val updatedParticipants = stateValue.participants.map { participant ->
+            if (participant.id == participantId) update(participant) else participant
         }
-        updateState { copy(groupsWithParticipants = updatedGroups) }
+        updateState { copy(participants = updatedParticipants) }
     }
 
     private fun saveChanges() {
         updateState { copy(isSaving = true) }
         viewModelScope.launch {
-            val allParticipants = stateValue.groupsWithParticipants.flatMap { it.participants }
+            val allParticipants = stateValue.participants
             orienteeringCompetitionInteractor.updateParticipants(allParticipants)
             orienteeringCompetitionInteractor.syncParticipantsAfterDraw(allParticipants)
             updateState { copy(isSaving = false) }
             navigation.back()
+        }
+    }
+
+    private companion object {
+        /**
+         * Порядок выдачи: сначала участники с числовым номером чипа по возрастанию, затем
+         * с нечисловым (по строке), в конце — без чипа (по фамилии и имени).
+         */
+        val chipOrderComparator: Comparator<OrienteeringParticipant> = compareBy(
+            { chipSortBucket(it.chipNumber) },
+            { it.chipNumber.trim().toLongOrNull() ?: Long.MAX_VALUE },
+            { it.chipNumber.trim() },
+            { it.lastName },
+            { it.firstName }
+        )
+
+        private fun chipSortBucket(chipNumber: String): Int {
+            val trimmed = chipNumber.trim()
+            return when {
+                trimmed.isEmpty() -> 2
+                trimmed.toLongOrNull() != null -> 0
+                else -> 1
+            }
         }
     }
 }
