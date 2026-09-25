@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.competra.domain.models.cyclic_event.CyclicEventDetails
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
+import com.competra.domain.models.cyclic_event.GroupEligibility
 import com.competra.domain.models.events.EventStatus
 import com.competra.domain.models.events.EventType
 import com.competra.domain.models.orienteering.ResultsStatus
@@ -626,23 +627,48 @@ private fun RegistrationBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(state.eventDetails?.participantGroups ?: emptyList()) { group ->
+                        // Неподходящую по полу/возрасту группу выбрать нельзя — показываем причину.
+                        val notEligible = state.groupEligibility[group.groupId] as? GroupEligibility.NotEligible
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onAction(EventDetailsAction.SelectGroup(group)) }
+                                .clickable(enabled = notEligible == null) { onAction(EventDetailsAction.SelectGroup(group)) }
                                 .padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
                                 selected = state.selectedGroup?.groupId == group.groupId,
-                                onClick = { onAction(EventDetailsAction.SelectGroup(group)) }
+                                onClick = { onAction(EventDetailsAction.SelectGroup(group)) },
+                                enabled = notEligible == null
                             )
-                            Text(
-                                text = group.title,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
+                            Column(modifier = Modifier.padding(start = 8.dp)) {
+                                Text(
+                                    text = group.title,
+                                    color = if (notEligible == null) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                                if (notEligible != null) {
+                                    Text(
+                                        text = notEligible.reason,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                     }
+                }
+            }
+
+            val canFixInProfile = state.groupEligibility.values.any {
+                it is GroupEligibility.NotEligible && it.fixInProfile
+            }
+            if (canFixInProfile) {
+                TextButton(onClick = { onAction(EventDetailsAction.OpenProfile) }) {
+                    Text("Открыть профиль")
                 }
             }
 

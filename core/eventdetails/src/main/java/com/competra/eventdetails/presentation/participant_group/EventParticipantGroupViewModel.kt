@@ -7,6 +7,9 @@ import com.competra.data.navigation.TabRoutes
 import com.competra.domain.exception.NetworkException
 import com.competra.domain.models.NetworkErrorEvent
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
+import com.competra.domain.models.cyclic_event.GroupEligibility
+import com.competra.domain.models.cyclic_event.checkGroupEligibility
+import com.competra.domain.models.cyclic_event.competitionYear
 import com.competra.domain.models.user.User
 import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.NetworkErrorRepository
@@ -40,6 +43,7 @@ class EventParticipantGroupViewModel(
         when (action) {
             is EventParticipantGroupAction.RegisterUser -> registerUser()
             is EventParticipantGroupAction.CancelRegistration -> cancelRegistration()
+            is EventParticipantGroupAction.OpenProfile -> viewModelScope.launch { navigation.switchTab(TabRoutes.PROFILE) }
         }
     }
 
@@ -56,10 +60,24 @@ class EventParticipantGroupViewModel(
 
             repository.getEventDetails(eventId, currentUser?.id)
                 .onSuccess { details ->
+                    val year = details?.let { competitionYear(it.startDate, it.timeZoneId) }
+                    val user = currentUser
                     updateState {
                         copy(
                             eventStatus = details?.status,
-                            isUserRegisteredInEvent = details?.isUserRegistered ?: false
+                            isUserRegisteredInEvent = details?.isUserRegistered ?: false,
+                            competitionYear = year,
+                            eligibility = if (user != null && year != null) {
+                                checkGroupEligibility(
+                                    groupTitle = group.title,
+                                    groupGender = group.gender,
+                                    minAge = group.minAge,
+                                    maxAge = group.maxAge,
+                                    userGender = user.gender,
+                                    userBirthDate = user.birthDate,
+                                    competitionYear = year
+                                )
+                            } else null
                         )
                     }
                 }
@@ -108,6 +126,8 @@ class EventParticipantGroupViewModel(
             }
 
             val user = currentUser ?: return@launch
+            // Кнопка в этом случае неактивна, но сюда же ведёт отложенная регистрация после входа.
+            if (stateValue.eligibility is GroupEligibility.NotEligible) return@launch
             updateState { copy(isRegistering = true) }
             repository.registerToEvent(
                 eventId = eventId,
@@ -157,4 +177,6 @@ class EventParticipantGroupViewModel(
 sealed interface EventParticipantGroupAction : BaseAction {
     data object RegisterUser : EventParticipantGroupAction
     data object CancelRegistration : EventParticipantGroupAction
+    /** Перейти в профиль, чтобы указать пол/дату рождения. */
+    data object OpenProfile : EventParticipantGroupAction
 }

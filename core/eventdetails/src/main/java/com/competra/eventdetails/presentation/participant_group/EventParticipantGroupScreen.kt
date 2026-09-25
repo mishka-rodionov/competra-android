@@ -18,6 +18,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,7 +29,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.competra.domain.models.Gender
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
+import com.competra.domain.models.cyclic_event.GroupEligibility
+import com.competra.domain.models.cyclic_event.birthYearsRange
+import com.competra.domain.models.cyclic_event.groupGenderRestriction
 import com.competra.domain.models.events.EventStatus
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.eventdetails.data.participant_group.EventParticipantGroupState
@@ -97,10 +102,18 @@ private fun EventParticipantGroupContent(
                 RegistrationButton(
                     isUserRegistered = state.isUserRegistered,
                     isRegistering = state.isRegistering,
+                    isEligible = state.eligibility !is GroupEligibility.NotEligible,
                     onAction = onAction
                 )
             }
         }
+
+        val notEligible = state.eligibility as? GroupEligibility.NotEligible
+        if (state.eventStatus == EventStatus.REGISTRATION && !state.isUserRegisteredInEvent && notEligible != null) {
+            NotEligibleBlock(notEligible = notEligible, onAction = onAction)
+        }
+
+        RestrictionsInfo(group = participantGroup, competitionYear = state.competitionYear)
 
         DistanceInfoBlock(group = participantGroup)
 
@@ -128,6 +141,56 @@ private fun EventParticipantGroupContent(
             }
         }
     }
+}
+
+/**
+ * Причина, по которой группа не подходит пользователю, и переход в профиль, если её можно устранить там.
+ */
+@Composable
+private fun NotEligibleBlock(notEligible: GroupEligibility.NotEligible, onAction: (BaseAction) -> Unit) {
+    Column(modifier = Modifier.padding(top = 8.dp)) {
+        Text(
+            text = notEligible.reason,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error
+        )
+        if (notEligible.fixInProfile) {
+            TextButton(onClick = { onAction(EventParticipantGroupAction.OpenProfile) }) {
+                Text(text = "Открыть профиль")
+            }
+        }
+    }
+}
+
+/**
+ * Ограничения группы по полу и возрасту. Возраст считается по году рождения — поэтому рядом
+ * показываем и сами годы. Не отображается, если ограничений нет.
+ */
+@Composable
+private fun RestrictionsInfo(group: EventParticipantGroup, competitionYear: Int?) {
+    val minAge = group.minAge?.takeIf { it > 0 }
+    val maxAge = group.maxAge?.takeIf { it > 0 }
+    val ages = when {
+        minAge != null && maxAge != null -> "$minAge–$maxAge лет"
+        minAge != null -> "от $minAge лет"
+        maxAge != null -> "до $maxAge лет"
+        else -> null
+    }?.let { ages ->
+        competitionYear?.let { birthYearsRange(minAge, maxAge, it) }?.let { "$ages ($it)" } ?: ages
+    }
+    val gender = when (groupGenderRestriction(group.gender)) {
+        Gender.MALE -> "Мужчины"
+        Gender.FEMALE -> "Женщины"
+        else -> null
+    }
+    val text = listOfNotNull(gender, ages).joinToString(" • ")
+    if (text.isEmpty()) return
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 8.dp)
+    )
 }
 
 /**
@@ -191,12 +254,14 @@ private fun formatMeters(meters: Int): String {
  * Кнопка регистрации/отмены регистрации.
  * @param isUserRegistered Зарегистрирован ли пользователь.
  * @param isRegistering Состояние процесса регистрации.
+ * @param isEligible Подходит ли группа пользователю по полу и возрасту (иначе регистрация неактивна).
  * @param onAction Обработчик действий.
  */
 @Composable
 private fun RegistrationButton(
     isUserRegistered: Boolean,
     isRegistering: Boolean,
+    isEligible: Boolean,
     onAction: (BaseAction) -> Unit
 ) {
     if (isUserRegistered) {
@@ -221,7 +286,7 @@ private fun RegistrationButton(
     } else {
         Button(
             onClick = { onAction(EventParticipantGroupAction.RegisterUser) },
-            enabled = !isRegistering
+            enabled = !isRegistering && isEligible
         ) {
             if (isRegistering) {
                 CircularProgressIndicator(

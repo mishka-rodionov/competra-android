@@ -10,6 +10,9 @@ import com.competra.data.navigation.TabRoutes
 import com.competra.domain.exception.NetworkException
 import com.competra.domain.models.NetworkErrorEvent
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
+import com.competra.domain.models.cyclic_event.GroupEligibility
+import com.competra.domain.models.cyclic_event.checkGroupEligibility
+import com.competra.domain.models.cyclic_event.competitionYear
 import com.competra.domain.models.user.User
 import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.NetworkErrorRepository
@@ -90,6 +93,10 @@ class EventDetailsViewModel(
             is EventDetailsAction.SelectGroup -> selectGroup(action.group)
             is EventDetailsAction.CommandNameChanged -> updateState { copy(commandName = action.commandName) }
             is EventDetailsAction.ConfirmRegistration -> confirmRegistration()
+            is EventDetailsAction.OpenProfile -> {
+                hideRegistrationDialog()
+                viewModelScope.launch { navigation.switchTab(TabRoutes.PROFILE) }
+            }
             is EventDetailsAction.CancelRegistration -> cancelRegistration()
             is EventDetailsAction.ToLiveTracks -> navigateToLiveTracks()
             is EventDetailsAction.LiveTrackClick -> onLiveTrackClick()
@@ -113,7 +120,8 @@ class EventDetailsViewModel(
                     updateState {
                         copy(
                             eventDetails = details,
-                            isUserRegistered = details?.isUserRegistered ?: false
+                            isUserRegistered = details?.isUserRegistered ?: false,
+                            groupEligibility = groupEligibility(details, currentUser)
                         )
                     }
                     loadOrganizerClubName(details?.organizingClubId)
@@ -169,7 +177,25 @@ class EventDetailsViewModel(
     }
 
     private fun selectGroup(group: EventParticipantGroup) {
+        if (stateValue.groupEligibility[group.groupId] is GroupEligibility.NotEligible) return
         updateState { copy(selectedGroup = group) }
+    }
+
+    /** Проверка пола и возраста для каждой группы; пусто — пользователь не вошёл. */
+    private fun groupEligibility(details: CyclicEventDetails?, user: User?): Map<String, GroupEligibility> {
+        if (details == null || user == null) return emptyMap()
+        val year = competitionYear(details.startDate, details.timeZoneId)
+        return details.participantGroups.associate { group ->
+            group.groupId to checkGroupEligibility(
+                groupTitle = group.title,
+                groupGender = group.gender,
+                minAge = group.minAge,
+                maxAge = group.maxAge,
+                userGender = user.gender,
+                userBirthDate = user.birthDate,
+                competitionYear = year
+            )
+        }
     }
 
     /**
@@ -397,6 +423,8 @@ sealed interface EventDetailsAction : BaseAction {
     data class SelectGroup(val group: EventParticipantGroup) : EventDetailsAction
     data class CommandNameChanged(val commandName: String) : EventDetailsAction
     data object ConfirmRegistration : EventDetailsAction
+    /** Перейти в профиль, чтобы указать пол/дату рождения. */
+    data object OpenProfile : EventDetailsAction
     data object CancelRegistration : EventDetailsAction
 
     /** Зритель открывает онлайн-треки участников. */

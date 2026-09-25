@@ -14,7 +14,10 @@ data class ParticipantGroupDetailResponse(
     @SerializedName("distanceControlsCount") val distanceControlsCount: Int? = null,
     @SerializedName("distanceDescription") val distanceDescription: String? = null,
     /** Итоговое КВ группы: своё значение группы либо унаследованное от соревнования. */
-    @SerializedName("controlTimeMinutes") val controlTimeMinutes: Int? = null
+    @SerializedName("controlTimeMinutes") val controlTimeMinutes: Int? = null,
+    @SerializedName("gender") val gender: String? = null,
+    @SerializedName("minAge") val minAge: Int? = null,
+    @SerializedName("maxAge") val maxAge: Int? = null
 )
 
 data class CompetitionDetailResponse(

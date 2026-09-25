@@ -2,6 +2,7 @@ package com.competra.eventdetails.data.details
 
 import com.competra.domain.models.cyclic_event.CyclicEventDetails
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
+import com.competra.domain.models.cyclic_event.GroupEligibility
 import com.competra.domain.models.events.EventStatus
 import com.competra.domain.models.events.EventType
 import com.competra.ui.BaseState
@@ -20,6 +21,8 @@ import com.competra.ui.BaseState
  * @param isLiveTrackConsentVisible Видимость диалога согласия на публикацию трека.
  * @param isStartingLiveTrack Идёт старт сессии трекинга на сервере.
  * @param hasLiveTracks По соревнованию есть онлайн-треки участников (для зрителя).
+ * @param groupEligibility Подходит ли группа (по groupId) вошедшему пользователю по полу и возрасту;
+ * пусто — пользователь не вошёл. Неподходящие группы в BottomSheet регистрации неактивны.
  */
 data class EventDetailsState(
     val eventDetails: CyclicEventDetails? = null,
@@ -33,7 +36,8 @@ data class EventDetailsState(
     val liveTrackEntry: LiveTrackEntry = LiveTrackEntry.HIDDEN,
     val isLiveTrackConsentVisible: Boolean = false,
     val isStartingLiveTrack: Boolean = false,
-    val hasLiveTracks: Boolean = false
+    val hasLiveTracks: Boolean = false,
+    val groupEligibility: Map<String, GroupEligibility> = emptyMap()
 ) : BaseState {
 
     /** Показывать зрителю кнопку «Онлайн-треки»: соревнование идёт или треки уже есть. */

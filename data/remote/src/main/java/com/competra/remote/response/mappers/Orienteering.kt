@@ -1,6 +1,7 @@
 package com.competra.remote.response.mappers
 
 import com.competra.domain.models.Gender
+import com.competra.domain.models.cyclic_event.groupGenderRestriction
 import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.DistanceMap
@@ -48,13 +49,9 @@ fun ParticipantGroupResponse.toDomain() : ParticipantGroup {
         groupId = 0L,
         competitionId = "",
         title = title,
-        gender = gender?.let {
-            try {
-                Gender.valueOf(it)
-            } catch (e: Exception) {
-                null
-            }
-        },
+        // Веб пишет пол группы как "M"/"F" — без этого такие группы теряли бы пол, а при
+        // редактировании на Android он затирался бы при синхронизации.
+        gender = gender?.let { raw -> groupGenderRestriction(raw) ?: Gender.entries.firstOrNull { it.name == raw } },
         minAge = minAge,
         maxAge = maxAge,
         distanceId = distanceId,
