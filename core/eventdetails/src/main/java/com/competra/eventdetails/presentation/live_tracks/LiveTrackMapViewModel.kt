@@ -62,9 +62,21 @@ data class LiveTrackMapState(
     /** Группы, встречающиеся среди треков. */
     val groups: List<String> get() = tracks.mapNotNull { it.groupName }.distinct().sorted()
 
+    /**
+     * Треки без устаревших сессий: если участник перезапустил трек, закрытые сессии скрываются,
+     * пока у него есть активная.
+     */
+    val currentTracks: List<ViewerTrack>
+        get() {
+            val activeParticipants = tracks.filter { it.isActive }.mapTo(HashSet()) { it.participantId }
+            return tracks.filter { it.isActive || it.participantId !in activeParticipants }
+        }
+
     /** Треки с учётом фильтра групп. */
     val visibleTracks: List<ViewerTrack>
-        get() = if (selectedGroups.isEmpty()) tracks else tracks.filter { it.groupName in selectedGroups }
+        get() = currentTracks.let { current ->
+            if (selectedGroups.isEmpty()) current else current.filter { it.groupName in selectedGroups }
+        }
 
     /** Кто-то ещё на дистанции — режим «онлайн», иначе архив. */
     val isLive: Boolean get() = tracks.any { it.isActive }

@@ -37,6 +37,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -106,7 +107,8 @@ fun LiveTrackMapScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             MapHeader(state)
             MapFilters(state) { viewModel.onAction(it) }
-            Box(modifier = Modifier.fillMaxWidth().weight(0.62f)) {
+            // osmdroid рисует тайлы и треки за пределами своего View — без обрезки они наезжают на список.
+            Box(modifier = Modifier.fillMaxWidth().weight(0.62f).clipToBounds()) {
                 LiveTrackOsmMap(state = state, focus = viewModel.focus, modifier = Modifier.fillMaxSize())
                 if (state.isLoading) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
@@ -124,9 +126,9 @@ private fun MapHeader(state: LiveTrackMapState) {
         Text(
             when {
                 state.isLoading -> "Загрузка…"
-                active > 0 -> "На дистанции: $active • треков: ${state.tracks.size}"
+                active > 0 -> "На дистанции: $active • треков: ${state.currentTracks.size}"
                 state.tracks.isEmpty() -> "Пока нет треков"
-                else -> "Архив треков: ${state.tracks.size}"
+                else -> "Архив треков: ${state.currentTracks.size}"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
