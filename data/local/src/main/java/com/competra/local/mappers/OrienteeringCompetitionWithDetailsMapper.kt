@@ -15,6 +15,7 @@ fun OrienteeringCompetitionWithDetails.toDomain(): OrienteeringCompetitionDetail
 fun ParticipantGroupWithParticipants.toDomain(): ParticipantGroupParticipants {
     return ParticipantGroupParticipants(
         group = group.toDomain(),
-        participants = participants.map { it.toDomain() }
+        // Помеченные на удаление участники ждут выгрузки DELETE и в UI не показываются
+        participants = participants.filterNot { it.isDeleted }.map { it.toDomain() }
     )
 }

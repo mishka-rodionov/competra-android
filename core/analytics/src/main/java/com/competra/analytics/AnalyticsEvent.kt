@@ -157,6 +157,10 @@ sealed class AnalyticsEvent(
     class ParticipantAdded(method: ParticipantAddMethod) :
         AnalyticsEvent("participant_added", mapOf("method" to method.name.lowercase()))
 
+    /** Организатор отметил участника как «Не стартовал» (DNS) — после старта вместо удаления. */
+    class ParticipantDnsMarked(competitionId: String) :
+        AnalyticsEvent("participant_dns_marked", mapOf("competition_id" to competitionId))
+
     /** Режим проведённой жеребьёвки. */
     enum class DrawMode { GENERAL, GROUP, DISTANCE }
 

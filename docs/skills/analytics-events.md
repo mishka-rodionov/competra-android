@@ -23,6 +23,7 @@
 | `nfc_chip_read_attempted` | Зафиксирована попытка чтения чипа | `OrientReadCardViewModel.kt` |
 | `create_competition_step_completed` | Пользователь закончил один из шагов мастера | `OrienteeringCreatorViewModel.kt` |
 | `participant_drawn` | Прошла жеребьёвка | `DrawViewModel.kt` |
+| `participant_dns_marked` | Участник отмечен «Не стартовал» | `ParticipantListViewModel.kt` |
 
 ### Анти-паттерны
 

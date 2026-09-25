@@ -55,6 +55,19 @@ sealed class ParticipantListAction : BaseAction {
     data class DeleteParticipant(val participant: OrienteeringParticipant) : ParticipantListAction()
 
     /**
+     * Поставить или снять участнику статус «Не стартовал» (DNS). Используется после старта
+     * соревнования вместо удаления.
+     * @param participant Участник.
+     * @param isDns true — отметить «Не стартовал», false — снять отметку.
+     */
+    data class SetParticipantDns(val participant: OrienteeringParticipant, val isDns: Boolean) : ParticipantListAction()
+
+    /**
+     * Скрыть сообщение об ошибке.
+     */
+    data object DismissError : ParticipantListAction()
+
+    /**
      * Сгенерировать тестовых участников для каждой пустой группы (только debug-сборка,
      * только тестовое соревнование).
      */

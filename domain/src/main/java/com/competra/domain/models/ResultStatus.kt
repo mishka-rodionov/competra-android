@@ -10,3 +10,12 @@ enum class ResultStatus {
      */
     OVERTIME
 }
+
+/**
+ * true, если участнику с таким статусом результата (null — результата ещё нет) можно вручную
+ * поставить «Не стартовал» (DNS). Участник со стартом, финишем или снятием уже стартовал —
+ * для него DNS некорректен. DNF допускается: при завершении соревнования его автоматически
+ * получают все участники без результата, в т.ч. неявившиеся.
+ */
+val ResultStatus?.canBeMarkedDns: Boolean
+    get() = this == null || this == ResultStatus.REGISTERED || this == ResultStatus.DNF

@@ -48,9 +48,25 @@ interface OrienteeringCompetitionLocalRepository {
 
     suspend fun saveParticipant(participant: OrienteeringParticipant, markUnsynced: Boolean = true): Result<OrienteeringParticipant?>
 
+    /** Участники соревнования без помеченных на удаление. */
     suspend fun getParticipants(competitionId: String): Result<List<OrienteeringParticipant>>
+
+    /**
+     * Все участники соревнования, включая помеченных на удаление (isDeleted=true).
+     * Используется при слиянии с серверным снимком, чтобы не «воскрешать» удалённых.
+     */
+    suspend fun getParticipantsIncludingDeleted(competitionId: String): Result<List<OrienteeringParticipant>>
     suspend fun updateParticipants(participants: List<OrienteeringParticipant>, markUnsynced: Boolean = true) : Result<Any>
+
+    /** Физически удаляет участника из локальной БД (без выгрузки на сервер). */
     suspend fun deleteParticipant(participantId: String): Result<Unit>
+
+    /**
+     * Помечает участника на удаление (soft-delete). Запись скрывается из списков и остаётся
+     * в БД с isDeleted=true, пока SyncCenterWorker не отправит DELETE на сервер. Участник,
+     * ни разу не выгруженный на сервер, удаляется локально сразу.
+     */
+    suspend fun markParticipantDeleted(participantId: String): Result<Unit>
 
     suspend fun getParticipantByChipNumber(competitionId: String, chipNumber: Int) : Result<OrienteeringParticipant>
     suspend fun getParticipantGroup(groupId: Long) : Result<ParticipantGroup>

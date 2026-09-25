@@ -8,7 +8,10 @@ import com.competra.local.entities.orienteering.ParticipantWithResultEntity
 fun GroupWithParticipantsAndResultsEntity.toDomain(): GroupWithParticipantsAndResults {
     return GroupWithParticipantsAndResults(
         group = group.toDomain(),
-        participants = participants.map(ParticipantWithResultEntity::toDomain)
+        // Помеченные на удаление участники ждут выгрузки DELETE и в протоколе не показываются
+        participants = participants
+            .filterNot { it.participant.isDeleted }
+            .map(ParticipantWithResultEntity::toDomain)
     )
 }
 

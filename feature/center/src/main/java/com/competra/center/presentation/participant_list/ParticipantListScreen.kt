@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import com.competra.utils.isValidStartTimestamp
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,7 +36,10 @@ import com.competra.center.data.participant_list.ParticipantListAction
 import com.competra.center.data.participant_list.ParticipantListState
 import com.competra.domain.models.Gender
 import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.canBeMarkedDns
 import com.competra.domain.models.orienteering.CompetitionStatus
+import com.competra.domain.models.orienteering.isParticipantDeletionLocked
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.ParticipantGroupParticipants
 import com.competra.resources.R
@@ -85,6 +90,18 @@ fun ParticipantListScreen(
             onConfirm = { userAction.invoke(ParticipantListAction.DeleteParticipant(participant)) }
         )
     }
+
+    state.errorMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { userAction.invoke(ParticipantListAction.DismissError) },
+            text = { Text(text = message) },
+            confirmButton = {
+                TextButton(onClick = { userAction.invoke(ParticipantListAction.DismissError) }) {
+                    Text(text = "OK")
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -102,6 +119,11 @@ fun ParticipantListContent(
     val isOnAllTab = hasAllTab && pagerState.currentPage == allTabIndex
 
     val isCompetitionRunning = state.competition?.competition?.status == CompetitionStatus.IN_PROGRESS
+    // После старта участников не удаляют — вместо удаления доступна отметка «Не стартовал»
+    val isDeletionLocked = state.competition?.competition?.status?.isParticipantDeletionLocked == true
+    val onDnsToggle: (OrienteeringParticipant, Boolean) -> Unit = { participant, isDns ->
+        userAction.invoke(ParticipantListAction.SetParticipantDns(participant, isDns))
+    }
     var currentTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(isCompetitionRunning) {
         if (isCompetitionRunning) {
@@ -210,6 +232,9 @@ fun ParticipantListContent(
                                 showGroupName = true,
                                 currentTimeMs = currentTimeMs,
                                 isCompetitionRunning = isCompetitionRunning,
+                                isDeletionLocked = isDeletionLocked,
+                                resultStatuses = state.resultStatuses,
+                                onDnsToggle = onDnsToggle,
                                 onEditClick = { participant ->
                                     val groupIndex = state.participantGroupWithParticipants
                                         .indexOfFirst { it.group.groupId == participant.groupId }
@@ -241,6 +266,9 @@ fun ParticipantListContent(
                                 participants = participants,
                                 currentTimeMs = currentTimeMs,
                                 isCompetitionRunning = isCompetitionRunning,
+                                isDeletionLocked = isDeletionLocked,
+                                resultStatuses = state.resultStatuses,
+                                onDnsToggle = onDnsToggle,
                                 onEditClick = { participant ->
                                     userAction.invoke(ParticipantListAction.ShowEditParticipantDialog(groupIndex, participant))
                                 },
@@ -590,6 +618,9 @@ fun ParticipantList(
     showGroupName: Boolean = false,
     currentTimeMs: Long = 0L,
     isCompetitionRunning: Boolean = false,
+    isDeletionLocked: Boolean = false,
+    resultStatuses: Map<String, ResultStatus> = emptyMap(),
+    onDnsToggle: (OrienteeringParticipant, Boolean) -> Unit = { _, _ -> },
     onEditClick: (OrienteeringParticipant) -> Unit,
     onDeleteClick: (OrienteeringParticipant) -> Unit
 ) {
@@ -605,6 +636,9 @@ fun ParticipantList(
                 showGroupName = showGroupName,
                 currentTimeMs = currentTimeMs,
                 isCompetitionRunning = isCompetitionRunning,
+                isDeletionLocked = isDeletionLocked,
+                resultStatus = resultStatuses[participant.id],
+                onDnsToggle = { isDns -> onDnsToggle(participant, isDns) },
                 onEditClick = { onEditClick(participant) },
                 onDeleteClick = { onDeleteClick(participant) }
             )
@@ -619,9 +653,13 @@ fun ParticipantCard(
     showGroupName: Boolean = false,
     currentTimeMs: Long = 0L,
     isCompetitionRunning: Boolean = false,
+    isDeletionLocked: Boolean = false,
+    resultStatus: ResultStatus? = null,
+    onDnsToggle: (Boolean) -> Unit = {},
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val isDns = resultStatus == ResultStatus.DNS
     val hasValidStart = isValidTimestamp(participant.startTime)
     val startTimeText = if (hasValidStart) formatStartTime(participant.startTime) else "—"
     val hasStarted = hasValidStart && isCompetitionRunning && participant.startTime <= currentTimeMs
@@ -686,6 +724,12 @@ fun ParticipantCard(
                     )
                 }
                 when {
+                    isDns -> Text(
+                        text = "Не стартовал",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error
+                    )
                     isCountingDown -> Text(
                         text = "${secondsLeft}с",
                         style = MaterialTheme.typography.titleLarge,
@@ -720,21 +764,67 @@ fun ParticipantCard(
                 )
             }
 
-            Spacer(modifier = Modifier.width(Dimens.SIZE_HALF.dp))
+            if (!isDeletionLocked) {
+                Spacer(modifier = Modifier.width(Dimens.SIZE_HALF.dp))
 
-            IconButton(
-                onClick = onDeleteClick,
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f), CircleShape)
-                    .size(32.dp)
-            ) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.delete),
-                    contentDescription = "Delete participant",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(16.dp)
-                )
+                IconButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f), CircleShape)
+                        .size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.delete),
+                        contentDescription = "Delete participant",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            } else if (isDns || resultStatus.canBeMarkedDns) {
+                // Участник со стартом/финишем уже стартовал — для него отметка недоступна
+                Spacer(modifier = Modifier.width(Dimens.SIZE_HALF.dp))
+
+                DnsToggleButton(isDns = isDns, onClick = { onDnsToggle(!isDns) })
             }
+        }
+    }
+}
+
+/**
+ * Переключатель отметки «Не стартовал» (н/с). Заменяет кнопку удаления после старта соревнования.
+ *
+ * @param isDns Участник уже отмечен как «Не стартовал» — кнопка залита и снимает отметку.
+ */
+@Composable
+private fun DnsToggleButton(isDns: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = if (isDns) {
+            MaterialTheme.colorScheme.errorContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        },
+        contentColor = if (isDns) {
+            MaterialTheme.colorScheme.onErrorContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        modifier = Modifier
+            .height(32.dp)
+            .semantics {
+                contentDescription = if (isDns) "Снять отметку «Не стартовал»" else "Отметить «Не стартовал»"
+            }
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "н/с",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

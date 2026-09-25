@@ -242,6 +242,12 @@ class OrienteeringCompetitionLocalRepositoryImpl(
         }
     }
 
+    override suspend fun getParticipantsIncludingDeleted(competitionId: String): Result<List<OrienteeringParticipant>> {
+        return runCatching {
+            participantDao.getAllParticipantsIncludingDeleted(competitionId).map { it.toDomain() }
+        }
+    }
+
     override suspend fun updateParticipants(
         participants: List<OrienteeringParticipant>,
         markUnsynced: Boolean
@@ -254,6 +260,18 @@ class OrienteeringCompetitionLocalRepositoryImpl(
 
     override suspend fun deleteParticipant(participantId: String): Result<Unit> {
         return runCatching { participantDao.deleteParticipantById(participantId) }
+    }
+
+    override suspend fun markParticipantDeleted(participantId: String): Result<Unit> {
+        return runCatching {
+            val participant = participantDao.getParticipantById(participantId) ?: return@runCatching
+            // Сервер ни разу не подтверждал участника — удалять там нечего
+            if (participant.remoteId == null && participant.serverUpdatedAt == null) {
+                participantDao.deleteParticipantById(participantId)
+            } else {
+                participantDao.markDeleted(participantId)
+            }
+        }
     }
 
     override suspend fun deleteCompetition(competitionId: String): Result<Unit> {

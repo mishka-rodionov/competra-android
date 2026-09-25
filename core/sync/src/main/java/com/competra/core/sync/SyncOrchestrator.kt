@@ -104,9 +104,9 @@ class SyncOrchestrator(
         val marked = localRepository.getParticipantsMarkedForDeletion()
         var transient = false
         for (participant in marked) {
-            // У участника server-id == client-id (UUID); если запись никогда не синхронизировалась,
-            // remoteId всё равно null — просто удаляем локально.
-            if (participant.remoteId == null) {
+            // У участника server-id == client-id (UUID); если сервер ни разу не подтверждал запись
+            // (нет ни remoteId, ни serverUpdatedAt) — просто удаляем локально.
+            if (participant.remoteId == null && participant.serverUpdatedAt == null) {
                 localRepository.deleteParticipant(participant.id)
                 continue
             }
@@ -329,7 +329,14 @@ class SyncOrchestrator(
             entityDescription = "participants batch",
             onSuccess = { serverParticipants ->
                 ready.zip(serverParticipants) { local, server ->
-                    local.copy(isSynced = true, syncError = null, serverUpdatedAt = server.serverUpdatedAt)
+                    local.copy(
+                        isSynced = true,
+                        syncError = null,
+                        serverUpdatedAt = server.serverUpdatedAt,
+                        // server-id == client-id: фиксируем, что запись есть на сервере,
+                        // иначе последующее удаление не дошло бы до сервера
+                        remoteId = local.remoteId ?: local.id
+                    )
                 }.forEach {
                     localRepository.updateParticipants(listOf(it), markUnsynced = false)
                 }

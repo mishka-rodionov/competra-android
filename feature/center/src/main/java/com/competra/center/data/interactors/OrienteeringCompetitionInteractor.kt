@@ -15,6 +15,8 @@ import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.orienteering.applyOvertimePolicy
+import com.competra.domain.models.orienteering.isParticipantDeletionLocked
+import com.competra.domain.models.canBeMarkedDns
 import com.competra.domain.models.orienteering.effectiveControlTimeMinutes
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionRemoteRepository
@@ -235,13 +237,68 @@ class OrienteeringCompetitionInteractor(
     }
 
     /**
-     * Удаляет участника из локальной базы данных.
+     * Помечает участника на удаление (soft-delete) и запускает синхронизацию.
      *
-     * @param participantId Идентификатор участника
-     * @return Result операции удаления
+     * Участник сразу исчезает из списков; SyncCenterWorker отправит DELETE на сервер и после
+     * успеха физически удалит запись. Без этого серверная копия возвращала бы участника
+     * при следующей загрузке данных.
+     *
+     * После старта соревнования удаление запрещено ([isParticipantDeletionLocked]) —
+     * неявку отмечают через [setParticipantDns].
+     *
+     * @param participant Участник для удаления
+     * @return Result операции пометки на удаление; failure, если соревнование уже стартовало
      */
-    suspend fun deleteParticipant(participantId: String): Result<Unit> {
-        return localRepository.deleteParticipant(participantId).also { touch() }
+    suspend fun deleteParticipant(participant: OrienteeringParticipant): Result<Unit> {
+        val status = localRepository.getCompetition(participant.competitionId).getOrNull()?.competition?.status
+        if (status?.isParticipantDeletionLocked == true) {
+            return Result.failure(IllegalStateException("Соревнование уже стартовало — участника нельзя удалить"))
+        }
+        return localRepository.markParticipantDeleted(participant.id).also { touch() }
+    }
+
+    /**
+     * Ставит или снимает участнику статус «Не стартовал» (DNS) и пересчитывает места в группе.
+     *
+     * DNS ставится только участнику без результата или со статусом REGISTERED/DNF
+     * ([canBeMarkedDns]). При снятии статус возвращается в DNF, если соревнование уже
+     * завершено (как у остальных неявившихся, см. [markNonFinishedAsDNF]), иначе — в REGISTERED.
+     *
+     * @param participant Участник.
+     * @param isDns true — отметить «Не стартовал», false — снять отметку.
+     * @return Result операции; failure, если текущий статус результата не допускает изменение.
+     */
+    suspend fun setParticipantDns(participant: OrienteeringParticipant, isDns: Boolean): Result<Unit> = runCatching {
+        val existing = localRepository.getResultByParticipant(participant.id).getOrNull()
+        val updated = if (isDns) {
+            check(existing?.status.canBeMarkedDns) { "У участника уже есть результат — отметить «Не стартовал» нельзя" }
+            existing?.copy(status = ResultStatus.DNS, finishTime = null, totalTime = null, rank = null)
+                ?: OrienteeringResult(
+                    competitionId = participant.competitionId,
+                    participantId = participant.id,
+                    groupId = participant.groupId,
+                    startTime = null,
+                    finishTime = null,
+                    totalTime = null,
+                    rank = null,
+                    status = ResultStatus.DNS,
+                    penaltyTime = 0,
+                    splits = null
+                )
+        } else {
+            checkNotNull(existing?.takeIf { it.status == ResultStatus.DNS }) { "Участник не отмечен как «Не стартовал»" }
+            val competitionStatus = localRepository.getCompetition(participant.competitionId)
+                .getOrNull()?.competition?.status
+            val isFinished = competitionStatus == CompetitionStatus.FINISHED ||
+                competitionStatus == CompetitionStatus.ARCHIVED
+            existing.copy(status = if (isFinished) ResultStatus.DNF else ResultStatus.REGISTERED)
+        }
+        if (existing == null) {
+            localRepository.saveParticipantResult(updated).getOrThrow()
+        } else {
+            localRepository.updateResults(listOf(updated)).getOrThrow()
+        }
+        updateResultsAndRanks(updated)
     }
 
     /**
@@ -731,7 +788,7 @@ class OrienteeringCompetitionInteractor(
             ?: emptyMap()
 
         // Включает и помеченных на удаление (isDeleted) — иначе их «воскресит» вставка с сервера
-        val localParticipants = localRepository.getParticipants(competitionId).getOrNull().orEmpty()
+        val localParticipants = localRepository.getParticipantsIncludingDeleted(competitionId).getOrNull().orEmpty()
 
         // id участника общий для клиента и сервера, поэтому сопоставляем по id, а не по remoteId:
         // remoteId появляется только после успешного push, и участник, чей ответ push потерялся,

@@ -2,6 +2,8 @@ package com.competra.center.presentation.participant_list
 
 import android.util.Log
 import androidx.lifecycle.viewModelScope
+import com.competra.analytics.AnalyticsEvent
+import com.competra.analytics.AnalyticsTracker
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
 import com.competra.center.data.participant_list.ParticipantListAction
 import com.competra.center.data.participant_list.ParticipantListState
@@ -26,7 +28,8 @@ class ParticipantListViewModel(
     private val repository: OrienteeringCompetitionLocalRepository,
     private val competitionInteractor: OrienteeringCompetitionInteractor,
     private val navigation: Navigation,
-    private val loadingRepository: LoadingRepository
+    private val loadingRepository: LoadingRepository,
+    private val analytics: AnalyticsTracker
 ): BaseViewModel<ParticipantListState>(ParticipantListState()) {
 
     val competitionId: String? = navigation.getArguments<String>(EventsConstants.EVENT_ID.name)
@@ -113,10 +116,27 @@ class ParticipantListViewModel(
             is ParticipantListAction.DeleteParticipant -> {
                 updateState { copy(deletingParticipant = null) }
                 viewModelScope.launch(Dispatchers.IO) {
-                    competitionInteractor.deleteParticipant(action.participant.id).onSuccess {
-                        recalculateAfterDeletion(action.participant)
-                    }
+                    competitionInteractor.deleteParticipant(action.participant)
+                        .onSuccess { recalculateAfterDeletion(action.participant) }
+                        .onFailure { e -> updateState { copy(errorMessage = e.message) } }
                 }
+            }
+            is ParticipantListAction.SetParticipantDns -> {
+                viewModelScope.launch(Dispatchers.IO) {
+                    competitionInteractor.setParticipantDns(action.participant, action.isDns)
+                        .onSuccess {
+                            if (action.isDns) {
+                                analytics.trackEvent(
+                                    AnalyticsEvent.ParticipantDnsMarked(action.participant.competitionId)
+                                )
+                            }
+                            getCompetitionDetails()
+                        }
+                        .onFailure { e -> updateState { copy(errorMessage = e.message) } }
+                }
+            }
+            ParticipantListAction.DismissError -> {
+                updateState { copy(errorMessage = null) }
             }
             ParticipantListAction.GenerateTestParticipants -> {
                 generateTestParticipants()
@@ -222,6 +242,15 @@ class ParticipantListViewModel(
                             participantGroupWithParticipants = it.groupsWithParticipants
                         )
                     }
+                }
+                // Статусы результатов нужны после старта: по ним показывается отметка
+                // «Не стартовал» вместо удаления.
+                competitionInteractor.getResultsByGroups(compId).onSuccess { groups ->
+                    val statuses = groups
+                        .flatMap { it.participants }
+                        .mapNotNull { pw -> pw.result?.let { pw.participant.id to it.status } }
+                        .toMap()
+                    updateState { copy(resultStatuses = statuses) }
                 }
             }
         }
