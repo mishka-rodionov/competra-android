@@ -1,6 +1,7 @@
 package com.competra.center.data.event_control
 
 import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.ui.BaseState
 
@@ -19,6 +20,7 @@ import com.competra.ui.BaseState
  *   поскольку [OrienteeringCompetition.isDrawConducted] может быть сброшен при синхронизации с сервером.
  * @property isShowStartConfirmDialog Флаг отображения диалога подтверждения старта.
  * @property isShowStopConfirmDialog Флаг отображения диалога подтверждения завершения.
+ * @property isShowCloseRegistrationDialog Флаг отображения диалога подтверждения завершения регистрации.
  */
 data class OrienteeringEventControlState(
     val participantGroups: List<ParticipantGroup> = emptyList(),
@@ -34,5 +36,25 @@ data class OrienteeringEventControlState(
     val isDrawConducted: Boolean = false,
     val isFinished: Boolean = false,
     val isShowStartConfirmDialog: Boolean = false,
-    val isShowStopConfirmDialog: Boolean = false
-) : BaseState
+    val isShowStopConfirmDialog: Boolean = false,
+    val isShowCloseRegistrationDialog: Boolean = false
+) : BaseState {
+
+    /**
+     * Регистрация на соревнование закрыта: наступил `registrationEnd` (в т.ч. досрочное завершение
+     * организатором) либо статус уже дальше открытой регистрации. После этого участники не могут
+     * ни зарегистрироваться, ни отменить регистрацию — стартовый протокол меняет только организатор.
+     */
+    val isRegistrationClosed: Boolean
+        get() {
+            val base = competition?.competition ?: return false
+            val regEnd = base.registrationEnd
+            return (regEnd != null && regEnd <= System.currentTimeMillis()) ||
+                base.status in setOf(
+                    CompetitionStatus.REGISTRATION_CLOSED,
+                    CompetitionStatus.IN_PROGRESS,
+                    CompetitionStatus.FINISHED,
+                    CompetitionStatus.ARCHIVED
+                )
+        }
+}

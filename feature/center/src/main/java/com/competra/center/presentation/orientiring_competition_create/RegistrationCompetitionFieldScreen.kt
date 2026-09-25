@@ -179,6 +179,16 @@ private fun RegistrationCompetitionFieldContent(
                     onAction(OrienteeringCreatorAction.UpdateRegistrationEndMode(RegistrationEndMode.DAY_BEFORE_START))
                 }
             )
+            // Досрочно закрытая организатором регистрация. Выбор другого режима откроет её снова.
+            if (state.isRegistrationClosedByOrganizer) {
+                RegistrationEndModeOption(
+                    label = "Регистрация завершена организатором",
+                    selected = state.registrationEndMode == RegistrationEndMode.CLOSED_BY_ORGANIZER,
+                    onSelect = {
+                        onAction(OrienteeringCreatorAction.UpdateRegistrationEndMode(RegistrationEndMode.CLOSED_BY_ORGANIZER))
+                    }
+                )
+            }
 
             if (false) { // на данном этапе отключено
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))

@@ -72,6 +72,11 @@ data class OrienteeringCreatorState(
     val registrationEnd: Long? = null,
     val registrationEndTimeStr: String = "23:59",
     val registrationEndMode: RegistrationEndMode = RegistrationEndMode.AT_COMPETITION_START,
+    /**
+     * true, если при загрузке регистрация оказалась досрочно закрыта организатором — тогда в форме
+     * показывается вариант «Регистрация завершена», чтобы к нему можно было вернуться.
+     */
+    val isRegistrationClosedByOrganizer: Boolean = false,
     val maxParticipants: Int? = null,
     
     val isFeeEnabled: Boolean = false,

@@ -696,6 +696,9 @@ class OrienteeringCompetitionInteractor(
      * 1. Получает участников с сервера по remoteCompetitionId
      * 2. Строит карту server groupId → local groupId (по remoteId группы)
      * 3. Для каждого участника: update если remoteId совпадает, insert если новый
+     * 4. Удаляет локальных участников, которые уже были на сервере, но пропали из ответа
+     *    (например, участник отменил регистрацию из веба/приложения — бэкенд удаляет запись).
+     *    Участники с неотправленными локальными изменениями не удаляются.
      *
      * Вызывать ПОСЛЕ fetchAndSyncFromServer, чтобы группы уже были синхронизированы.
      *
@@ -716,10 +719,18 @@ class OrienteeringCompetitionInteractor(
             ?.associate { it.remoteId!! to it.groupId }
             ?: emptyMap()
 
+        val localParticipants = localRepository.getParticipants(competitionId).getOrNull().orEmpty()
+
         // Сохраняем локальные isChipGiven — сервер не является источником истины для этого поля
-        val existingChipGivenById = localRepository.getParticipants(competitionId)
-            .getOrNull().orEmpty()
-            .associate { it.id to it.isChipGiven }
+        val existingChipGivenById = localParticipants.associate { it.id to it.isChipGiven }
+
+        // Участник был на сервере (remoteId != null), локальных правок нет (isSynced), а в ответе
+        // сервера его больше нет — значит, удалён на сервере (отмена регистрации). Удаляем точечно,
+        // без пересоздания списка, чтобы не задеть CASCADE-результаты остальных участников.
+        val serverIds = serverParticipants.map { it.id }.toSet()
+        localParticipants
+            .filter { it.remoteId != null && it.isSynced && it.remoteId !in serverIds }
+            .forEach { localRepository.deleteParticipant(it.id) }
 
         serverParticipants.forEach { serverParticipant ->
             val localGroupId = remoteToLocalGroupId[serverParticipant.groupId] ?: serverParticipant.groupId

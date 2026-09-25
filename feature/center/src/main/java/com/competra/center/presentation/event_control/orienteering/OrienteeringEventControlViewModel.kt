@@ -1,6 +1,8 @@
 package com.competra.center.presentation.event_control.orienteering
 
 import androidx.lifecycle.viewModelScope
+import com.competra.analytics.AnalyticsEvent
+import com.competra.analytics.AnalyticsTracker
 import com.competra.center.data.event_control.OrientEventControlAction
 import com.competra.center.data.event_control.OrienteeringEventControlState
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
@@ -29,6 +31,7 @@ import kotlinx.coroutines.launch
  *
  * @property navigation Навигация приложения.
  * @property orienteeringCompetitionInteractor Интерактор для работы с данными соревнований.
+ * @property analytics Трекер аналитических событий.
  */
 class OrienteeringEventControlViewModel(
     private val navigation: Navigation,
@@ -36,7 +39,8 @@ class OrienteeringEventControlViewModel(
     private val serviceController: CompetitionServiceController,
     private val startTimeRepository: CompetitionStartTimeRepository,
     private val networkErrorRepository: NetworkErrorRepository,
-    private val loadingRepository: LoadingRepository
+    private val loadingRepository: LoadingRepository,
+    private val analytics: AnalyticsTracker
 ) : BaseViewModel<OrienteeringEventControlState>(OrienteeringEventControlState()) {
 
     val competitionId: String? = navigation.getArguments<String>(EventsConstants.EVENT_ID.name)
@@ -226,6 +230,17 @@ class OrienteeringEventControlViewModel(
                 handleStopCompetition()
             }
 
+            OrientEventControlAction.ShowCloseRegistrationDialog ->
+                updateState { copy(isShowCloseRegistrationDialog = true) }
+
+            OrientEventControlAction.HideCloseRegistrationDialog ->
+                updateState { copy(isShowCloseRegistrationDialog = false) }
+
+            OrientEventControlAction.CloseRegistration -> {
+                updateState { copy(isShowCloseRegistrationDialog = false) }
+                handleCloseRegistration()
+            }
+
             OrientEventControlAction.CancelCountdown -> handleCancelCountdown()
 
             is OrientEventControlAction.UpdateCountdownTimerInput -> updateState {
@@ -324,6 +339,31 @@ class OrienteeringEventControlViewModel(
             loadingRepository.emit(false)
         }
         updateState { copy(isCompetitionRunning = false, isTimerRunning = false, isFinished = true, stopwatchMillis = 0L) }
+    }
+
+    /**
+     * Досрочно завершает регистрацию: фиксирует `registrationEnd` на текущий момент и ставит
+     * статус [CompetitionStatus.REGISTRATION_CLOSED]. Бэкенд вычисляет статус по `registrationEnd`,
+     * поэтому после синхронизации участники больше не могут зарегистрироваться или отменить
+     * регистрацию, а стартовый протокол безопасно правит только организатор.
+     */
+    private fun handleCloseRegistration() {
+        val competition = stateValue.competition ?: return
+        val closed = competition.copy(
+            competition = competition.competition.copy(
+                registrationEnd = System.currentTimeMillis(),
+                status = CompetitionStatus.REGISTRATION_CLOSED
+            )
+        )
+        analytics.trackEvent(AnalyticsEvent.RegistrationCloseClicked(competition.competitionId))
+        viewModelScope.launch {
+            loadingRepository.emit(true)
+            orienteeringCompetitionInteractor.updateCompetition(closed, null)
+            orienteeringCompetitionInteractor.publishCompetitionToServer(closed)
+                .onFailure { handleFailure(it) }
+            updateState { copy(competition = closed) }
+            loadingRepository.emit(false)
+        }
     }
 
     /**

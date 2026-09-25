@@ -365,6 +365,10 @@ class OrienteeringCreatorViewModel(
 
             val loadedZone = runCatching { ZoneId.of(comp.competition.timeZoneId) }
                 .getOrDefault(ZoneId.systemDefault())
+            val loadedRegistrationEndMode = detectRegistrationEndMode(
+                registrationEnd = comp.competition.registrationEnd,
+                startDate = comp.competition.startDate
+            )
             updateState {
                 copy(
                     competitionId = competitionId,
@@ -385,13 +389,9 @@ class OrienteeringCreatorViewModel(
                     registrationStartOnCreate = comp.competition.registrationStart == null,
                     registrationEnd = comp.competition.registrationEnd,
                     registrationEndTimeStr = DateTimeFormat.transformLongToTime(comp.competition.registrationEnd, loadedZone).ifEmpty { "23:59" },
-                    registrationEndMode = if (comp.competition.registrationEnd != null &&
-                        comp.competition.registrationEnd == comp.competition.startDate - 24L * 60 * 60 * 1000
-                    ) {
-                        RegistrationEndMode.DAY_BEFORE_START
-                    } else {
-                        RegistrationEndMode.AT_COMPETITION_START
-                    },
+                    registrationEndMode = loadedRegistrationEndMode,
+                    isRegistrationClosedByOrganizer =
+                        loadedRegistrationEndMode == RegistrationEndMode.CLOSED_BY_ORGANIZER,
                     maxParticipants = comp.competition.maxParticipants,
                     isFeeEnabled = comp.competition.feeAmount != null,
                     feeAmount = comp.competition.feeAmount,
@@ -497,6 +497,8 @@ class OrienteeringCreatorViewModel(
             val actualRegistrationEnd = when (stateValue.registrationEndMode) {
                 RegistrationEndMode.DAY_BEFORE_START -> stateValue.startDate - 24L * 60 * 60 * 1000
                 RegistrationEndMode.AT_COMPETITION_START -> stateValue.startDate
+                // Досрочно завершённая регистрация: момент закрытия не зависит от даты старта
+                RegistrationEndMode.CLOSED_BY_ORGANIZER -> stateValue.registrationEnd
             }
 
             val competition = stateValue.copy(
@@ -752,9 +754,27 @@ class OrienteeringCreatorViewModel(
                 timeZoneId = newZoneIdRaw,
                 startDate = recompute(startDate, startTimeStr) ?: startDate,
                 registrationStart = recompute(registrationStart, registrationStartTimeStr),
-                registrationEnd = recompute(registrationEnd, registrationEndTimeStr)
+                // Момент досрочного закрытия регистрации — абсолютный, от часового пояса не зависит
+                registrationEnd = if (registrationEndMode == RegistrationEndMode.CLOSED_BY_ORGANIZER) {
+                    registrationEnd
+                } else {
+                    recompute(registrationEnd, registrationEndTimeStr)
+                }
             )
         }
+    }
+
+    /**
+     * Восстанавливает режим окончания регистрации по сохранённому `registrationEnd`.
+     * Если `registrationEnd` не совпадает ни с одним «расчётным» режимом и уже наступил —
+     * регистрацию досрочно закрыл организатор ([RegistrationEndMode.CLOSED_BY_ORGANIZER]),
+     * и этот момент нельзя затирать при сохранении, иначе регистрация откроется снова.
+     */
+    private fun detectRegistrationEndMode(registrationEnd: Long?, startDate: Long): RegistrationEndMode = when {
+        registrationEnd == null || registrationEnd == startDate -> RegistrationEndMode.AT_COMPETITION_START
+        registrationEnd == startDate - 24L * 60 * 60 * 1000 -> RegistrationEndMode.DAY_BEFORE_START
+        registrationEnd <= System.currentTimeMillis() -> RegistrationEndMode.CLOSED_BY_ORGANIZER
+        else -> RegistrationEndMode.AT_COMPETITION_START
     }
 
     fun updateEndDate(date: Long?) = updateState { copy(endDate = date) }

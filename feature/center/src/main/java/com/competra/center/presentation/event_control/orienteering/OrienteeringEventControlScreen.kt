@@ -137,6 +137,17 @@ private fun OrienteeringEventControlScreenContent(
                 Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
             }
 
+            // Регистрация — до запуска соревнования. Завершение регистрации запрещает участникам
+            // отменять заявку, после чего организатор спокойно правит стартовый протокол.
+            if (!state.isFinished && !state.isCompetitionRunning) {
+                SectionHeader(title = "Регистрация")
+                RegistrationSection(
+                    isRegistrationClosed = state.isRegistrationClosed,
+                    onCloseRegistration = { onAction(OrientEventControlAction.ShowCloseRegistrationDialog) }
+                )
+                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+            }
+
             // Список разделов с прогрессивным раскрытием
             SectionHeader(title = "Разделы")
 
@@ -263,6 +274,20 @@ private fun OrienteeringEventControlScreenContent(
         )
     }
 
+    if (state.isShowCloseRegistrationDialog) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        DSBottomDialog(
+            sheetState = sheetState,
+            onDismiss = { onAction(OrientEventControlAction.HideCloseRegistrationDialog) },
+            sheetContent = {
+                CloseRegistrationConfirmContent(
+                    onConfirm = { onAction(OrientEventControlAction.CloseRegistration) },
+                    onCancel = { onAction(OrientEventControlAction.HideCloseRegistrationDialog) }
+                )
+            }
+        )
+    }
+
     if (state.isShowStopConfirmDialog) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         DSBottomDialog(
@@ -354,6 +379,74 @@ private fun StopConfirmContent(onConfirm: () -> Unit, onCancel: () -> Unit) {
                 .height(56.dp),
             shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+        ) {
+            Text("Завершить", fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+        OutlinedButton(
+            onClick = onCancel,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
+        ) {
+            Text("Отмена", fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+    }
+}
+
+/**
+ * Секция регистрации: кнопка досрочного завершения регистрации или отметка, что она уже закрыта.
+ */
+@Composable
+private fun RegistrationSection(isRegistrationClosed: Boolean, onCloseRegistration: () -> Unit) {
+    if (isRegistrationClosed) {
+        Text(
+            text = "Регистрация завершена. Участники не могут зарегистрироваться или отменить регистрацию.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    } else {
+        OutlinedButton(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            onClick = onCloseRegistration,
+            shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
+        ) {
+            Text("Завершить регистрацию", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun CloseRegistrationConfirmContent(onConfirm: () -> Unit, onCancel: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .padding(Dimens.SIZE_BASE.dp)
+            .fillMaxWidth()
+    ) {
+        Text(
+            text = "Завершить регистрацию?",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+        Text(
+            text = "Участники больше не смогут зарегистрироваться или отменить регистрацию. " +
+                "Стартовый протокол сможете менять только вы. " +
+                "Открыть регистрацию снова можно в настройках соревнования.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
+        Button(
+            onClick = onConfirm,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
         ) {
             Text("Завершить", fontWeight = FontWeight.Bold)
         }

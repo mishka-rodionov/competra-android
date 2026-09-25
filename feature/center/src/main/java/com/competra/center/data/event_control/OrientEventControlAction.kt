@@ -23,6 +23,10 @@ sealed class OrientEventControlAction: BaseAction {
     data object HideStopConfirmDialog: OrientEventControlAction()
     data object StopCompetition: OrientEventControlAction()
 
+    data object ShowCloseRegistrationDialog: OrientEventControlAction()
+    data object HideCloseRegistrationDialog: OrientEventControlAction()
+    data object CloseRegistration: OrientEventControlAction()
+
     data object CancelCountdown: OrientEventControlAction()
 
     data class UpdateCountdownTimerInput(val value: String): OrientEventControlAction()

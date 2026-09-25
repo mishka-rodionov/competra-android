@@ -121,6 +121,10 @@ sealed class AnalyticsEvent(
     class CompetitionDeleted(competitionId: String) :
         AnalyticsEvent("competition_deleted", mapOf("competition_id" to competitionId))
 
+    /** Организатор подтвердил досрочное завершение регистрации на соревнование. */
+    class RegistrationCloseClicked(competitionId: String) :
+        AnalyticsEvent("registration_close_clicked", mapOf("competition_id" to competitionId))
+
     /** Открыт экран «Стартовая решётка» (помощь судье на старте). */
     class CenterStartGridOpened(competitionId: String) :
         AnalyticsEvent("center_start_grid_opened", mapOf("competition_id" to competitionId))
