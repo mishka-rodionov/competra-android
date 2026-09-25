@@ -13,7 +13,6 @@ import com.competra.profile.data.registration.RegistrationAction
 import com.competra.profile.data.registration.RegistrationState
 import com.competra.ui.BaseAction
 import com.competra.ui.viewmodel.BaseViewModel
-import com.competra.utils.DateTimeFormat
 import kotlinx.coroutines.launch
 
 class RegistrationViewModel(
@@ -29,29 +28,35 @@ class RegistrationViewModel(
             is RegistrationAction.UpdateEmail -> updateState { copy(email = action.email) }
             is RegistrationAction.UpdateFirstName -> updateState { copy(firstName = action.firstName) }
             is RegistrationAction.UpdateLastName -> updateState { copy(lastName = action.lastName) }
-            is RegistrationAction.UpdateBdate -> updateState { copy(bdate = DateTimeFormat.transformApiDateToLong(action.bdate)) }
+            is RegistrationAction.UpdateBdate -> updateState { copy(bdate = action.bdate) }
+            is RegistrationAction.UpdateGender -> updateState { copy(gender = action.gender) }
             is RegistrationAction.UpdatePrivacyAccepted -> updateState { copy(privacyAccepted = action.accepted) }
         }
     }
 
     fun registerUser() {
-        if (!state.value.privacyAccepted) return
+        val gender = state.value.gender
+        if (!state.value.canSubmit || gender == null) return
         analytics.trackEvent(AnalyticsEvent.RegistrationSubmitted)
+        updateState { copy(isLoading = true) }
         viewModelScope.launch {
             with(state.value) {
+                val trimmedEmail = email.trim()
                 authInteractor.register(
-                    firstName = firstName,
-                    lastName = lastName,
+                    firstName = firstName.trim(),
+                    lastName = lastName.trim(),
                     bdate = bdate,
-                    email = email,
+                    gender = gender,
+                    email = trimmedEmail,
                     privacyAccepted = privacyAccepted
                 ).onSuccess {
                     analytics.trackEvent(AnalyticsEvent.RegistrationSuccess)
-                    navigation.navigate(destination = ProfileNavigation.AuthCodeRoute(email))
+                    navigation.navigate(destination = ProfileNavigation.AuthCodeRoute(trimmedEmail))
                 }.onFailure {
                     handleFailure(it)
                 }
             }
+            updateState { copy(isLoading = false) }
         }
     }
 

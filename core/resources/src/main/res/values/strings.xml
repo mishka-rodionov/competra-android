@@ -60,6 +60,15 @@
     <string name="label_send">Отправить</string>
     <string name="label_privacy_consent_prefix">Я согласен(-на) с обработкой персональных данных и</string>
     <string name="label_privacy_policy">политикой конфиденциальности</string>
+    <string name="registration_title">Регистрация</string>
+    <string name="registration_subtitle">Заполните данные о себе — они понадобятся для участия в соревнованиях</string>
+    <string name="label_birth_date">Дата рождения</string>
+    <string name="label_gender">Пол</string>
+    <string name="gender_user_male">Мужской</string>
+    <string name="gender_user_female">Женский</string>
+    <string name="registration_submit">Зарегистрироваться</string>
+    <string name="registration_code_hint">На этот адрес придёт код для входа</string>
+    <string name="error_invalid_email">Некорректный адрес почты</string>
 
     <!-- Content Descriptions -->
     <string name="content_description_edit_group">Редактировать группу</string>

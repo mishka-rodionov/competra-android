@@ -1,5 +1,6 @@
 package com.competra.profile.data.interactors
 
+import com.competra.domain.models.Gender
 import com.competra.domain.models.auth.Token
 import com.competra.domain.models.user.User
 import com.competra.domain.repository.auth.AuthRepository
@@ -42,8 +43,8 @@ class AuthInteractor(
         }
     }
 
-    suspend fun register(firstName: String, lastName: String, bdate: Long, email: String, privacyAccepted: Boolean): Result<Any> {
-        return authRepository.register(firstName, lastName, bdate, email, privacyAccepted)
+    suspend fun register(firstName: String, lastName: String, bdate: Long, gender: Gender, email: String, privacyAccepted: Boolean): Result<Any> {
+        return authRepository.register(firstName, lastName, bdate, gender, email, privacyAccepted)
     }
 
     /**

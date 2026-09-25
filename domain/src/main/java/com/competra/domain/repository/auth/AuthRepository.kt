@@ -1,5 +1,6 @@
 package com.competra.domain.repository.auth
 
+import com.competra.domain.models.Gender
 import com.competra.domain.models.auth.Token
 import com.competra.domain.models.user.User
 
@@ -22,9 +23,10 @@ interface AuthRepository {
      * Регистрация нового пользователя.
      *
      * @param bdate Дата рождения в формате Long (timestamp).
+     * @param gender Пол пользователя.
      * @param privacyAccepted Согласие на обработку персональных данных.
      */
-    suspend fun register(firstName: String, lastName: String, bdate: Long, email: String, privacyAccepted: Boolean): Result<Any>
+    suspend fun register(firstName: String, lastName: String, bdate: Long, gender: Gender, email: String, privacyAccepted: Boolean): Result<Any>
 
     /**
      * Безвозвратное удаление аккаунта текущего пользователя на сервере.

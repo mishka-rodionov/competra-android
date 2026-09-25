@@ -27,7 +27,7 @@ sealed class BottomNavItem(
     @Serializable
     data object CompetitionConstructor : BottomNavItem(
         route = "CompetitionConstructor", 
-        title = "Управление",
+        title = "Центр",
         iconRes = R.drawable.ic_dashboard_24px
     )
 

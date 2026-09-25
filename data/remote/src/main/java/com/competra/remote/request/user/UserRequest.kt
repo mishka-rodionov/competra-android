@@ -1,5 +1,6 @@
 package com.competra.remote.request.user
 
+import com.competra.domain.models.Gender
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -9,6 +10,7 @@ import com.google.gson.annotations.SerializedName
  * @property lastName Фамилия пользователя.
  * @property birthDate Дата рождения пользователя (в миллисекундах).
  * @property email Электронная почта пользователя.
+ * @property gender Пол пользователя.
  * @property privacyAccepted Согласие на обработку персональных данных.
  */
 data class UserRequest(
@@ -20,6 +22,8 @@ data class UserRequest(
     val birthDate: Long,
     @SerializedName("email")
     val email: String,
+    @SerializedName("gender")
+    val gender: Gender,
     @SerializedName("privacy_accepted")
     val privacyAccepted: Boolean
 )

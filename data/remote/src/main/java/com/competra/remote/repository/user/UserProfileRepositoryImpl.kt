@@ -1,6 +1,7 @@
 package com.competra.remote.repository.user
 
 import com.competra.domain.models.CropRect
+import com.competra.domain.models.Gender
 import com.competra.domain.models.user.User
 import com.competra.domain.repository.user.UserProfileRepository
 import com.competra.remote.datasource.auth.AuthRemoteDataSource
@@ -26,5 +27,23 @@ class UserProfileRepositoryImpl(
     override suspend fun getProfile(): Result<User> {
         return authRemoteDataSource.getProfile()
             .mapCatching { it.result!!.toDomain() }
+    }
+
+    override suspend fun updateProfile(
+        firstName: String,
+        lastName: String,
+        middleName: String?,
+        phoneNumber: String?,
+        gender: Gender
+    ): Result<User> {
+        return authRemoteDataSource.updateProfile(
+            UserProfileUpdateRequest(
+                firstName = firstName,
+                lastName = lastName,
+                middleName = middleName,
+                phoneNumber = phoneNumber,
+                gender = gender
+            )
+        ).mapCatching { it.result!!.toDomain() }
     }
 }

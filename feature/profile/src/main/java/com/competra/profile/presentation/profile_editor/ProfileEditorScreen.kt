@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.components.ImageCropperDialog
 import com.competra.designsystem.components.NetworkImage
+import com.competra.profile.presentation.components.GenderSelector
 import com.competra.domain.models.Gender
 import com.competra.ui.components.toCropRect
 import com.competra.ui.components.toFractionalRect
@@ -162,6 +163,11 @@ private fun ProfileEditorContent(
             label = { Text("Отчество") }
         )
 
+        GenderSelector(
+            selected = user?.gender,
+            onSelected = { onAction(ProfileEditorAction.UpdateGender(it)) }
+        )
+
         DSTextInput(
             modifier = Modifier.fillMaxWidth(),
             text = user?.phoneNumber ?: "",
@@ -173,7 +179,9 @@ private fun ProfileEditorContent(
             modifier = Modifier.fillMaxWidth(),
             text = user?.email ?: "",
             onValueChanged = { onAction(ProfileEditorAction.UpdateEmail(it)) },
-            label = { Text("Email") }
+            label = { Text("Email") },
+            // Email — идентификатор входа, сервер его не меняет
+            readOnly = true
         )
 
         Spacer(modifier = Modifier.weight(1f))

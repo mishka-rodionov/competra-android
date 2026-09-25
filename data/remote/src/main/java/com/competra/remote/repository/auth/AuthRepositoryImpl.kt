@@ -1,5 +1,6 @@
 package com.competra.remote.repository.auth
 
+import com.competra.domain.models.Gender
 import com.competra.domain.models.auth.Token
 import com.competra.domain.models.user.User
 import com.competra.domain.repository.auth.AuthRepository
@@ -37,6 +38,7 @@ class AuthRepositoryImpl(
         firstName: String,
         lastName: String,
         bdate: Long,
+        gender: Gender,
         email: String,
         privacyAccepted: Boolean
     ): Result<Any> {
@@ -46,6 +48,7 @@ class AuthRepositoryImpl(
                 lastName = lastName,
                 birthDate = bdate,
                 email = email,
+                gender = gender,
                 privacyAccepted = privacyAccepted
             )
         )

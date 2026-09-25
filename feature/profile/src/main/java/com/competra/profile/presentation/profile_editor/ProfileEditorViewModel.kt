@@ -7,6 +7,7 @@ import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.domain.exception.NetworkException
 import com.competra.domain.models.CropRect
+import com.competra.domain.models.Gender
 import com.competra.domain.models.NetworkErrorEvent
 import com.competra.domain.models.user.User
 import com.competra.domain.repository.LoadingRepository
@@ -18,7 +19,6 @@ import com.competra.ui.BaseAction
 import com.competra.ui.viewmodel.BaseViewModel
 import com.competra.utils.ImageCompressor
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -49,6 +49,7 @@ class ProfileEditorViewModel(
             is ProfileEditorAction.UpdateMiddleName -> updateMiddleName(action.middleName)
             is ProfileEditorAction.UpdatePhoneNumber -> updatePhoneNumber(action.phoneNumber)
             is ProfileEditorAction.UpdateEmail -> updateEmail(action.email)
+            is ProfileEditorAction.UpdateGender -> updateGender(action.gender)
             is ProfileEditorAction.SaveProfile -> saveProfile()
             is ProfileEditorAction.PhotoPicked -> updateState { copy(pendingCropUri = action.uri) }
             is ProfileEditorAction.CancelCrop -> updateState { copy(pendingCropUri = null) }
@@ -95,21 +96,29 @@ class ProfileEditorViewModel(
         updateState { copy(user = user?.copy(email = email)) }
     }
 
+    private fun updateGender(gender: Gender) {
+        updateState { copy(user = user?.copy(gender = gender)) }
+    }
+
     /**
-     * Сохраняет изменения профиля (локально и на сервере).
+     * Сохраняет изменения профиля на сервере, затем кладёт актуального пользователя из ответа локально.
      */
     private fun saveProfile() {
         val userToSave = stateValue.user ?: return
-        updateState { copy(isSaving = true) }
+        updateState { copy(isSaving = true, error = null) }
         viewModelScope.launch {
             loadingRepository.emit(true)
-            // Имитация задержки сетевого запроса (моки)
-            delay(1500)
-
-            userRepository.saveUser(userToSave)
-                .onSuccess {
+            userProfileRepository.updateProfile(
+                firstName = userToSave.firstName.trim(),
+                lastName = userToSave.lastName.trim(),
+                middleName = userToSave.middleName?.trim(),
+                phoneNumber = userToSave.phoneNumber?.trim(),
+                gender = userToSave.gender
+            )
+                .onSuccess { updatedUser ->
+                    userRepository.saveUser(updatedUser)
                     analytics.trackEvent(AnalyticsEvent.ProfileEditSaved)
-                    updateState { copy(isSaving = false) }
+                    updateState { copy(user = updatedUser, isSaving = false) }
                     // TODO: Навигация назад или показ сообщения об успехе
                 }
                 .onFailure {
@@ -177,6 +186,7 @@ sealed interface ProfileEditorAction : BaseAction {
     data class UpdateMiddleName(val middleName: String) : ProfileEditorAction
     data class UpdatePhoneNumber(val phoneNumber: String) : ProfileEditorAction
     data class UpdateEmail(val email: String) : ProfileEditorAction
+    data class UpdateGender(val gender: Gender) : ProfileEditorAction
     data object SaveProfile : ProfileEditorAction
     data class PhotoPicked(val uri: Uri) : ProfileEditorAction
     data class ConfirmCrop(val cropRect: CropRect) : ProfileEditorAction
