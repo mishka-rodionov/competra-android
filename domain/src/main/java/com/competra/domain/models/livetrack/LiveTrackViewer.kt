@@ -70,6 +70,36 @@ data class ViewerTrack(
 }
 
 /**
+ * Склеивает сессии одного участника (трек останавливали и включали заново) в один трек.
+ *
+ * Ключ — `sessionId` самой ранней сессии, чтобы цвет и позиция в списке не менялись при новой
+ * сессии. Имя, группа и номер — из последней. Статус — активный, если активна хоть одна сессия,
+ * иначе статус последней. Точки объединяются по времени; промежуток между сессиями дольше
+ * [TRACK_GAP_MS] рисуется разрывом, как потеря связи. `lastPointAt` учитывает и старт сессии без
+ * точек, чтобы только что перезапущенный трек не считался «нет данных».
+ *
+ * Порядок — по первому появлению участника в исходном списке.
+ */
+fun List<ViewerTrack>.mergedByParticipant(): List<ViewerTrack> =
+    groupBy { it.participantId }.values.map { sessions ->
+        if (sessions.size == 1) return@map sessions.single()
+        val byStart = sessions.sortedBy { it.startedAt }
+        val latest = byStart.last()
+        val statusSource = byStart.lastOrNull { it.isActive } ?: latest
+        val lastActivity = sessions
+            .filter { it.lastPointAt != null || it.isActive }
+            .maxOfOrNull { it.lastPointAt ?: it.startedAt }
+        latest.copy(
+            sessionId = byStart.first().sessionId,
+            status = statusSource.status,
+            closeReason = statusSource.closeReason,
+            startedAt = byStart.first().startedAt,
+            lastPointAt = lastActivity,
+            points = sessions.flatMap { it.points }.distinctBy { it.t }.sortedBy { it.t }
+        )
+    }
+
+/**
  * Изменения по сессии из ответа `live`: метаданные и новые точки (в порядке приёма сервером).
  */
 typealias ViewerSessionUpdate = ViewerTrack

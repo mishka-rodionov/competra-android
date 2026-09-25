@@ -69,4 +69,45 @@ class LiveTrackAccumulatorTest {
         assertFalse(track("a", lastPointAt = 1_000).isStale(serverTime = 30_000))
         assertFalse(track("a", LiveTrackStatus.FINISHED, lastPointAt = 1_000).isStale(serverTime = 999_999))
     }
+
+    private fun session(
+        id: String,
+        participant: String,
+        startedAt: Long,
+        status: LiveTrackStatus,
+        lastPointAt: Long?,
+        vararg t: Long
+    ) = ViewerTrack(
+        sessionId = id, participantId = participant, displayName = "Участник $id", groupName = "М21", startNumber = 1,
+        status = status, closeReason = null, startedAt = startedAt, lastPointAt = lastPointAt,
+        points = t.map { ViewerTrackPoint(it, 55.0, 37.0) }
+    )
+
+    @Test
+    fun `restarted sessions of one participant are merged into one track`() {
+        val merged = listOf(
+            session("s2", "p", startedAt = 100_000, status = LiveTrackStatus.STOPPED, lastPointAt = 110_000, t = longArrayOf(100_000, 110_000)),
+            session("other", "q", startedAt = 0, status = LiveTrackStatus.FINISHED, lastPointAt = 5_000, t = longArrayOf(5_000)),
+            session("s1", "p", startedAt = 0, status = LiveTrackStatus.STOPPED, lastPointAt = 10_000, t = longArrayOf(0, 10_000))
+        ).mergedByParticipant()
+
+        assertEquals(listOf("s1", "other"), merged.map { it.sessionId })
+        val p = merged.first()
+        assertEquals("Участник s2", p.displayName)
+        assertEquals(LiveTrackStatus.STOPPED, p.status)
+        assertEquals(listOf(0L, 10_000L, 100_000L, 110_000L), p.points.map { it.t })
+        assertEquals(listOf(2, 2), p.segments().map { it.size })
+    }
+
+    @Test
+    fun `merged track is active while any session is active and fresh restart is not stale`() {
+        val merged = listOf(
+            session("s1", "p", startedAt = 0, status = LiveTrackStatus.STOPPED, lastPointAt = 10_000, t = longArrayOf(0, 10_000)),
+            session("s2", "p", startedAt = 200_000, status = LiveTrackStatus.ACTIVE, lastPointAt = null)
+        ).mergedByParticipant().single()
+
+        assertTrue(merged.isActive)
+        assertFalse(merged.isStale(serverTime = 230_000))
+        assertTrue(merged.isStale(serverTime = 300_000))
+    }
 }

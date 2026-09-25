@@ -5,6 +5,7 @@ import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.domain.models.livetrack.LiveTrackAccumulator
 import com.competra.domain.models.livetrack.ViewerTrack
+import com.competra.domain.models.livetrack.mergedByParticipant
 import com.competra.domain.models.orienteering.ControlPoint
 import com.competra.domain.models.orienteering.DistanceMap
 import com.competra.domain.repository.livetrack.LiveTrackViewerRepository
@@ -39,7 +40,7 @@ val TAIL_WINDOW_MS: Long = TimeUnit.MINUTES.toMillis(5)
  * @property distanceName Название дистанции.
  * @property map Геопривязанная карта дистанции или `null` (тогда только подложка OSM).
  * @property controlPoints КП с координатами.
- * @property tracks Все треки дистанции.
+ * @property tracks Треки дистанции, по одному на участника (сессии склеены).
  * @property colorIndex Стабильный номер цвета участника по id сессии.
  * @property serverTime Время сервера для «нет данных N мин».
  * @property selectedGroups Показываемые группы; пусто — все.
@@ -62,21 +63,9 @@ data class LiveTrackMapState(
     /** Группы, встречающиеся среди треков. */
     val groups: List<String> get() = tracks.mapNotNull { it.groupName }.distinct().sorted()
 
-    /**
-     * Треки без устаревших сессий: если участник перезапустил трек, закрытые сессии скрываются,
-     * пока у него есть активная.
-     */
-    val currentTracks: List<ViewerTrack>
-        get() {
-            val activeParticipants = tracks.filter { it.isActive }.mapTo(HashSet()) { it.participantId }
-            return tracks.filter { it.isActive || it.participantId !in activeParticipants }
-        }
-
     /** Треки с учётом фильтра групп. */
     val visibleTracks: List<ViewerTrack>
-        get() = currentTracks.let { current ->
-            if (selectedGroups.isEmpty()) current else current.filter { it.groupName in selectedGroups }
-        }
+        get() = if (selectedGroups.isEmpty()) tracks else tracks.filter { it.groupName in selectedGroups }
 
     /** Кто-то ещё на дистанции — режим «онлайн», иначе архив. */
     val isLive: Boolean get() = tracks.any { it.isActive }
@@ -182,7 +171,8 @@ class LiveTrackMapViewModel(
     }
 
     private fun publish(connectionLost: Boolean) {
-        val tracks = accumulator.tracks()
+        // Перезапуски трека одним участником показываем как один трек.
+        val tracks = accumulator.tracks().mergedByParticipant()
         tracks.sortedBy { it.startedAt }.forEach { colors.getOrPut(it.sessionId) { colors.size } }
         updateState {
             copy(

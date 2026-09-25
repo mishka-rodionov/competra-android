@@ -126,9 +126,9 @@ private fun MapHeader(state: LiveTrackMapState) {
         Text(
             when {
                 state.isLoading -> "Загрузка…"
-                active > 0 -> "На дистанции: $active • треков: ${state.currentTracks.size}"
+                active > 0 -> "На дистанции: $active • треков: ${state.tracks.size}"
                 state.tracks.isEmpty() -> "Пока нет треков"
-                else -> "Архив треков: ${state.currentTracks.size}"
+                else -> "Архив треков: ${state.tracks.size}"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
