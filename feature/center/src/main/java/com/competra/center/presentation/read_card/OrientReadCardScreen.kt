@@ -73,8 +73,8 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 isReadOnly = state.isCompetitionFinished,
                 statusMessage = state.statusMessage,
                 onEditSplit = { index -> viewModel.onAction(OrientReadCardAction.EditSplitClicked(index)) },
-                onCreditCp = { cpNumber, prevTimestamp ->
-                    viewModel.onAction(OrientReadCardAction.CreditMissedCp(cpNumber, prevTimestamp))
+                onCreditCp = { cpNumber, distanceOrdinal ->
+                    viewModel.onAction(OrientReadCardAction.CreditMissedCp(cpNumber, distanceOrdinal))
                 },
                 onSaveResult = { viewModel.onAction(OrientReadCardAction.SaveResult) }
             )
@@ -195,7 +195,7 @@ private fun ReadCardContent(
     isReadOnly: Boolean = false,
     statusMessage: String? = null,
     onEditSplit: (index: Int) -> Unit = {},
-    onCreditCp: (cpNumber: Int, prevTimestamp: Long) -> Unit = { _, _ -> },
+    onCreditCp: (cpNumber: Int, distanceOrdinal: Int) -> Unit = { _, _ -> },
     onSaveResult: () -> Unit = {},
 ) {
     val isByChoice = competitionDirection == OrienteeringDirection.BY_CHOICE
@@ -635,7 +635,7 @@ internal fun SplitsCard(
     startControlPoint: Int? = null,
     competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
     onEditSplit: ((index: Int) -> Unit)? = null,
-    onCreditCp: ((cpNumber: Int, prevTimestamp: Long) -> Unit)? = null,
+    onCreditCp: ((cpNumber: Int, distanceOrdinal: Int) -> Unit)? = null,
 ) {
     val isByChoice = competitionDirection == OrienteeringDirection.BY_CHOICE
     val requiredCpNumbers = remember(expectedControlPoints) {
@@ -827,7 +827,7 @@ internal fun SplitsCard(
                             )
                             if (onCreditCp != null) {
                                 TextButton(
-                                    onClick = { onCreditCp(item.cpNumber, prevTimestamp) }
+                                    onClick = { onCreditCp(item.cpNumber, item.distanceOrdinal) }
                                 ) {
                                     Text(
                                         text = "Засчитать",

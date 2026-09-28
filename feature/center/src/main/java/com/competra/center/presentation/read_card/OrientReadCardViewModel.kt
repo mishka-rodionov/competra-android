@@ -70,9 +70,15 @@ class OrientReadCardViewModel(
                 viewModelScope.launch(Dispatchers.IO) { recalculateAndSaveResult() }
             }
             is OrientReadCardAction.CreditMissedCp -> {
-                val updated = stateValue.rawSplits?.toMutableList() ?: return
-                updated.add(SplitTime(controlPoint = action.cpNumber, timestamp = action.prevTimestamp))
-                updated.sortBy { it.timestamp }
+                val rawSplits = stateValue.rawSplits ?: return
+                val updated = insertCreditedPunch(
+                    rawSplits = rawSplits,
+                    expectedCpNumbers = stateValue.expectedCpNumbers,
+                    cpNumber = action.cpNumber,
+                    distanceOrdinal = action.distanceOrdinal,
+                    startTime = stateValue.participant?.startTime,
+                    startControlPoint = stateValue.startControlPoint,
+                )
                 updateState { copy(rawSplits = updated) }
                 viewModelScope.launch(Dispatchers.IO) { recalculatePending() }
             }
@@ -430,7 +436,15 @@ class OrientReadCardViewModel(
         if (rawSplits.isEmpty()) return
         val expected = getExpectedControlPoints(participant.groupId)
         val startTime = resolveStartTime(participant, rawSplits)
+        // Причина DSQ после пересчёта: без обновления на экране оставалась бы причина первого
+        // скана («Пропущен КП N») даже после того, как этот КП засчитан.
+        var statusText: String? = null
         val newResult = if (startTime == null) {
+            statusText = if (stateValue.startControlPoint != null) {
+                "Нет отметки на стартовой станции"
+            } else {
+                "У дистанции не задано стартовое КП — укажите его в редактировании дистанции"
+            }
             OrienteeringResult(
                 competitionId = participant.competitionId,
                 participantId = participant.id,
@@ -450,6 +464,8 @@ class OrientReadCardViewModel(
             val finishTime = lastValidPunch.timestamp
             val totalTime = (finishTime - startTime) / 1000L
             val effectiveStatus = applyControlTime(participant.groupId, totalTime, checkResult.status)
+            statusText = checkResult.message
+                ?: "Превышено контрольное время".takeIf { effectiveStatus == ResultStatus.OVERTIME }
             OrienteeringResult(
                 competitionId = participant.competitionId,
                 participantId = participant.id,
@@ -458,7 +474,7 @@ class OrientReadCardViewModel(
                 finishTime = finishTime,
                 totalTime = totalTime,
                 rank = -1,
-                status = checkResult.status,
+                status = effectiveStatus,
                 penaltyTime = 0,
                 totalScore = checkResult.totalScore,
                 scorePenalty = checkResult.scorePenalty,
@@ -466,7 +482,7 @@ class OrientReadCardViewModel(
                 isEdited = true,
             )
         }
-        updateState { copy(participantResult = newResult) }
+        updateState { copy(participantResult = newResult, statusMessage = statusText) }
     }
 
     /** Явное сохранение результата организатором (вызывается по кнопке «Сохранить результат»). */
@@ -649,4 +665,56 @@ fun computeByChoiceResult(
         totalScore = finalScore,
         scorePenalty = scorePenalty
     )
+}
+
+/**
+ * Вставляет «засчитанную» организатором отметку пропущенного КП в сырые сплиты чипа.
+ *
+ * Отметка ставится сразу после отметки предыдущего по дистанции КП и получает её время +1 мс
+ * (либо время старта +1 мс, если пропущен первый КП). Позиция ищется тем же последовательным проходом,
+ * что и в [OrientReadCardViewModel.checkControlPointOrderPro], поэтому засчитанный КП гарантированно
+ * встаёт в проверяемую последовательность на своё место. Порядок засчитывания нескольких пропущенных
+ * КП не важен: уже засчитанные учитываются при поиске позиции как обычные отметки.
+ *
+ * Раньше время бралось у ближайшей строки выше в таблице сплитов, а пропущенные КП выводятся в конце
+ * таблицы — засчитанный КП получал время финиша, оказывался после финишной отметки, и проверка порядка
+ * всё равно давала DSQ.
+ *
+ * Отметки со стартовой станции ([startControlPoint]) в проверяемую последовательность не входят —
+ * засчитанный первый КП ставится после неё, а не перед.
+ *
+ * Время строго больше предыдущей отметки, а при совпадении со следующими (несколько засчитанных
+ * подряд) они сдвигаются на 1 мс: сервер и локальная БД упорядочивают сплиты только по timestamp,
+ * и при равных значениях засчитанный КП после синхронизации мог бы встать перед предыдущим.
+ *
+ * @param expectedCpNumbers Номера КП дистанции по порядку (включая финишный).
+ * @param distanceOrdinal Порядковый номер засчитываемого КП по дистанции (1-based).
+ * @param startTime Время старта участника — используется, если перед КП нет ни одной отметки.
+ */
+fun insertCreditedPunch(
+    rawSplits: List<SplitTime>,
+    expectedCpNumbers: List<Int>,
+    cpNumber: Int,
+    distanceOrdinal: Int,
+    startTime: Long?,
+    startControlPoint: Int? = null,
+): List<SplitTime> {
+    var searchIndex = startControlPoint
+        ?.let { start -> rawSplits.indexOfFirst { it.controlPoint == start } + 1 }
+        ?: 0
+    for (expectedCp in expectedCpNumbers.take((distanceOrdinal - 1).coerceAtLeast(0))) {
+        val found = (searchIndex until rawSplits.size).firstOrNull { rawSplits[it].controlPoint == expectedCp }
+        if (found != null) searchIndex = found + 1
+    }
+    val prevTimestamp = rawSplits.getOrNull(searchIndex - 1)?.timestamp
+        ?: startTime
+        ?: rawSplits.firstOrNull()?.timestamp
+        ?: 0L
+    val result = rawSplits.toMutableList()
+    result.add(searchIndex, SplitTime(controlPoint = cpNumber, timestamp = prevTimestamp + 1))
+    for (i in searchIndex + 1 until result.size) {
+        if (result[i].timestamp > result[i - 1].timestamp) break
+        result[i] = result[i].copy(timestamp = result[i - 1].timestamp + 1)
+    }
+    return result
 }
