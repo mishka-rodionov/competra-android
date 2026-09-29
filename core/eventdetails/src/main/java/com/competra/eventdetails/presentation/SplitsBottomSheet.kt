@@ -25,6 +25,7 @@ import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.ParticipantWithResult
 import com.competra.domain.models.orienteering.SplitTime
+import com.competra.domain.models.orienteering.punchesAfterStart
 import com.competra.utils.orienteering.toRaceTime
 import com.competra.utils.orienteering.toSplitTime
 
@@ -108,7 +109,8 @@ internal fun SplitsBottomSheet(
                     }
                 }
 
-                val splits = result.splits
+                // Отметки до старта (например, финишной станции в стартовом городке) в сплиты не входят.
+                val splits = result.splits?.let { punchesAfterStart(it, participant.startTime) }
                 if (!splits.isNullOrEmpty()) {
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))

@@ -44,3 +44,11 @@ data class OrienteeringResult(
     val serverUpdatedAt: Long? = null,
     val syncError: String? = null
 )
+
+/**
+ * Место для отображения: только у FINISHED и только положительное. Снятым/не финишировавшим
+ * проставляется rank = -1 — такие участники вне зачёта, место им не показываем (статус и так виден).
+ * Сам [OrienteeringResult.rank] не трогаем — он синхронизируется с сервером как есть.
+ */
+val OrienteeringResult.displayPlace: Int?
+    get() = rank?.takeIf { it > 0 && status == ResultStatus.FINISHED }

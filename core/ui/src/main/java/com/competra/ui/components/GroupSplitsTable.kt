@@ -25,6 +25,7 @@ import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.SplitsTable
 import com.competra.domain.models.orienteering.SplitsTableCell
 import com.competra.domain.models.orienteering.SplitsTableRow
+import com.competra.domain.models.orienteering.displayPlace
 import com.competra.utils.orienteering.toPace
 import com.competra.utils.orienteering.toRaceTime
 
@@ -132,7 +133,7 @@ private fun ParticipantCell(row: SplitsTableRow, isByChoice: Boolean, modifier: 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        row.result?.rank?.let { rank ->
+        row.result?.displayPlace?.let { rank ->
             Text(
                 text = "Место $rank",
                 style = MaterialTheme.typography.labelSmall,

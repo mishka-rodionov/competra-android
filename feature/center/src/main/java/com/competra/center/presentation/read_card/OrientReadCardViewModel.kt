@@ -24,6 +24,7 @@ import com.competra.domain.models.orienteering.effectiveControlTimeMinutes
 import com.competra.domain.models.orienteering.ResultConflictEvent
 import com.competra.domain.models.orienteering.SplitTime
 import com.competra.domain.models.orienteering.StartTimeMode
+import com.competra.domain.models.orienteering.punchesAfterStart
 import com.competra.domain.repository.ResultConflictRepository
 import com.competra.nfchelper.SportiduinoHelper
 import com.competra.center.data.read_card.OrientReadCardAction
@@ -599,15 +600,6 @@ class OrientReadCardViewModel(
     }
 
 }
-
-/**
- * Отметки чипа, сделанные не раньше старта. Отметки до старта бывают, когда участник в стартовом
- * городке отмечает финишную (или любую другую) станцию — в результат они не входят, как и в
- * стандартных программах обработки отметок: иначе такая отметка засчитывалась бы за КП дистанции,
- * а первый перегон получался отрицательным.
- */
-fun punchesAfterStart(splits: List<SplitTime>, startTime: Long): List<SplitTime> =
-    splits.filter { it.timestamp >= startTime }
 
 /**
  * Проверка отметок для формата «по выбору» (score-О): порядок взятия КП не важен,

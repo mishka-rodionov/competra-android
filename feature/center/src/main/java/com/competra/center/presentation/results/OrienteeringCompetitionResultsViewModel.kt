@@ -23,6 +23,7 @@ import com.competra.domain.models.orienteering.ParticipantWithResult
 import com.competra.domain.models.orienteering.ResultsStatus
 import com.competra.domain.models.orienteering.SplitsTableCell
 import com.competra.domain.models.orienteering.buildSplitsTable
+import com.competra.domain.models.orienteering.displayPlace
 import com.competra.domain.models.orienteering.sortedForResults
 import com.competra.domain.repository.UploadRepository
 import com.competra.ui.BaseAction
@@ -259,7 +260,7 @@ class OrienteeringCompetitionResultsViewModel(
             sb.appendLine("Место;Фамилия;Имя;Команда;Старт;Финиш;Результат;Статус$headerSuffix")
 
             group.participants.zip(table.rows).forEach { (pw, row) ->
-                val rank = pw.result?.rank?.toString() ?: ""
+                val rank = pw.result?.displayPlace?.toString() ?: ""
                 val start = DateTimeFormat.transformLongToTime(pw.result?.startTime) ?: ""
                 val finish = DateTimeFormat.transformLongToTime(pw.result?.finishTime) ?: ""
                 val total = pw.result?.totalTime?.toRaceTime() ?: ""
@@ -352,7 +353,7 @@ class OrienteeringCompetitionResultsViewModel(
             group.participants.zip(table.rows).forEach { (pw, row) ->
                 ensureSpace(lineH + if (cpOrder.isNotEmpty()) smallLineH else 0f)
 
-                val rank   = (pw.result?.rank?.toString() ?: "-").padEnd(3)
+                val rank   = (pw.result?.displayPlace?.toString() ?: "-").padEnd(3)
                 val name   = "${pw.participant.lastName} ${pw.participant.firstName}".take(20).padEnd(20)
                 val team   = pw.participant.commandName.take(18).padEnd(18)
                 val start  = (DateTimeFormat.transformLongToTime(pw.result?.startTime) ?: "").padEnd(10)
@@ -503,7 +504,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
             // печатается прямо в его ячейке.
             val cpOrder = if (isByChoice) emptyList() else table.columns.map { it.controlPoint }
             val maxSplitsCount = if (isByChoice) {
-                group.participants.mapNotNull { it.result?.splits?.size }.maxOrNull() ?: 0
+                table.rows.mapNotNull { it.result?.splits?.size }.maxOrNull() ?: 0
             } else 0
             // Реальные баллы за каждый КП дистанции — нужны, чтобы посчитать точные "сырые"
             // баллы участника (см. scoreText ниже), т.к. totalScore хранится уже за вычетом
@@ -559,7 +560,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
                         // (совпадают с тем, как считает computeByChoiceResult при отметке).
                         // Фолбэк на netScore+penalty только если дистанция группы не найдена.
                         val rawScore = if (scoreByNumber.isNotEmpty()) {
-                            pw.result?.splits?.sumOf { scoreByNumber[it.controlPoint] ?: 0 } ?: (netScore + penalty)
+                            row.result?.splits?.sumOf { scoreByNumber[it.controlPoint] ?: 0 } ?: (netScore + penalty)
                         } else {
                             netScore + penalty
                         }
@@ -575,7 +576,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
                     else                  -> ""
                 }
                 sb.append("<td><nobr>$statusText</td>")
-                sb.append("<td><nobr>${pw.result?.rank?.toString() ?: ""}</td>")
+                sb.append("<td><nobr>${pw.result?.displayPlace?.toString() ?: ""}</td>")
 
                 val gap = if (isByChoice) {
                     // Отставание считаем только внутри группы участников с одинаковыми очками —
@@ -613,7 +614,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
                         }
                     }
                 } else {
-                    val splits = pw.result?.splits.orEmpty()
+                    val splits = row.result?.splits.orEmpty() // из таблицы — уже без отметок до старта
                     val startTs = pw.result?.startTime ?: pw.participant.startTime
                     repeat(maxSplitsCount) { i ->
                         val split = splits.getOrNull(i)

@@ -92,6 +92,12 @@ data class SplitsTable(
 private fun anchorStartTime(pw: ParticipantWithResult): Long =
     pw.result?.startTime ?: pw.participant.startTime
 
+/** Участник с отметками только на дистанции — без сделанных до старта (см. [punchesAfterStart]). */
+private fun ParticipantWithResult.withRaceSplits(): ParticipantWithResult {
+    val splits = result?.splits ?: return this
+    return copy(result = result.copy(splits = punchesAfterStart(splits, anchorStartTime(this))))
+}
+
 /**
  * Сырые очки участника за фактически взятые КП (BY_CHOICE), ДО вычета штрафа — сумма
  * [ControlPoint.score] по номерам КП из [OrienteeringResult.splits]. [OrienteeringResult.totalScore]
@@ -141,19 +147,23 @@ private fun byChoiceDistanceMeters(splits: List<SplitTime>, controlPointByNumber
  * геопривязанной карты через IOF XML), в ячейках FORWARD/MARKING заполняется темп участника на
  * перегоне ([SplitsTableCell.paceMinPerKm]); без неё темп остаётся null. Также используется для
  * пересчёта [SplitsTableRow.rawScore] в BY_CHOICE.
+ *
+ * Отметки до старта в таблицу не входят ([punchesAfterStart]), в [SplitsTableRow.result] — тоже.
  */
 fun buildSplitsTable(
     group: GroupWithParticipantsAndResults,
     distance: Distance? = null,
     direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
 ): SplitsTable {
+    val participants = group.participants.map { it.withRaceSplits() }
+
     if (direction == OrienteeringDirection.BY_CHOICE) {
         val scoreByNumber = distance?.controlPoints?.associate { it.number to it.score } ?: emptyMap()
         val controlPointByNumber = distance?.controlPoints?.associateBy { it.number } ?: emptyMap()
-        val maxSplitsCount = group.participants.maxOfOrNull { it.result?.splits?.size ?: 0 } ?: 0
+        val maxSplitsCount = participants.maxOfOrNull { it.result?.splits?.size ?: 0 } ?: 0
         val columns = (1..maxSplitsCount).map { SplitsTableColumn(positionIndex = it, controlPoint = 0) }
 
-        val rows = group.participants.map { pw ->
+        val rows = participants.map { pw ->
             val splits = pw.result?.splits ?: emptyList()
             val startTs = anchorStartTime(pw)
 
@@ -192,43 +202,56 @@ fun buildSplitsTable(
         return SplitsTable(columns = columns, rows = rows)
     }
 
-    val cpOrder = group.participants
+    // Порядок КП колонок — по самому длинному результату среди финишировавших: у снятого участника
+    // могут быть лишние/перепутанные отметки, и тогда он задал бы неверный порядок всей таблице.
+    // Колонок — по максимуму среди всех, чтобы лишние сплиты снятых тоже были видны.
+    val referenceSplits = participants
+        .filter { it.result?.status == ResultStatus.FINISHED }
         .mapNotNull { it.result?.splits }
         .maxByOrNull { it.size }
-        ?.map { it.controlPoint }
+        .orEmpty()
+    val cpOrder = participants
+        .mapNotNull { it.result?.splits }
+        .maxByOrNull { it.size }
+        ?.mapIndexed { i, split -> referenceSplits.getOrNull(i)?.controlPoint ?: split.controlPoint }
         ?: emptyList()
 
     val columns = cpOrder.mapIndexed { i, cp -> SplitsTableColumn(positionIndex = i + 1, controlPoint = cp) }
     val legLengths = legLengthsMeters(distance, cpOrder)
 
-    val cumulRanks: List<Map<String, Int>> = cpOrder.indices.map { i ->
-        group.participants
+    /** Отметка на позиции i — тот же КП, что и у колонки (у снятого с пропуском КП сплиты сдвинуты). */
+    fun isOnCourse(splits: List<SplitTime>, i: Int) = splits[i].controlPoint == cpOrder[i]
+
+    /**
+     * Ранги по позиции i среди участников, для которых [measure] вернула время. Ранжируем только
+     * корректные значения (КП совпадает с колонкой, время > 0): иначе отрицательный или сдвинутый
+     * сплит снятого участника оказывался «лучшим» на перегоне.
+     */
+    fun ranksAt(i: Int, measure: (splits: List<SplitTime>, startTs: Long) -> Long?): Map<String, Int> =
+        participants
             .mapNotNull { pw ->
                 val splits = pw.result?.splits ?: return@mapNotNull null
-                val startTs = anchorStartTime(pw)
-                if (i < splits.size) pw.participant.id to (splits[i].timestamp - startTs) else null
+                if (i >= splits.size) return@mapNotNull null
+                val value = measure(splits, anchorStartTime(pw))?.takeIf { it > 0 } ?: return@mapNotNull null
+                pw.participant.id to value
             }
             .sortedBy { it.second }
             .mapIndexed { rank, (id, _) -> id to (rank + 1) }
             .toMap()
+
+    val cumulRanks: List<Map<String, Int>> = cpOrder.indices.map { i ->
+        ranksAt(i) { splits, startTs -> if (isOnCourse(splits, i)) splits[i].timestamp - startTs else null }
     }
 
     val deltaRanks: List<Map<String, Int>> = cpOrder.indices.map { i ->
-        group.participants
-            .mapNotNull { pw ->
-                val splits = pw.result?.splits ?: return@mapNotNull null
-                val startTs = anchorStartTime(pw)
-                if (i < splits.size) {
-                    val prevTs = if (i == 0) startTs else splits[i - 1].timestamp
-                    pw.participant.id to (splits[i].timestamp - prevTs)
-                } else null
-            }
-            .sortedBy { it.second }
-            .mapIndexed { rank, (id, _) -> id to (rank + 1) }
-            .toMap()
+        ranksAt(i) { splits, startTs ->
+            if (!isOnCourse(splits, i) || (i > 0 && !isOnCourse(splits, i - 1))) return@ranksAt null
+            val prevTs = if (i == 0) startTs else splits[i - 1].timestamp
+            splits[i].timestamp - prevTs
+        }
     }
 
-    val rows = group.participants.map { pw ->
+    val rows = participants.map { pw ->
         val splits = pw.result?.splits ?: emptyList()
         val startTs = anchorStartTime(pw)
 
@@ -248,7 +271,8 @@ fun buildSplitsTable(
                 val deltaSec = (splitTs - prevTs) / 1000L
                 val cumulRank = cumulRanks[i][pw.participant.id]
                 val deltaRank = deltaRanks[i][pw.participant.id]
-                val pace = paceMinPerKm(deltaSec, legLengths.getOrNull(i))
+                // Темп — только для перегонов, попавших в рейтинг: у отрицательного/сдвинутого сплита он бессмыслен.
+                val pace = if (deltaRank != null) paceMinPerKm(deltaSec, legLengths.getOrNull(i)) else null
 
                 SplitsTableCell(
                     deltaSeconds = deltaSec,
@@ -395,7 +419,7 @@ fun buildScoreGraphData(group: GroupWithParticipantsAndResults, distance: Distan
 
         val rawPoints = mutableListOf(ScoreGraphPoint(0L, 0))
         var cumulative = 0
-        result.splits?.forEach { split ->
+        result.splits?.let { punchesAfterStart(it, startTs) }?.forEach { split ->
             cumulative += scoreByNumber[split.controlPoint] ?: 0
             rawPoints += ScoreGraphPoint((split.timestamp - startTs) / 1000L, cumulative)
         }

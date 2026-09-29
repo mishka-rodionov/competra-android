@@ -181,6 +181,64 @@ class SplitsTableBuilderTest {
     }
 
     @Test
+    fun `punch before start is ignored and does not shift splits`() {
+        val start = 1_000_000L
+        val a = ParticipantWithResult(
+            participant = participant("A", startTime = start),
+            result = result(
+                "A", ResultStatus.FINISHED, startTime = start, totalTime = 300,
+                splits = listOf(SplitTime(31, start + 100_000), SplitTime(32, start + 200_000), SplitTime(100, start + 300_000)),
+            ),
+        )
+        // Отметила финишную станцию в стартовом городке до своего старта.
+        val b = ParticipantWithResult(
+            participant = participant("B", startTime = start),
+            result = result(
+                "B", ResultStatus.DSQ, startTime = start,
+                splits = listOf(SplitTime(100, start - 60_000), SplitTime(31, start + 90_000), SplitTime(100, start + 400_000)),
+            ),
+        )
+
+        val table = buildSplitsTable(group(listOf(a, b)))
+        val rowB = table.rows[1]
+
+        assertEquals(listOf(31, 32, 100), table.columns.map { it.controlPoint })
+        assertEquals(90L, rowB.cells[0].deltaSeconds)
+        assertEquals(1, rowB.cells[0].deltaRank)
+        assertEquals(listOf(SplitTime(31, start + 90_000), SplitTime(100, start + 400_000)), rowB.result?.splits)
+    }
+
+    @Test
+    fun `shifted splits of disqualified participant are not ranked`() {
+        val a = ParticipantWithResult(
+            participant = participant("A"),
+            result = result(
+                "A", ResultStatus.FINISHED, totalTime = 300,
+                splits = listOf(SplitTime(31, 100_000), SplitTime(32, 200_000), SplitTime(33, 300_000)),
+            ),
+        )
+        // Пропустил КП 32 — отметка КП 33 оказалась во второй колонке (КП 32) и обгоняет A.
+        val b = ParticipantWithResult(
+            participant = participant("B"),
+            result = result(
+                "B", ResultStatus.DSQ,
+                splits = listOf(SplitTime(31, 120_000), SplitTime(33, 150_000)),
+            ),
+        )
+
+        val table = buildSplitsTable(group(listOf(a, b)))
+        val rowA = table.rows[0]
+        val rowB = table.rows[1]
+
+        assertEquals(30L, rowB.cells[1].deltaSeconds) // время показываем как есть
+        assertNull(rowB.cells[1].deltaRank)
+        assertNull(rowB.cells[1].cumulativeRank)
+        assertFalse(rowB.cells[1].isBestLeg)
+        assertTrue(rowA.cells[1].isBestLeg)
+        assertEquals(2, rowB.cells[0].deltaRank) // корректный первый перегон по-прежнему в рейтинге
+    }
+
+    @Test
     fun `participant without result produces columns with no splits`() {
         val onlyNoResult = ParticipantWithResult(participant = participant("A"), result = null)
 

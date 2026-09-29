@@ -34,6 +34,7 @@ import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.ParticipantWithResult
+import com.competra.domain.models.orienteering.displayPlace
 import com.competra.eventdetails.presentation.SplitsBottomSheet
 import com.competra.eventdetails.presentation.formatResultScore
 import com.competra.eventdetails.presentation.formatResultTime
@@ -248,7 +249,7 @@ private fun ResultItem(
             )
         }
         Text(
-            text = item.result?.rank?.toString() ?: "-",
+            text = item.result?.displayPlace?.toString() ?: "-",
             modifier = Modifier.weight(0.1f)
         )
     }

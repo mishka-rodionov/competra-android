@@ -37,6 +37,7 @@ import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.ParticipantWithResult
 import com.competra.domain.models.orienteering.SplitTime
+import com.competra.domain.models.orienteering.displayPlace
 import com.competra.eventdetails.presentation.SplitsBottomSheet
 import com.competra.eventdetails.presentation.formatResultScore
 import com.competra.eventdetails.presentation.formatResultTime
@@ -259,11 +260,11 @@ private fun LiveResultRow(
             )
         }
         Text(
-            text = item.result?.rank?.toString() ?: "—",
+            text = item.result?.displayPlace?.toString() ?: "—",
             modifier = Modifier.weight(0.15f),
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (item.result?.rank == 1) FontWeight.Bold else FontWeight.Normal,
-            color = if (item.result?.rank == 1) Color(0xFFB8860B) else MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (item.result?.displayPlace == 1) FontWeight.Bold else FontWeight.Normal,
+            color = if (item.result?.displayPlace == 1) Color(0xFFB8860B) else MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.End
         )
     }

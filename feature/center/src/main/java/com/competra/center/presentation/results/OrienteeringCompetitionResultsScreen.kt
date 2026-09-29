@@ -32,6 +32,7 @@ import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.ParticipantWithResult
 import com.competra.domain.models.orienteering.ResultsStatus
+import com.competra.domain.models.orienteering.displayPlace
 import com.competra.resources.R
 import com.competra.utils.DateTimeFormat
 import com.competra.utils.orienteering.toRaceTime
@@ -444,7 +445,7 @@ fun ResultParticipantCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Место или статус
-            val rankText = result.result?.rank?.toString() ?: result.result?.status?.name ?: "-"
+            val rankText = result.result?.displayPlace?.toString() ?: result.result?.status?.name ?: "-"
             Box(
                 modifier = Modifier
                     .size(36.dp)
