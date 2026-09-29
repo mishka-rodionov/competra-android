@@ -50,6 +50,31 @@ class ComputeByChoiceResultTest {
     }
 
     @Test
+    fun `отметка финиша до старта не вытесняет настоящий финиш`() {
+        val start = 1000L
+        val expected = listOf(cp(31, score = 10), cp(100, role = ControlPointRole.FINISH))
+        // Участник отметил финишную станцию в стартовом городке до своего старта.
+        val actual = listOf(split(100, 900), split(31, 1060), split(100, 1300))
+
+        val result = computeByChoiceResult(expected, actual, start * 1000L, group())
+
+        assertEquals(ResultStatus.FINISHED, result.status)
+        assertEquals(listOf(split(31, 1060), split(100, 1300)), result.validSplits)
+        assertEquals(10, result.totalScore)
+    }
+
+    @Test
+    fun `КП отмеченный до старта не приносит очков`() {
+        val start = 1000L
+        val expected = listOf(cp(31, score = 10), cp(32, score = 20))
+        val actual = listOf(split(31, 900), split(32, 1100))
+
+        val result = computeByChoiceResult(expected, actual, start * 1000L, group())
+
+        assertEquals(20, result.totalScore)
+    }
+
+    @Test
     fun `повторная отметка одного КП считается один раз`() {
         val expected = listOf(cp(31, score = 10), cp(32, score = 20))
         val actual = listOf(split(31, 60), split(31, 90), split(32, 120))

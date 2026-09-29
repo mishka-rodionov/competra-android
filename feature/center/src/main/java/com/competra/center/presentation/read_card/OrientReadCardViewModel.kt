@@ -343,7 +343,8 @@ class OrientReadCardViewModel(
             penaltyTime = 0,
             totalScore = result.totalScore,
             scorePenalty = result.scorePenalty,
-            splits = if (result.status == ResultStatus.DSQ) rawSplits else result.validSplits
+            // DSQ: сохраняем все отметки с дистанции (для разбора), но без сделанных до старта.
+            splits = if (result.status == ResultStatus.DSQ) punchesAfterStart(rawSplits, startTime) else result.validSplits
         )
 
         // При старте по стартовой станции реальное время старта узнаётся только сейчас, из чипа —
@@ -478,7 +479,7 @@ class OrientReadCardViewModel(
                 penaltyTime = 0,
                 totalScore = checkResult.totalScore,
                 scorePenalty = checkResult.scorePenalty,
-                splits = if (checkResult.status == ResultStatus.DSQ) rawSplits else checkResult.validSplits,
+                splits = if (checkResult.status == ResultStatus.DSQ) punchesAfterStart(rawSplits, startTime) else checkResult.validSplits,
                 isEdited = true,
             )
         }
@@ -543,7 +544,7 @@ class OrientReadCardViewModel(
         actual: List<SplitTime>
     ): CheckResult {
         if (stateValue.competitionDirection != OrienteeringDirection.BY_CHOICE) {
-            return checkControlPointOrderPro(expected, actual)
+            return checkControlPointOrderPro(expected, punchesAfterStart(actual, startTime))
         }
         val group = orienteeringCompetitionInteractor.getParticipantGroup(groupId).getOrNull()
             ?: return CheckResult(ResultStatus.DSQ, "Группа участника не найдена")
@@ -600,6 +601,15 @@ class OrientReadCardViewModel(
 }
 
 /**
+ * Отметки чипа, сделанные не раньше старта. Отметки до старта бывают, когда участник в стартовом
+ * городке отмечает финишную (или любую другую) станцию — в результат они не входят, как и в
+ * стандартных программах обработки отметок: иначе такая отметка засчитывалась бы за КП дистанции,
+ * а первый перегон получался отрицательным.
+ */
+fun punchesAfterStart(splits: List<SplitTime>, startTime: Long): List<SplitTime> =
+    splits.filter { it.timestamp >= startTime }
+
+/**
  * Проверка отметок для формата «по выбору» (score-О): порядок взятия КП не важен,
  * повторные отметки одного КП засчитываются один раз, обязательные (REQUIRED) КП должны
  * быть взяты все — иначе DSQ. Результат — сумма баллов за минусом штрафа за опоздание
@@ -622,7 +632,9 @@ fun computeByChoiceResult(
     }
 
     val expectedNumbers = expected.map { it.number }.toSet()
-    val dedupedSplits = actual
+    // Отметки до старта отбрасываем до дедупликации: иначе отметка финишной (или любой) станции в
+    // стартовом городке оказалась бы «первой» отметкой этого КП и вытеснила настоящую.
+    val dedupedSplits = punchesAfterStart(actual, startTime)
         .sortedBy { it.timestamp }
         .distinctBy { it.controlPoint }
         .filter { it.controlPoint in expectedNumbers }

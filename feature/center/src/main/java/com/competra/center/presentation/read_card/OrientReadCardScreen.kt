@@ -493,6 +493,9 @@ private sealed class SplitDisplayItem {
      * @param isStartPunch true — это отметка на стартовой станции ([Distance.startControlPoint]).
      * Она не входит в проверяемую последовательность КП дистанции (используется только для расчёта
      * времени старта при BY_START_STATION), поэтому не должна подсвечиваться как лишняя/ошибочная.
+     * @param isPreStart true — отметка сделана раньше времени старта (например, финишной станции в
+     * стартовом городке). В результат не входит (см. punchesAfterStart) и не сопоставляется с КП
+     * дистанции — иначе она «занимала» бы КП, а настоящая отметка выглядела бы лишней.
      */
     data class Actual(
         val split: SplitTime,
@@ -501,6 +504,7 @@ private sealed class SplitDisplayItem {
         val distanceOrdinal: Int? = null,
         val isOutOfOrder: Boolean = false,
         val isStartPunch: Boolean = false,
+        val isPreStart: Boolean = false,
     ) : SplitDisplayItem()
 
     /** @param distanceOrdinal Порядковый номер пропущенного КП по дистанции (1-based). */
@@ -525,13 +529,21 @@ private fun buildSplitDisplayItems(
     requiredCpNumbers: Set<Int> = emptySet(),
     isByChoice: Boolean = false,
     startControlPoint: Int? = null,
+    startTime: Long? = null,
 ): List<SplitDisplayItem> {
+    val preStartIndices = rawSplits.indices.filter { startTime != null && rawSplits[it].timestamp < startTime }.toSet()
     if (expectedCpOrder.isEmpty()) {
         return rawSplits.mapIndexed { i, s ->
-            SplitDisplayItem.Actual(s, i, isExtra = false, isStartPunch = s.controlPoint == startControlPoint)
+            val isPreStart = i in preStartIndices
+            SplitDisplayItem.Actual(
+                s, i, isExtra = false,
+                isStartPunch = !isPreStart && s.controlPoint == startControlPoint,
+                isPreStart = isPreStart,
+            )
         }
     }
-    val shownIndices = mutableSetOf<Int>()
+    // Отметки до старта в сопоставлении с дистанцией не участвуют (помечаем их «занятыми» заранее).
+    val shownIndices = preStartIndices.toMutableSet()
     // Порядковый номер по дистанции для каждой сопоставленной фактической отметки.
     val distanceOrdinalByIndex = HashMap<Int, Int>()
     val missed = mutableListOf<SplitDisplayItem.Missed>()
@@ -568,14 +580,17 @@ private fun buildSplitDisplayItems(
     // «Лишняя» — отметка, которой не нашлось места в дистанции: чужой КП либо повтор сверх нужного.
     val actualItems = rawSplits.indices.map { i ->
         val ordinal = distanceOrdinalByIndex[i]
-        val isStartPunch = ordinal == null && startControlPoint != null && rawSplits[i].controlPoint == startControlPoint
+        val isPreStart = i in preStartIndices
+        val isStartPunch = !isPreStart && ordinal == null && startControlPoint != null &&
+            rawSplits[i].controlPoint == startControlPoint
         SplitDisplayItem.Actual(
             split = rawSplits[i],
             chipIndex = i,
-            isExtra = ordinal == null && !isStartPunch,
+            isExtra = ordinal == null && !isStartPunch && !isPreStart,
             distanceOrdinal = ordinal,
             isOutOfOrder = i in outOfOrderIndices,
             isStartPunch = isStartPunch,
+            isPreStart = isPreStart,
         )
     }
 
@@ -644,8 +659,8 @@ internal fun SplitsCard(
     val scoreByNumber = remember(expectedControlPoints) {
         expectedControlPoints.associate { it.number to it.score }
     }
-    val displayItems = remember(splits, expectedCpOrder, requiredCpNumbers, isByChoice, startControlPoint) {
-        buildSplitDisplayItems(splits, expectedCpOrder, requiredCpNumbers, isByChoice, startControlPoint)
+    val displayItems = remember(splits, expectedCpOrder, requiredCpNumbers, isByChoice, startControlPoint, participant.startTime) {
+        buildSplitDisplayItems(splits, expectedCpOrder, requiredCpNumbers, isByChoice, startControlPoint, participant.startTime)
     }
 
     Card(
@@ -675,19 +690,19 @@ internal fun SplitsCard(
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
             displayItems.forEachIndexed { displayIndex, item ->
-                // Предыдущий timestamp для расчёта сплита (ближайший Actual до текущего)
+                // Предыдущий timestamp для расчёта сплита (ближайший Actual до текущего, кроме отметок до старта)
                 val prevTimestamp = run {
                     for (i in displayIndex - 1 downTo 0) {
                         val prev = displayItems[i]
-                        if (prev is SplitDisplayItem.Actual) return@run prev.split.timestamp
+                        if (prev is SplitDisplayItem.Actual && !prev.isPreStart) return@run prev.split.timestamp
                     }
                     participant.startTime
                 }
 
                 when (item) {
                     is SplitDisplayItem.Actual -> {
-                        val splitTimeStr = (item.split.timestamp - prevTimestamp).toSplitTime()
-                        val totalTimeStr = if (!item.isExtra) {
+                        val splitTimeStr = if (item.isPreStart) "—" else (item.split.timestamp - prevTimestamp).toSplitTime()
+                        val totalTimeStr = if (!item.isExtra && !item.isPreStart) {
                             (item.split.timestamp - participant.startTime).toSplitTime()
                         } else "—"
                         // Темп на перегоне: нужны координаты и предыдущего, и текущего КП по порядку
@@ -710,6 +725,7 @@ internal fun SplitsCard(
                                 .fillMaxWidth()
                                 .background(
                                     when {
+                                        item.isPreStart -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
                                         item.isExtra -> Color(0xFFFFEB3B).copy(alpha = 0.25f)
                                         item.isOutOfOrder -> Color(0xFFFF9800).copy(alpha = 0.22f)
                                         item.isStartPunch -> MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
@@ -720,7 +736,11 @@ internal fun SplitsCard(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val textColor = if (item.isExtra) Color(0xFF9E8000) else MaterialTheme.colorScheme.onSurface
+                            val textColor = when {
+                                item.isPreStart -> MaterialTheme.colorScheme.onSurfaceVariant
+                                item.isExtra -> Color(0xFF9E8000)
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
                             Text(
                                 text = (item.chipIndex + 1).toString(),
                                 style = MaterialTheme.typography.bodyMedium,
@@ -731,7 +751,11 @@ internal fun SplitsCard(
                                 text = if (isByChoice) {
                                     (scoreByNumber[item.split.controlPoint] ?: 0).toString()
                                 } else {
-                                    item.distanceOrdinal?.toString() ?: if (item.isStartPunch) "Старт" else ""
+                                    item.distanceOrdinal?.toString() ?: when {
+                                        item.isPreStart -> "До ст."
+                                        item.isStartPunch -> "Старт"
+                                        else -> ""
+                                    }
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = if (item.isOutOfOrder) FontWeight.Bold else FontWeight.Normal,
@@ -753,7 +777,11 @@ internal fun SplitsCard(
                                     text = splitTimeStr,
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Center,
-                                    color = if (item.isExtra) Color(0xFF9E8000) else MaterialTheme.colorScheme.secondary
+                                    color = when {
+                                        item.isPreStart -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        item.isExtra -> Color(0xFF9E8000)
+                                        else -> MaterialTheme.colorScheme.secondary
+                                    }
                                 )
                                 pace?.let {
                                     Text(
@@ -855,7 +883,8 @@ internal fun SplitsCard(
             val hasOutOfOrder = displayItems.any { it is SplitDisplayItem.Actual && it.isOutOfOrder }
             val hasExtra = displayItems.any { it is SplitDisplayItem.Actual && it.isExtra }
             val hasMissed = displayItems.any { it is SplitDisplayItem.Missed }
-            if (hasOutOfOrder || hasExtra || hasMissed) {
+            val hasPreStart = displayItems.any { it is SplitDisplayItem.Actual && it.isPreStart }
+            if (hasOutOfOrder || hasExtra || hasMissed || hasPreStart) {
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -869,6 +898,12 @@ internal fun SplitsCard(
                     }
                     if (hasMissed) {
                         SplitsLegendItem(MaterialTheme.colorScheme.errorContainer, "Пропущенный КП")
+                    }
+                    if (hasPreStart) {
+                        SplitsLegendItem(
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                            "Отметка до старта (не учитывается)"
+                        )
                     }
                 }
             }
