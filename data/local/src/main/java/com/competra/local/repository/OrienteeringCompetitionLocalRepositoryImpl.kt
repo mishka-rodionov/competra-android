@@ -394,7 +394,10 @@ class OrienteeringCompetitionLocalRepositoryImpl(
                     serverUpdatedAt = distance.serverUpdatedAt ?: existing?.serverUpdatedAt,
                     // Карта на Android только читается с сервера — форма редактирования её не знает
                     // и присылает null; без подстановки локальная правка стирала бы карту.
-                    map = distance.map ?: existing?.map
+                    map = distance.map ?: existing?.map,
+                    // Координаты старта/финиша приходят только из IOF XML — по той же причине.
+                    startPosition = distance.startPosition ?: existing?.startPosition,
+                    finishPosition = distance.finishPosition ?: existing?.finishPosition
                 ).applyUnsynced()
             } else {
                 distance

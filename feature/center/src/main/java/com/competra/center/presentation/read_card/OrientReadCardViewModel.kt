@@ -24,6 +24,8 @@ import com.competra.domain.models.orienteering.effectiveControlTimeMinutes
 import com.competra.domain.models.orienteering.ResultConflictEvent
 import com.competra.domain.models.orienteering.SplitTime
 import com.competra.domain.models.orienteering.StartTimeMode
+import com.competra.domain.models.orienteering.expectedSequence
+import com.competra.domain.models.orienteering.startPoint
 import com.competra.domain.models.orienteering.punchesAfterStart
 import com.competra.domain.repository.ResultConflictRepository
 import com.competra.nfchelper.SportiduinoHelper
@@ -221,16 +223,9 @@ class OrientReadCardViewModel(
         }
     }
 
-    suspend fun getExpectedControlPoints(groupId: Long): List<ControlPoint> {
-        val distance = getDistance(groupId) ?: return emptyList()
-        val base = distance.controlPoints
-        val finishNumber = distance.finishControlPoint
-        return if (finishNumber != null) {
-            base + ControlPoint(number = finishNumber, role = ControlPointRole.FINISH)
-        } else {
-            base
-        }
-    }
+    /** КП дистанции по порядку плюс финишный пункт (с координатами финиша, если известны). */
+    suspend fun getExpectedControlPoints(groupId: Long): List<ControlPoint> =
+        getDistance(groupId)?.expectedSequence() ?: emptyList()
 
     private suspend fun getDistance(groupId: Long): Distance? {
         val group = orienteeringCompetitionInteractor.getParticipantGroup(groupId).getOrNull()
@@ -328,6 +323,7 @@ class OrientReadCardViewModel(
         startControlPoint: Int? = null
     ) {
         val effectiveStatus = applyControlTime(participant.groupId, totalTime, result.status)
+        val startPoint = getDistance(participant.groupId)?.startPoint()
         // Причину показываем организатору на экране: результат с временем, но без места
         // иначе выглядит сбоем.
         val statusText = result.message
@@ -377,6 +373,7 @@ class OrientReadCardViewModel(
                     isPendingSave = false,
                     statusMessage = statusText,
                     startControlPoint = startControlPoint,
+                    startPoint = startPoint,
                 )
             }
             return
@@ -394,6 +391,7 @@ class OrientReadCardViewModel(
                     isPendingSave = true,
                     statusMessage = statusText,
                     startControlPoint = startControlPoint,
+                    startPoint = startPoint,
                 )
             }
             return
@@ -408,6 +406,7 @@ class OrientReadCardViewModel(
                 expectedControlPoints = expectedControlPoints,
                 statusMessage = statusText,
                 startControlPoint = startControlPoint,
+                startPoint = startPoint,
             )
         }
 

@@ -68,6 +68,7 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 expectedCpOrder = state.expectedCpNumbers,
                 expectedControlPoints = state.expectedControlPoints,
                 startControlPoint = state.startControlPoint,
+                startPoint = state.startPoint,
                 competitionDirection = state.competitionDirection,
                 isPendingSave = state.isPendingSave,
                 isReadOnly = state.isCompetitionFinished,
@@ -190,6 +191,7 @@ private fun ReadCardContent(
     expectedCpOrder: List<Int> = emptyList(),
     expectedControlPoints: List<ControlPoint> = emptyList(),
     startControlPoint: Int? = null,
+    startPoint: ControlPoint? = null,
     competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
     isPendingSave: Boolean = false,
     isReadOnly: Boolean = false,
@@ -268,6 +270,7 @@ private fun ReadCardContent(
                         expectedCpOrder = expectedCpOrder,
                         expectedControlPoints = expectedControlPoints,
                         startControlPoint = startControlPoint,
+                        startPoint = startPoint,
                         competitionDirection = competitionDirection,
                         onEditSplit = if (isReadOnly) null else onEditSplit,
                         onCreditCp = if (isPendingSave) onCreditCp else null,
@@ -648,6 +651,7 @@ internal fun SplitsCard(
     expectedCpOrder: List<Int> = emptyList(),
     expectedControlPoints: List<ControlPoint> = emptyList(),
     startControlPoint: Int? = null,
+    startPoint: ControlPoint? = null,
     competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
     onEditSplit: ((index: Int) -> Unit)? = null,
     onCreditCp: ((cpNumber: Int, distanceOrdinal: Int) -> Unit)? = null,
@@ -707,14 +711,15 @@ internal fun SplitsCard(
                         } else "—"
                         // Темп на перегоне: нужны координаты и предыдущего, и текущего КП по порядку
                         // дистанции (distanceOrdinal — 1-based позиция, как в SplitsTableBuilder).
-                        // Для первой позиции (ordinal 1) предыдущей точки нет — темп не считается.
+                        // Для первой позиции (ordinal 1) предыдущая точка — старт (startPoint); без
+                        // его координат темп не считается.
                         // Для BY_CHOICE порядок посещения произвольный, «перегон» между соседними по
                         // списку дистанции КП не соответствует реальному пути участника — не считаем.
                         val pace = item.distanceOrdinal
-                            ?.takeIf { it >= 2 && !isByChoice }
+                            ?.takeIf { !isByChoice }
                             ?.let { ordinal ->
                                 val legMeters = controlPointDistanceMeters(
-                                    expectedControlPoints.getOrNull(ordinal - 2),
+                                    if (ordinal == 1) startPoint else expectedControlPoints.getOrNull(ordinal - 2),
                                     expectedControlPoints.getOrNull(ordinal - 1),
                                 )
                                 paceMinPerKm((item.split.timestamp - prevTimestamp) / 1000, legMeters)

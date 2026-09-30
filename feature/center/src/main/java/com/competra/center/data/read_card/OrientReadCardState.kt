@@ -45,6 +45,11 @@ data class OrientReadCardState(
      * старт-станции как «лишнюю».
      */
     val startControlPoint: Int? = null,
+    /**
+     * Точка старта дистанции с координатами (см. [com.competra.domain.models.orienteering.startPoint]) —
+     * начало первого перегона для расчёта темпа. `null`, если координаты старта неизвестны.
+     */
+    val startPoint: ControlPoint? = null,
     /** true — DSQ-результат показан организатору, ожидает явного сохранения. */
     val isPendingSave: Boolean = false,
     /**

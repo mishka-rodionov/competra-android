@@ -5,6 +5,7 @@ import com.competra.domain.models.cyclic_event.groupGenderRestriction
 import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.DistanceMap
+import com.competra.domain.models.orienteering.coordinatesOrNull
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.ParticipantGroup
@@ -84,6 +85,8 @@ fun DistanceResponse.toDomain(competitionId: String): Distance {
         controlPoints = controlPoints.map { it.toDomain() },
         finishControlPoint = finishControlPoint,
         startControlPoint = startControlPoint,
+        startPosition = coordinatesOrNull(startLatitude, startLongitude),
+        finishPosition = coordinatesOrNull(finishLatitude, finishLongitude),
         map = DistanceMap.fromFields(
             url = mapUrl,
             topLeftLat = mapTopLeftLat,

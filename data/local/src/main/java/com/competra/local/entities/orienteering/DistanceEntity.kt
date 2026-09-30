@@ -44,6 +44,11 @@ data class DistanceEntity(
     val controlPoints: List<ControlPoint> = emptyList(),
     val finishControlPoint: Int? = null,
     val startControlPoint: Int? = null,
+    // Координаты старта и финиша (из IOF XML) — длина первого/последнего перегона для темпа.
+    val startLatitude: Double? = null,
+    val startLongitude: Double? = null,
+    val finishLatitude: Double? = null,
+    val finishLongitude: Double? = null,
     // Геопривязанная карта дистанции (см. DistanceMap): плоские колонки, как на сервере.
     val mapUrl: String? = null,
     val mapTopLeftLat: Double? = null,

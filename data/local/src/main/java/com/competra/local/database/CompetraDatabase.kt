@@ -42,7 +42,8 @@ import com.competra.local.entities.user.UserEntity
 // v48: опциональный клуб-организатор соревнования (organizingClubId).
 // v49: номер стартового КП дистанции (startControlPoint) — для StartTimeMode.BY_START_STATION.
 // v52: буфер онлайн-трекинга бегуна (live_track_runner_sessions / live_track_runner_points).
-private const val DB_VERSION = 52
+// v53: координаты старта и финиша дистанции — темп на первом/последнем перегоне.
+private const val DB_VERSION = 53
 
 /**
  * Основной класс базы данных приложения (Room).

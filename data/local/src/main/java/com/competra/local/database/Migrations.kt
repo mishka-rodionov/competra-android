@@ -391,3 +391,17 @@ val MIGRATION_51_52 = object : Migration(51, 52) {
         )
     }
 }
+
+/**
+ * Миграция с версии 52 на 53.
+ * Координаты старта и финиша дистанции (из IOF XML) — по ним считается длина первого перегона
+ * (от старта до первого КП) и перегона на финиш, а значит и темп участника на них.
+ */
+val MIGRATION_52_53 = object : Migration(52, 53) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE distances ADD COLUMN startLatitude REAL")
+        db.execSQL("ALTER TABLE distances ADD COLUMN startLongitude REAL")
+        db.execSQL("ALTER TABLE distances ADD COLUMN finishLatitude REAL")
+        db.execSQL("ALTER TABLE distances ADD COLUMN finishLongitude REAL")
+    }
+}
