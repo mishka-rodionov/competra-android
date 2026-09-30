@@ -223,7 +223,7 @@ class OrienteeringCompetitionResultsViewModel(
         if (groups.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             val title = stateValue.competitionTitle
-            val csv = buildCsvContent(title, groups)
+            val csv = buildCsvContent(title, groups, stateValue.direction, loadDistancesByGroupId(groups))
             val fileName = buildSafeFileName(title)
             _exportCsvEvent.emit(fileName to csv)
         }
@@ -234,7 +234,7 @@ class OrienteeringCompetitionResultsViewModel(
         if (groups.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             val title = stateValue.competitionTitle
-            val bytes = buildPdfBytes(title, groups)
+            val bytes = buildPdfBytes(title, groups, stateValue.direction, loadDistancesByGroupId(groups))
             val fileName = buildSafeFileName(title).replace(".csv", ".pdf")
             _exportPdfEvent.emit(fileName to bytes)
         }
@@ -245,18 +245,36 @@ class OrienteeringCompetitionResultsViewModel(
         return if (safe.isNotEmpty()) "results_$safe.csv" else "results.csv"
     }
 
-    private fun buildCsvContent(title: String, groups: List<GroupWithParticipantsAndResults>): String {
+    /**
+     * Дистанции групп для экспорта: по ним строятся колонки таблицы сплитов (см. buildSplitsTable)
+     * и считаются очки BY_CHOICE. Для группы без дистанции — null, колонки тогда выводятся из отметок.
+     */
+    private suspend fun loadDistancesByGroupId(groups: List<GroupWithParticipantsAndResults>): Map<Long, Distance?> =
+        groups.associate { g ->
+            g.group.groupId to orienteeringCompetitionInteractor.getDistanceById(g.group.distanceId).getOrNull()
+        }
+
+    private fun buildCsvContent(
+        title: String,
+        groups: List<GroupWithParticipantsAndResults>,
+        direction: OrienteeringDirection,
+        distancesByGroupId: Map<Long, Distance?>,
+    ): String {
+        val isByChoice = direction == OrienteeringDirection.BY_CHOICE
         val sb = StringBuilder("﻿") // UTF-8 BOM для корректного открытия в Excel
         if (title.isNotEmpty()) {
             sb.appendLine("Соревнование: $title")
             sb.appendLine()
         }
         groups.forEach { group ->
-            val table = buildSplitsTable(group)
+            val table = buildSplitsTable(group, distancesByGroupId[group.group.groupId], direction)
             val cpOrder = table.columns.map { it.controlPoint }
 
             sb.appendLine("Группа: ${group.group.title}")
-            val headerSuffix = if (cpOrder.isNotEmpty()) ";${buildCpHeaders(cpOrder)}" else ""
+            // Для BY_CHOICE у каждого участника свой порядок КП: колонки — по номеру отметки,
+            // а номер взятого КП — отдельным значением в строке участника.
+            val splitHeaders = if (isByChoice) buildPositionHeaders(table.columns.size) else buildCpHeaders(cpOrder)
+            val headerSuffix = if (cpOrder.isNotEmpty()) ";$splitHeaders" else ""
             sb.appendLine("Место;Фамилия;Имя;Команда;Старт;Финиш;Результат;Статус$headerSuffix")
 
             group.participants.zip(table.rows).forEach { (pw, row) ->
@@ -274,7 +292,7 @@ class OrienteeringCompetitionResultsViewModel(
                 }
                 val resultRow = "$rank;${pw.participant.lastName};${pw.participant.firstName};${pw.participant.commandName};$start;$finish;$total;$status"
                 if (cpOrder.isNotEmpty()) {
-                    val splitValues = buildSplitValues(row.cells)
+                    val splitValues = buildSplitValues(row.cells, withControlPoint = isByChoice)
                     sb.appendLine("$resultRow;$splitValues")
                 } else {
                     sb.appendLine(resultRow)
@@ -296,16 +314,29 @@ class OrienteeringCompetitionResultsViewModel(
         }
     }
 
-    /** Строит строку значений сплитов (дельта;кумулятив на каждый КП) для одной строки таблицы. */
-    private fun buildSplitValues(cells: List<SplitsTableCell>): String {
+    /** Заголовки колонок сплитов BY_CHOICE — по номеру отметки: взятый КП, дельта, кумулятив. */
+    private fun buildPositionHeaders(count: Int): String =
+        (1..count).joinToString(";") { "#${it}_КП;#${it}_δ;#${it}_Σ" }
+
+    /**
+     * Строит строку значений сплитов (дельта;кумулятив на каждый КП) для одной строки таблицы.
+     * [withControlPoint] — перед ними номер взятого КП (BY_CHOICE, см. [buildPositionHeaders]).
+     */
+    private fun buildSplitValues(cells: List<SplitsTableCell>, withControlPoint: Boolean = false): String {
         return cells.joinToString(";") { cell ->
             val delta = cell.deltaSeconds?.toRaceTime() ?: ""
             val cumul = cell.cumulativeSeconds?.toRaceTime() ?: ""
-            "$delta;$cumul"
+            if (withControlPoint) "${cell.controlPoint ?: ""};$delta;$cumul" else "$delta;$cumul"
         }
     }
 
-    private fun buildPdfBytes(title: String, groups: List<GroupWithParticipantsAndResults>): ByteArray {
+    private fun buildPdfBytes(
+        title: String,
+        groups: List<GroupWithParticipantsAndResults>,
+        direction: OrienteeringDirection,
+        distancesByGroupId: Map<Long, Distance?>,
+    ): ByteArray {
+        val isByChoice = direction == OrienteeringDirection.BY_CHOICE
         val document = PdfDocument()
         val pW = 595; val pH = 842
         val margin = 36f
@@ -338,7 +369,7 @@ class OrienteeringCompetitionResultsViewModel(
         }
 
         groups.forEach { group ->
-            val table = buildSplitsTable(group)
+            val table = buildSplitsTable(group, distancesByGroupId[group.group.groupId], direction)
             val cpOrder = table.columns.map { it.controlPoint }
 
             ensureSpace(lineH * 3)
@@ -373,15 +404,19 @@ class OrienteeringCompetitionResultsViewModel(
                 if (cpOrder.isNotEmpty()) {
                     val splitsLine = buildString {
                         cpOrder.forEachIndexed { i, cp ->
-                            if (i > 0) append("  ")
                             val cell = row.cells[i]
+                            // BY_CHOICE: у каждого свой порядок КП — подписываем номером отметки и
+                            // реально взятым КП; позиции сверх числа отметок участника не выводим.
+                            if (isByChoice && cell.controlPoint == null) return@forEachIndexed
+                            if (i > 0) append("  ")
+                            val label = if (isByChoice) "#${i + 1}(КП${cell.controlPoint})" else "КП$cp"
                             val cellDeltaSeconds = cell.deltaSeconds
                             if (cellDeltaSeconds != null) {
                                 val delta = cellDeltaSeconds.toRaceTime()
                                 val cumul = cell.cumulativeSeconds?.toRaceTime() ?: ""
-                                append("КП$cp: $delta ($cumul)")
+                                append("$label: $delta ($cumul)")
                             } else {
-                                append("КП$cp: —")
+                                append("$label: —")
                             }
                         }
                     }
@@ -408,9 +443,7 @@ class OrienteeringCompetitionResultsViewModel(
             // Для BY_CHOICE нужны реальные очки за взятые КП дистанции — их не восстановить
             // надёжно из totalScore/scorePenalty (при обнулении баллов за сильное опоздание
             // totalScore=0, а scorePenalty может быть больше фактически заработанных баллов).
-            val distancesByGroupId = groups.associate { g ->
-                g.group.groupId to orienteeringCompetitionInteractor.getDistanceById(g.group.distanceId).getOrNull()
-            }
+            val distancesByGroupId = loadDistancesByGroupId(groups)
             val html = buildHtmlContent(title, groups, stateValue.direction, distancesByGroupId)
             val bytes = html.toByteArray(Charsets.UTF_8)
             uploadRepository.uploadFile(bytes, "results.html", "competition_results")
@@ -497,7 +530,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
         }
 
         groups.forEachIndexed { groupIndex, group ->
-            val table = buildSplitsTable(group)
+            val table = buildSplitsTable(group, distancesByGroupId[group.group.groupId], direction)
             // Для BY_CHOICE у каждого участника свой набор и порядок КП — общий cpOrder по
             // дистанции не имеет смысла. Колонки строятся по позиции (1..максимум сплитов
             // в группе), а какой именно КП стоит за каждой позицией у конкретного участника —

@@ -52,14 +52,16 @@ fun paceMinPerKm(deltaSeconds: Long, legLengthMeters: Double?): Double? {
 }
 
 /**
- * Длина перегона (в метрах) для каждой позиции в [cpOrder] дистанции [distance]: null для первой
- * позиции (нет координаты старта до первого КП) и там, где у одного из соседних КП нет координат.
+ * Длина перегона (в метрах) для каждой позиции в [cpOrder] дистанции [distance]. Первый перегон —
+ * от точки старта ([startPoint]), перегон на финишную станцию — до координат финиша (см.
+ * [expectedSequence]). Null там, где у одного из концов перегона нет координат (дистанция создана
+ * вручную или импортирована до появления координат старта/финиша).
  */
 private fun legLengthsMeters(distance: Distance?, cpOrder: List<Int>): List<Double?> {
     val expected = distance?.expectedSequence() ?: return List(cpOrder.size) { null }
+    val start = distance.startPoint()
     return cpOrder.indices.map { i ->
-        if (i == 0) return@map null
-        controlPointDistanceMeters(expected.getOrNull(i - 1), expected.getOrNull(i))
+        controlPointDistanceMeters(if (i == 0) start else expected.getOrNull(i - 1), expected.getOrNull(i))
     }
 }
 
@@ -71,10 +73,11 @@ data class SplitsTableRow(
     /** Сырые очки за фактически взятые КП (BY_CHOICE) — сумма по дистанции, ДО вычета штрафа.
      * Null для FORWARD/MARKING. Считается один раз здесь, чтобы UI не знал про Distance/ControlPoint. */
     val rawScore: Int? = null,
-    /** Дистанция, пройденная участником (BY_CHOICE), в метрах — сумма расстояний между
-     * последовательно взятыми КП по их координатам. Null для FORWARD/MARKING, когда у дистанции
-     * нет координат КП, и когда сумма получилась нулевой (ни одного перегона с известными
-     * координатами). Первый взятый КП в сумму не входит — координата точки старта неизвестна. */
+    /** Дистанция, пройденная участником (BY_CHOICE), в метрах — сумма расстояний от старта через
+     * последовательно взятые КП (включая финишную станцию) по их координатам. Null для
+     * FORWARD/MARKING, когда у дистанции нет координат КП, и когда сумма получилась нулевой (ни
+     * одного перегона с известными координатами). Перегон от старта не входит, если его координаты
+     * неизвестны. */
     val totalDistanceMeters: Double? = null,
 )
 
@@ -115,26 +118,78 @@ private fun rawByChoiceScore(result: OrienteeringResult?, scoreByNumber: Map<Int
 }
 
 /**
- * Дистанция, пройденная участником (BY_CHOICE), в метрах — сумма расстояний между
- * последовательно взятыми КП по их координатам ([controlPointByNumber]). Первый взятый КП не
- * учитывается — координата точки старта неизвестна. Перегоны с неизвестными координатами (нет
- * хотя бы одной из точек) в сумму не входят — итог остаётся приблизительным, а не null, чтобы
- * частичное отсутствие координат не скрывало всю оценку целиком.
+ * Дистанция, пройденная участником (BY_CHOICE), в метрах — сумма расстояний от старта
+ * ([startPoint]) через последовательно взятые КП, включая финишную станцию ([expectedSequence]),
+ * по их координатам. Перегоны с неизвестными координатами (нет хотя бы одной из точек, в т.ч.
+ * старта) в сумму не входят — итог остаётся приблизительным, а не null, чтобы частичное
+ * отсутствие координат не скрывало всю оценку целиком.
  */
-private fun byChoiceDistanceMeters(splits: List<SplitTime>, controlPointByNumber: Map<Int, ControlPoint>): Double? {
-    if (controlPointByNumber.isEmpty() || splits.size < 2) return null
+private fun byChoiceDistanceMeters(splits: List<SplitTime>, distance: Distance?): Double? {
+    if (distance == null || distance.controlPoints.isEmpty() || splits.isEmpty()) return null
+    val controlPointByNumber = distance.expectedSequence().associateBy { it.number }
+    val route = listOf(distance.startPoint()) + splits.map { controlPointByNumber[it.controlPoint] }
     var sum = 0.0
-    for (i in 1 until splits.size) {
-        val from = controlPointByNumber[splits[i - 1].controlPoint]
-        val to = controlPointByNumber[splits[i].controlPoint]
-        sum += controlPointDistanceMeters(from, to) ?: 0.0
+    for (i in 1 until route.size) {
+        sum += controlPointDistanceMeters(route[i - 1], route[i]) ?: 0.0
     }
     return sum.takeIf { it > 0.0 }
 }
 
+/** Перегон короче этого не участвует в рейтинге — см. isRankableLeg в [buildSplitsTable]. */
+private const val MIN_RANKABLE_LEG_MS = 1000L
+
 /**
- * Строит таблицу сплитов группы: сопоставление позиционное (splits[i] <-> cpOrder[i]),
- * что корректно обрабатывает дублирующиеся номера КП в дистанции.
+ * Последовательность КП колонок таблицы (FORWARD/MARKING).
+ *
+ * Берётся из дистанции (КП + финиш), если у неё задан финишный КП. Иначе — самая частая
+ * последовательность отметок среди финишировавших (при равенстве — самая короткая): у отдельного
+ * финишировавшего могут быть лишние отметки (отметил чужой КП, потом нашёл свой), и раньше, когда
+ * колонки брались по самому длинному результату, такой участник сдвигал всю таблицу. Если
+ * финишировавших нет — самый длинный результат группы.
+ */
+private fun courseSequence(participants: List<ParticipantWithResult>, distance: Distance?): List<Int> {
+    if (distance?.finishControlPoint != null && distance.controlPoints.isNotEmpty()) {
+        return distance.expectedSequence().map { it.number }
+    }
+    val finishedSequences = participants
+        .filter { it.result?.status == ResultStatus.FINISHED }
+        .mapNotNull { pw -> pw.result?.splits?.map { it.controlPoint }?.takeIf { it.isNotEmpty() } }
+    if (finishedSequences.isNotEmpty()) {
+        return finishedSequences
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedWith(compareByDescending<Map.Entry<List<Int>, Int>> { it.value }.thenBy { it.key.size })
+            .first()
+            .key
+    }
+    return participants
+        .mapNotNull { pw -> pw.result?.splits?.map { it.controlPoint } }
+        .maxByOrNull { it.size }
+        .orEmpty()
+}
+
+/**
+ * Сопоставляет отметки участника с КП дистанции: для каждой позиции [cpOrder] — первая ещё не
+ * использованная отметка этого КП после предыдущей сопоставленной (тот же последовательный поиск,
+ * что и при проверке прохождения дистанции на экране считывания чипа). Лишние отметки в таблицу не
+ * попадают, у пропущенного КП — `null`; повторяющиеся КП (петли) получают каждое своё вхождение.
+ */
+private fun matchToCourse(splits: List<SplitTime>, cpOrder: List<Int>): List<SplitTime?> {
+    var searchIndex = 0
+    return cpOrder.map { cp ->
+        val found = (searchIndex until splits.size).firstOrNull { splits[it].controlPoint == cp }
+        if (found != null) searchIndex = found + 1
+        found?.let { splits[it] }
+    }
+}
+
+/**
+ * Строит таблицу сплитов группы. Для FORWARD/MARKING колонки — КП дистанции по порядку (см.
+ * [courseSequence]), отметки участника раскладываются по ним последовательным поиском (см.
+ * [matchToCourse]): лишние отметки не сдвигают строку, у пропущенного КП ячейка пустая, повторяющиеся
+ * номера КП в дистанции (петли) обрабатываются корректно. В рейтинг перегона/общего времени попадают
+ * только сравнимые значения — без пропусков перед КП и без перегонов короче секунды.
  * Порядок строк — как в [group.participants], сортировку применяет вызывающий код ([sortedForResults]).
  *
  * Для BY_CHOICE у каждого участника свой набор и порядок КП — общий cpOrder не имеет смысла:
@@ -145,7 +200,8 @@ private fun byChoiceDistanceMeters(splits: List<SplitTime>, controlPointByNumber
  *
  * @param distance дистанция группы — если передана и у КП есть координаты (импорт из
  * геопривязанной карты через IOF XML), в ячейках FORWARD/MARKING заполняется темп участника на
- * перегоне ([SplitsTableCell.paceMinPerKm]); без неё темп остаётся null. Также используется для
+ * перегоне ([SplitsTableCell.paceMinPerKm]), на первом — если известны координаты старта; без
+ * неё темп остаётся null. Также используется для
  * пересчёта [SplitsTableRow.rawScore] в BY_CHOICE.
  *
  * Отметки до старта в таблицу не входят ([punchesAfterStart]), в [SplitsTableRow.result] — тоже.
@@ -159,7 +215,6 @@ fun buildSplitsTable(
 
     if (direction == OrienteeringDirection.BY_CHOICE) {
         val scoreByNumber = distance?.controlPoints?.associate { it.number to it.score } ?: emptyMap()
-        val controlPointByNumber = distance?.controlPoints?.associateBy { it.number } ?: emptyMap()
         val maxSplitsCount = participants.maxOfOrNull { it.result?.splits?.size ?: 0 } ?: 0
         val columns = (1..maxSplitsCount).map { SplitsTableColumn(positionIndex = it, controlPoint = 0) }
 
@@ -195,68 +250,74 @@ fun buildSplitsTable(
                 result = pw.result,
                 cells = cells,
                 rawScore = rawByChoiceScore(pw.result, scoreByNumber),
-                totalDistanceMeters = byChoiceDistanceMeters(splits, controlPointByNumber),
+                totalDistanceMeters = byChoiceDistanceMeters(splits, distance),
             )
         }
 
         return SplitsTable(columns = columns, rows = rows)
     }
 
-    // Порядок КП колонок — по самому длинному результату среди финишировавших: у снятого участника
-    // могут быть лишние/перепутанные отметки, и тогда он задал бы неверный порядок всей таблице.
-    // Колонок — по максимуму среди всех, чтобы лишние сплиты снятых тоже были видны.
-    val referenceSplits = participants
-        .filter { it.result?.status == ResultStatus.FINISHED }
-        .mapNotNull { it.result?.splits }
-        .maxByOrNull { it.size }
-        .orEmpty()
-    val cpOrder = participants
-        .mapNotNull { it.result?.splits }
-        .maxByOrNull { it.size }
-        ?.mapIndexed { i, split -> referenceSplits.getOrNull(i)?.controlPoint ?: split.controlPoint }
-        ?: emptyList()
-
+    val cpOrder = courseSequence(participants, distance)
     val columns = cpOrder.mapIndexed { i, cp -> SplitsTableColumn(positionIndex = i + 1, controlPoint = cp) }
     val legLengths = legLengthsMeters(distance, cpOrder)
+    val matchedByParticipant = participants.associate { pw ->
+        pw.participant.id to matchToCourse(pw.result?.splits.orEmpty(), cpOrder)
+    }
 
-    /** Отметка на позиции i — тот же КП, что и у колонки (у снятого с пропуском КП сплиты сдвинуты). */
-    fun isOnCourse(splits: List<SplitTime>, i: Int) = splits[i].controlPoint == cpOrder[i]
+    /** Время отметки предыдущего взятого КП дистанции до позиции [i], либо старт. */
+    fun prevTimestamp(matched: List<SplitTime?>, i: Int, startTs: Long): Long =
+        (i - 1 downTo 0).firstNotNullOfOrNull { matched[it] }?.timestamp ?: startTs
 
     /**
-     * Ранги по позиции i среди участников, для которых [measure] вернула время. Ранжируем только
-     * корректные значения (КП совпадает с колонкой, время > 0): иначе отрицательный или сдвинутый
-     * сплит снятого участника оказывался «лучшим» на перегоне.
+     * Перегон на позицию [i] сравним с другими: взяты и этот КП, и предыдущий по дистанции, а сам
+     * перегон не короче секунды. Отметки быстрее секунды не бывает — это КП, засчитанный
+     * организатором вручную с временем предыдущей отметки (см. insertCreditedPunch в feature:center).
      */
-    fun ranksAt(i: Int, measure: (splits: List<SplitTime>, startTs: Long) -> Long?): Map<String, Int> =
+    fun isRankableLeg(matched: List<SplitTime?>, i: Int, startTs: Long): Boolean {
+        val split = matched[i] ?: return false
+        if (i > 0 && matched[i - 1] == null) return false
+        return split.timestamp - prevTimestamp(matched, i, startTs) >= MIN_RANKABLE_LEG_MS
+    }
+
+    /** Ранги на позиции [i] среди участников, для которых [measure] вернула время (> 0). */
+    fun ranksAt(i: Int, measure: (matched: List<SplitTime?>, startTs: Long) -> Long?): Map<String, Int> =
         participants
             .mapNotNull { pw ->
-                val splits = pw.result?.splits ?: return@mapNotNull null
-                if (i >= splits.size) return@mapNotNull null
-                val value = measure(splits, anchorStartTime(pw))?.takeIf { it > 0 } ?: return@mapNotNull null
+                val matched = matchedByParticipant.getValue(pw.participant.id)
+                val value = measure(matched, anchorStartTime(pw))?.takeIf { it > 0 } ?: return@mapNotNull null
                 pw.participant.id to value
             }
             .sortedBy { it.second }
             .mapIndexed { rank, (id, _) -> id to (rank + 1) }
             .toMap()
 
+    // Общее время на КП сравнимо, только если все КП до него взяты: у снятого с пропуском
+    // иначе оказывалось бы «лучшее» время на следующих КП.
     val cumulRanks: List<Map<String, Int>> = cpOrder.indices.map { i ->
-        ranksAt(i) { splits, startTs -> if (isOnCourse(splits, i)) splits[i].timestamp - startTs else null }
+        ranksAt(i) { matched, startTs ->
+            val split = matched[i]
+            if (split == null || (0 until i).any { matched[it] == null } || !isRankableLeg(matched, i, startTs)) {
+                null
+            } else {
+                split.timestamp - startTs
+            }
+        }
     }
 
     val deltaRanks: List<Map<String, Int>> = cpOrder.indices.map { i ->
-        ranksAt(i) { splits, startTs ->
-            if (!isOnCourse(splits, i) || (i > 0 && !isOnCourse(splits, i - 1))) return@ranksAt null
-            val prevTs = if (i == 0) startTs else splits[i - 1].timestamp
-            splits[i].timestamp - prevTs
+        ranksAt(i) { matched, startTs ->
+            if (!isRankableLeg(matched, i, startTs)) return@ranksAt null
+            matched[i]!!.timestamp - prevTimestamp(matched, i, startTs)
         }
     }
 
     val rows = participants.map { pw ->
-        val splits = pw.result?.splits ?: emptyList()
+        val matched = matchedByParticipant.getValue(pw.participant.id)
         val startTs = anchorStartTime(pw)
 
         val cells = cpOrder.indices.map { i ->
-            if (i >= splits.size) {
+            val split = matched[i]
+            if (split == null) {
                 SplitsTableCell(
                     deltaSeconds = null,
                     cumulativeSeconds = null,
@@ -265,13 +326,11 @@ fun buildSplitsTable(
                     isBestLeg = false,
                 )
             } else {
-                val splitTs = splits[i].timestamp
-                val prevTs = if (i == 0) startTs else splits[i - 1].timestamp
-                val cumulSec = (splitTs - startTs) / 1000L
-                val deltaSec = (splitTs - prevTs) / 1000L
+                val cumulSec = (split.timestamp - startTs) / 1000L
+                val deltaSec = (split.timestamp - prevTimestamp(matched, i, startTs)) / 1000L
                 val cumulRank = cumulRanks[i][pw.participant.id]
                 val deltaRank = deltaRanks[i][pw.participant.id]
-                // Темп — только для перегонов, попавших в рейтинг: у отрицательного/сдвинутого сплита он бессмыслен.
+                // Темп — только для перегонов, попавших в рейтинг: у перегона через пропущенный КП он бессмыслен.
                 val pace = if (deltaRank != null) paceMinPerKm(deltaSec, legLengths.getOrNull(i)) else null
 
                 SplitsTableCell(
