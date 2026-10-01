@@ -11,7 +11,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
@@ -38,6 +42,10 @@ import com.competra.domain.models.orienteering.displayPlace
 import com.competra.eventdetails.presentation.SplitsBottomSheet
 import com.competra.eventdetails.presentation.formatResultScore
 import com.competra.eventdetails.presentation.formatResultTime
+import com.competra.domain.models.participant_link.LinkRequestSource
+import com.competra.eventdetails.presentation.result_links.LinkRequestConfirmDialog
+import com.competra.eventdetails.presentation.result_links.label
+import com.competra.eventdetails.presentation.result_links.linkDetails
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -80,6 +88,7 @@ fun EventResultsScreen(
             val scope = rememberCoroutineScope()
 
             Column(modifier = Modifier.fillMaxSize()) {
+                LinkBanner(link = state.link, onAction = viewModel::onAction)
                 ScrollableTabRow(
                     selectedTabIndex = pagerState.currentPage,
                     edgePadding = 16.dp,
@@ -153,10 +162,142 @@ fun EventResultsScreen(
     }
 
     state.selectedParticipant?.let { selected ->
+        val allParticipants = state.groupsWithResults.flatMap { group -> group.participants.map { it.participant } }
         SplitsBottomSheet(
             participantWithResult = selected,
-            onDismiss = { viewModel.onAction(EventResultsAction.HideSplits) }
+            onDismiss = { viewModel.onAction(EventResultsAction.HideSplits) },
+            footer = linkFooter(
+                selected = selected,
+                allParticipants = allParticipants,
+                link = state.link,
+                onAction = viewModel::onAction
+            )
         )
+    }
+
+    state.link.confirmTarget?.let { target ->
+        LinkRequestConfirmDialog(
+            lines = listOf(target.label),
+            isSending = state.link.isSending,
+            onConfirm = { viewModel.onAction(EventResultsAction.ConfirmLink) },
+            onDismiss = { viewModel.onAction(EventResultsAction.DismissLink) }
+        )
+    }
+
+    if (state.link.unlinkParticipantId != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onAction(EventResultsAction.CancelUnlink) },
+            title = { Text("Отвязать результат от профиля?") },
+            text = { Text("Результат пропадёт из вашего профиля. Чтобы привязать его снова, понадобится новая заявка организатору.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onAction(EventResultsAction.ConfirmUnlink) }) {
+                    Text("Отвязать", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onAction(EventResultsAction.CancelUnlink) }) { Text("Отмена") }
+            }
+        )
+    }
+}
+
+/**
+ * Над протоколом: «похоже, здесь есть ваш результат» (подсказка по имени), либо статус уже
+ * поданной заявки. Незалогиненным и тем, у кого ничего не нашлось, не показывается.
+ */
+@Composable
+private fun LinkBanner(link: ResultLinkState, onAction: (EventResultsAction) -> Unit) {
+    val pending = link.pendingRequest
+    val suggestion = link.suggestion
+    when {
+        pending != null -> Text(
+            text = "Заявка на привязку результата «${pending.participantLastName} ${pending.participantFirstName}» " +
+                "к вашему профилю на рассмотрении у организатора",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        suggestion != null -> {
+            val details = linkDetails(
+                "${suggestion.lastName} ${suggestion.firstName}".trim(),
+                suggestion.groupName,
+                suggestion.result.label()
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Похоже, здесь есть ваш результат: $details",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            onAction(
+                                EventResultsAction.RequestLink(
+                                    LinkTarget(suggestion.participantId, details, LinkRequestSource.SUGGESTION)
+                                )
+                            )
+                        }
+                    ) { Text("Это я") }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Блок привязки в шите участника: «Это ваш результат · отвязать», «заявка на рассмотрении» или
+ * ручной вход «Это мой результат» — для случаев, когда организатор записал человека иначе, чем
+ * в профиле, и подсказка по имени не сработала. null — показывать нечего.
+ */
+private fun linkFooter(
+    selected: ParticipantWithResult,
+    allParticipants: List<OrienteeringParticipant>,
+    link: ResultLinkState,
+    onAction: (EventResultsAction) -> Unit
+): (@Composable () -> Unit)? {
+    val userId = link.currentUserId ?: return null
+    val participant = selected.participant
+    if (participant.userId == userId) {
+        return {
+            Column {
+                Text("Это ваш результат — он привязан к вашему профилю", style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = { onAction(EventResultsAction.AskUnlink(participant.id)) }) {
+                    Text("Это не мой результат — отвязать", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+    // Привязан к кому-то другому, или пользователь уже есть в протоколе этого соревнования.
+    if (participant.userId.isNotBlank()) return null
+    if (allParticipants.any { it.userId == userId }) return null
+    val pending = link.pendingRequest
+    if (pending != null) {
+        if (pending.participantId != participant.id) return null
+        return {
+            Text(
+                "Заявка на привязку этого результата к вашему профилю на рассмотрении у организатора",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+    val label = linkDetails(
+        "${participant.lastName} ${participant.firstName}".trim(),
+        participant.groupName,
+        selected.result?.displayPlace?.let { "$it место" }
+    )
+    return {
+        OutlinedButton(
+            onClick = { onAction(EventResultsAction.RequestLink(LinkTarget(participant.id, label, LinkRequestSource.MANUAL))) }
+        ) { Text("Это мой результат") }
     }
 }
 

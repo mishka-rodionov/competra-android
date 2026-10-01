@@ -18,6 +18,8 @@ sealed class OrientEventControlAction: BaseAction {
     data object OpenClearChip: OrientEventControlAction()
     /** Проверка чипа без поиска участника — экран «Считать / Проверить» из «Станции и чипы». */
     data object OpenChipInspect: OrientEventControlAction()
+    /** Заявки спортсменов на привязку вручную внесённых результатов к их профилям. */
+    data object OpenLinkRequests: OrientEventControlAction()
 
     data object ShowStartConfirmDialog: OrientEventControlAction()
     data object HideStartConfirmDialog: OrientEventControlAction()

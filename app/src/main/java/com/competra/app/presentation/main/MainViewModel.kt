@@ -234,6 +234,10 @@ class MainViewModel(
                 EventsNavigation.EventDetailsRoute(eventId = competitionId)
             PushKind.RESULTS_PUBLISHED ->
                 EventsNavigation.EventResultsRoute(eventId = competitionId)
+            PushKind.PARTICIPANT_LINK_REQUESTED ->
+                EventsNavigation.CompetitionLinkRequestsRoute(competitionId = competitionId)
+            PushKind.PARTICIPANT_LINK_REVIEWED ->
+                EventsNavigation.ResultLinksRoute
             else -> return
         }
         pendingPushNavigationRepository.set(route)

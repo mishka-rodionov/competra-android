@@ -106,4 +106,19 @@ sealed class EventsNavigation: BaseNavigation {
      */
     @Serializable
     data class EventScoreGraphRoute(val eventId: String, val groupId: Long) : EventsNavigation()
+
+    /**
+     * Роут «Мои результаты в протоколах»: подсказки по имени среди участников, внесённых
+     * организаторами вручную, и заявки пользователя на привязку их к своему аккаунту.
+     * Лежит в подграфе деталей события, чтобы открываться из профиля и по push-уведомлению.
+     */
+    @Serializable
+    data object ResultLinksRoute : EventsNavigation()
+
+    /**
+     * Роут заявок на привязку результатов по соревнованию — для организатора.
+     * @param competitionId Идентификатор соревнования.
+     */
+    @Serializable
+    data class CompetitionLinkRequestsRoute(val competitionId: String) : EventsNavigation()
 }

@@ -11,10 +11,12 @@ import com.competra.data.navigation.EventsNavigation
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
 import com.competra.eventdetails.presentation.details.EventDetailsScreen
 import com.competra.eventdetails.presentation.group_splits.EventGroupSplitsTableScreen
+import com.competra.eventdetails.presentation.link_requests.CompetitionLinkRequestsScreen
 import com.competra.eventdetails.presentation.live_results.LiveResultsScreen
 import com.competra.eventdetails.presentation.participant_group.EventParticipantGroupScreen
 import com.competra.eventdetails.presentation.race_graph.EventRaceGraphScreen
 import com.competra.eventdetails.presentation.score_graph.EventScoreGraphScreen
+import com.competra.eventdetails.presentation.result_links.ResultLinksScreen
 import com.competra.eventdetails.presentation.results.EventResultsScreen
 import kotlin.reflect.typeOf
 
@@ -67,5 +69,18 @@ fun NavGraphBuilder.eventDetailsGraph() {
     composable<EventsNavigation.EventScoreGraphRoute> {
         val route = it.toRoute<EventsNavigation.EventScoreGraphRoute>()
         EventScoreGraphScreen(eventId = route.eventId, groupId = route.groupId)
+    }
+    composable<EventsNavigation.ResultLinksRoute> { ResultLinksScreen() }
+    competitionLinkRequestsDestination()
+}
+
+/**
+ * Экран организатора с заявками на привязку результатов. Вынесен отдельно, чтобы подключаться
+ * и в граф центра (переход из управления соревнованием), где весь [eventDetailsGraph] не нужен.
+ */
+fun NavGraphBuilder.competitionLinkRequestsDestination() {
+    composable<EventsNavigation.CompetitionLinkRequestsRoute> {
+        val route = it.toRoute<EventsNavigation.CompetitionLinkRequestsRoute>()
+        CompetitionLinkRequestsScreen(competitionId = route.competitionId)
     }
 }

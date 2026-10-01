@@ -3,6 +3,7 @@ package com.competra.profile.presentation.main_profile
 import androidx.lifecycle.viewModelScope
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
+import com.competra.data.navigation.EventsNavigation
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.ProfileNavigation
 import com.competra.domain.exception.NetworkException
@@ -10,6 +11,8 @@ import com.competra.domain.models.NetworkErrorEvent
 import com.competra.domain.models.onboarding.OnboardingSource
 import com.competra.domain.repository.NetworkErrorRepository
 import com.competra.domain.repository.OnboardingRequestRepository
+import com.competra.domain.models.participant_link.LinkRequestStatus
+import com.competra.domain.repository.participant_link.ParticipantLinkRepository
 import com.competra.domain.repository.user.UserRepository
 import com.competra.profile.data.ProfileAction
 import com.competra.profile.data.ProfileState
@@ -33,6 +36,7 @@ class ProfileViewModel(
     private val analytics: AnalyticsTracker,
     private val onboardingRequestRepository: OnboardingRequestRepository,
     private val networkErrorRepository: NetworkErrorRepository,
+    private val participantLinkRepository: ParticipantLinkRepository,
 ) : BaseViewModel<ProfileState>(ProfileState()) {
 
     override fun onAction(action: BaseAction) {
@@ -48,6 +52,9 @@ class ProfileViewModel(
             ProfileAction.ToRegister -> toRegistration()
             ProfileAction.ToProfileEditor -> toProfileEditor()
             ProfileAction.ToUserRegistrations -> openUserRegistrations()
+            ProfileAction.ToResultLinks -> viewModelScope.launch {
+                navigation.navigate(EventsNavigation.ResultLinksRoute)
+            }
             ProfileAction.Logout -> logout()
             ProfileAction.ShowOnboarding -> showOnboardingAgain()
             ProfileAction.ToPushPreferences -> toPushPreferences()
@@ -168,7 +175,21 @@ class ProfileViewModel(
                 updateState {
                     copy(user = user)
                 }
+                loadLinkCounters()
             }
+        }
+    }
+
+    /**
+     * Счётчики для пункта «Результаты в протоколах». Ошибки не показываем — это подсказка,
+     * профиль должен работать и без неё.
+     */
+    private fun loadLinkCounters() {
+        viewModelScope.launch {
+            val suggestions = participantLinkRepository.getSuggestions().getOrNull()?.size ?: 0
+            val pending = participantLinkRepository.getMyRequests().getOrNull()
+                ?.count { it.status == LinkRequestStatus.PENDING } ?: 0
+            updateState { copy(linkSuggestionsCount = suggestions, pendingLinkRequestsCount = pending) }
         }
     }
 

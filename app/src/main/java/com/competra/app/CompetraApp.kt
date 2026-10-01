@@ -31,6 +31,7 @@ import com.competra.profile.di.profileModule
 import com.competra.rating.di.ratingModule
 import com.competra.remote.di.authModule
 import com.competra.remote.di.clubsDataModule
+import com.competra.remote.di.participantLinkDataModule
 import com.competra.remote.di.deviceModule
 import com.competra.remote.di.diaryDataModule
 import com.competra.remote.di.eventsDataModule
@@ -81,7 +82,7 @@ class CompetraApp : Application(), Configuration.Provider {
             // data modules
             modules(
                 authModule, orienteeringModule, eventsDataModule, uploadModule, deviceModule, diaryDataModule,
-                clubsDataModule, ratingDataModule, liveTrackDataModule
+                clubsDataModule, ratingDataModule, liveTrackDataModule, participantLinkDataModule
             )
 
             // feature modules
