@@ -98,12 +98,10 @@ class SportiduinoHelperImpl(
     }
 
     override suspend fun subscribeToWriteCard(handler: (WriteChipResult) -> Unit) {
-        nfcMode = SportiduinoNfcMode.WRITE_CARD
         _writeCardFlow.collect { handler.invoke(it) }
     }
 
     override suspend fun subscribeToStationSetting(handler: (WriteChipResult) -> Unit) {
-        nfcMode = SportiduinoNfcMode.STATION_SETTING
         _stationSettingFlow.collect { handler.invoke(it) }
     }
 
@@ -117,6 +115,14 @@ class SportiduinoHelperImpl(
         pendingMasterCardType = type
         pendingMasterData = data
         nfcMode = SportiduinoNfcMode.STATION_SETTING
+    }
+
+    override fun resetToReadMode() {
+        pendingCardNumber = 0
+        pendingFastPunch = false
+        pendingMasterCardType = null
+        pendingMasterData = emptyArray()
+        nfcMode = SportiduinoNfcMode.READ_CARD
     }
 
     private suspend fun writeCard(tag: Tag) {

@@ -206,12 +206,21 @@ class OrientReadCardViewModel(
                             chipNumber = chipData.chipNumber
                         ).onSuccess { participant ->
                             analytics.trackEvent(AnalyticsEvent.NfcChipReadSuccess)
+                            val notice = if (chipData.splits.isEmpty()) {
+                                "На чипе №${chipData.chipNumber} (${participant.lastName} ${participant.firstName}) нет отметок"
+                            } else {
+                                null
+                            }
+                            updateState { copy(scanNotice = notice) }
                             computeParticipantResult(
                                 participant = participant,
                                 rawResult = chipData
                             )
                         }.onFailure {
                             analytics.trackEvent(AnalyticsEvent.NfcChipReadFailed("participant_not_found"))
+                            updateState {
+                                copy(scanNotice = "Чип №${chipData.chipNumber} не найден среди участников соревнования")
+                            }
                         }
                     }
                 }
@@ -219,6 +228,7 @@ class OrientReadCardViewModel(
 
             is ReadChipData.MasterChipData -> {
                 analytics.trackEvent(AnalyticsEvent.NfcChipReadSuccess)
+                updateState { copy(scanNotice = "Приложена мастер-карта станции, а не чип участника") }
             }
         }
     }

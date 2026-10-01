@@ -38,6 +38,9 @@ enum class AnalyticsScreen(val screenName: String) {
     GroupSplitsTable("group_splits_table"),
     RaceGraph("race_graph"),
     GetChip("get_chip"),
+    NfcStationTools("nfc_station_tools"),
+    NfcChipInspect("nfc_chip_inspect"),
+    NfcWriteChip("nfc_write_chip"),
 
     // Profile
     ProfileHome("profile_home"),
@@ -112,6 +115,9 @@ enum class AnalyticsScreen(val screenName: String) {
                 route.contains("GroupSplitsTableRoute") -> GroupSplitsTable
                 route.contains("GroupRaceGraphRoute") -> RaceGraph
                 route.contains("GetOrienteeringChipRoute") -> GetChip
+                route.contains("StationToolsRoute") -> NfcStationTools
+                route.contains("ChipInspectRoute") -> NfcChipInspect
+                route.contains("WriteChipRoute") -> NfcWriteChip
 
                 route.contains("MainProfileRoute") -> ProfileHome
                 route.contains("ProfileEditorRoute") -> ProfileEditor

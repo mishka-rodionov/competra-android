@@ -50,8 +50,21 @@ sealed class CenterNavigation: BaseNavigation {
     @Serializable
     data class GetOrienteeringChipRoute(val competitionId: String): CenterNavigation()
 
+    /**
+     * Запись/очистка чипов и настройка станций мастер-картами.
+     *
+     * @param tab имя вкладки, открываемой первой (`CLEAR`, `WRITE_NUMBER`, `STATION`); `null` — по умолчанию.
+     */
     @Serializable
-    data object WriteChipRoute : CenterNavigation()
+    data class WriteChipRoute(val tab: String? = null) : CenterNavigation()
+
+    /** Хаб «Станции и чипы» — работа с оборудованием Sportiduino вне соревнования. */
+    @Serializable
+    data object StationToolsRoute : CenterNavigation()
+
+    /** Чтение и проверка чипа без привязки к соревнованию. */
+    @Serializable
+    data object ChipInspectRoute : CenterNavigation()
 
     @Serializable
     data class ParticipantSplitsRoute(val participantId: String, val competitionId: String): CenterNavigation()

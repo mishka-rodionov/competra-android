@@ -1,16 +1,12 @@
 package com.competra.app.service
 
 /**
- * Событие сканирования NFC-метки во время соревнования.
+ * Глобальное событие NFC для баннера поверх всех экранов.
+ *
+ * Успешные сканы здесь не показываются — их обрабатывает экран, который сейчас работает
+ * с чипом (сканирование соревнования, «Станции и чипы»).
  */
 sealed class NfcScanEvent {
-    data class ParticipantScanned(
-        val participantName: String,
-        val startNumber: String,
-        val groupName: String
-    ) : NfcScanEvent()
-
-    data class UnknownChip(val chipNumber: Int) : NfcScanEvent()
-
+    /** Не удалось прочитать метку (оборвалась связь, неизвестный формат и т.п.). */
     data class ReadError(val message: String) : NfcScanEvent()
 }

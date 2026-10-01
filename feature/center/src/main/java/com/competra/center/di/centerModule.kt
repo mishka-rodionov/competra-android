@@ -15,6 +15,8 @@ import com.competra.center.presentation.results.OrienteeringCompetitionResultsVi
 import com.competra.center.presentation.splits.ParticipantSplitsViewModel
 import com.competra.center.presentation.start_grid.StartGridViewModel
 import com.competra.center.presentation.write_chip.WriteChipViewModel
+import com.competra.center.presentation.chip_inspect.ChipInspectViewModel
+import com.competra.center.presentation.station_tools.StationToolsViewModel
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
@@ -34,5 +36,7 @@ val centerModule = module {
     viewModelOf(::ScoreGraphViewModel)
     viewModelOf(::StartGridViewModel)
     viewModelOf(::WriteChipViewModel)
+    viewModelOf(::StationToolsViewModel)
+    viewModelOf(::ChipInspectViewModel)
     factoryOf(::OrienteeringCompetitionInteractor)
 }

@@ -19,7 +19,6 @@ import com.competra.domain.repository.NetworkErrorRepository
 import com.competra.domain.repository.OnboardingRequestRepository
 import com.competra.domain.repository.ResultConflictRepository
 import com.competra.nfchelper.SportiduinoHelper
-import com.competra.app.service.CompetitionScanEventRepository
 import com.competra.app.service.CompetitionStartAlertRepository
 import com.competra.app.service.NfcScanEvent
 import com.competra.app.service.ParticipantStartAlert
@@ -49,7 +48,6 @@ import kotlinx.coroutines.launch
  * @property navigation Интерфейс управления навигацией.
  * @property sportiduinoHelper Помощник для работы с NFC оборудованием.
  * @property serviceController Контроллер управления foreground-сервисом соревнования.
- * @property scanEventRepository Репозиторий событий NFC-сканирования.
  */
 class MainViewModel(
     private val navigation: Navigation,
@@ -57,7 +55,6 @@ class MainViewModel(
     private val serviceController: CompetitionServiceController,
     private val workoutTrackingController: WorkoutTrackingController,
     private val competitionTrackingController: CompetitionTrackingController,
-    private val scanEventRepository: CompetitionScanEventRepository,
     private val startAlertRepository: CompetitionStartAlertRepository,
     private val resultConflictRepository: ResultConflictRepository,
     private val networkErrorRepository: NetworkErrorRepository,
@@ -100,7 +97,7 @@ class MainViewModel(
     private val _currentScanEvent = MutableStateFlow<NfcScanEvent?>(null)
 
     /**
-     * Текущее событие NFC-сканирования для отображения баннера. Обнуляется через 4 секунды.
+     * Текущее событие NFC (ошибка чтения метки) для отображения баннера. Обнуляется через 4 секунды.
      */
     val currentScanEvent: StateFlow<NfcScanEvent?> = _currentScanEvent.asStateFlow()
 
@@ -139,7 +136,10 @@ class MainViewModel(
 
     init {
         viewModelScope.launch {
-            scanEventRepository.events.collect { event ->
+            // collectLatest: новая ошибка сразу заменяет баннер и не ждёт 4 секунды предыдущей —
+            // иначе эмит в nfcErrorFlow (без буфера) подвешивал бы обработку следующей метки.
+            sportiduinoHelper.nfcErrorFlow.collectLatest { message ->
+                val event = NfcScanEvent.ReadError(message)
                 _currentScanEvent.value = event
                 delay(4000)
                 _currentScanEvent.compareAndSet(event, null)

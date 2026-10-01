@@ -56,29 +56,39 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        if (state.participant == null) {
-            EmptyReadCardView(isReadOnly = state.isCompetitionFinished)
-        } else {
-            ReadCardContent(
-                participant = state.participant!!,
-                result = state.participantResult,
-                rawSplits = state.rawSplits,
-                groupRank = state.groupRank,
-                groupTotalFinished = state.groupTotalFinished,
-                expectedCpOrder = state.expectedCpNumbers,
-                expectedControlPoints = state.expectedControlPoints,
-                startControlPoint = state.startControlPoint,
-                startPoint = state.startPoint,
-                competitionDirection = state.competitionDirection,
-                isPendingSave = state.isPendingSave,
-                isReadOnly = state.isCompetitionFinished,
-                statusMessage = state.statusMessage,
-                onEditSplit = { index -> viewModel.onAction(OrientReadCardAction.EditSplitClicked(index)) },
-                onCreditCp = { cpNumber, distanceOrdinal ->
-                    viewModel.onAction(OrientReadCardAction.CreditMissedCp(cpNumber, distanceOrdinal))
-                },
-                onSaveResult = { viewModel.onAction(OrientReadCardAction.SaveResult) }
-            )
+        Column(modifier = Modifier.fillMaxSize()) {
+            state.scanNotice?.let { notice ->
+                ScanNoticeBanner(
+                    notice = notice,
+                    modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp, vertical = 8.dp)
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                if (state.participant == null) {
+                    EmptyReadCardView(isReadOnly = state.isCompetitionFinished)
+                } else {
+                    ReadCardContent(
+                        participant = state.participant!!,
+                        result = state.participantResult,
+                        rawSplits = state.rawSplits,
+                        groupRank = state.groupRank,
+                        groupTotalFinished = state.groupTotalFinished,
+                        expectedCpOrder = state.expectedCpNumbers,
+                        expectedControlPoints = state.expectedControlPoints,
+                        startControlPoint = state.startControlPoint,
+                        startPoint = state.startPoint,
+                        competitionDirection = state.competitionDirection,
+                        isPendingSave = state.isPendingSave,
+                        isReadOnly = state.isCompetitionFinished,
+                        statusMessage = state.statusMessage,
+                        onEditSplit = { index -> viewModel.onAction(OrientReadCardAction.EditSplitClicked(index)) },
+                        onCreditCp = { cpNumber, distanceOrdinal ->
+                            viewModel.onAction(OrientReadCardAction.CreditMissedCp(cpNumber, distanceOrdinal))
+                        },
+                        onSaveResult = { viewModel.onAction(OrientReadCardAction.SaveResult) }
+                    )
+                }
+            }
         }
 
         val editingIndex = state.editingSplitIndex
@@ -96,6 +106,26 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 }
             )
         }
+    }
+}
+
+/**
+ * Подсказка о скане, по которому результат не посчитан (см. [com.competra.center.data.read_card.OrientReadCardState.scanNotice]).
+ */
+@Composable
+private fun ScanNoticeBanner(notice: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Text(
+            text = notice,
+            modifier = Modifier.padding(Dimens.SIZE_BASE.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onErrorContainer
+        )
     }
 }
 

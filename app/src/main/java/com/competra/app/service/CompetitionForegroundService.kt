@@ -10,8 +10,6 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
 import com.competra.domain.models.orienteering.OrienteeringParticipant
-import com.competra.domain.models.orienteering.ReadChipData
-import com.competra.nfchelper.SportiduinoHelper
 import com.competra.app.R
 import com.competra.ui.CompetitionStartTimeRepository
 import kotlin.math.ceil
@@ -27,13 +25,15 @@ import org.koin.android.ext.android.inject
 
 /**
  * Foreground Service для управления соревнованием.
- * Запускает секундомер в уведомлении, отслеживает стартовые времена участников,
- * воспроизводит звуковые сигналы и обрабатывает NFC-сканирования.
+ * Запускает секундомер в уведомлении, отслеживает стартовые времена участников
+ * и воспроизводит звуковые сигналы.
+ *
+ * NFC-чипы сервис намеренно не слушает: ридер работает только пока приложение на экране,
+ * а результат сохраняет экран «Сканировать» соревнования. Параллельная подписка здесь
+ * лишь дублировала бы сканы (и перехватывала бы их у инструментов «Станции и чипы»).
  */
 class CompetitionForegroundService : Service() {
 
-    private val sportiduinoHelper: SportiduinoHelper by inject()
-    private val scanEventRepository: CompetitionScanEventRepository by inject()
     private val startAlertRepository: CompetitionStartAlertRepository by inject()
     private val startTimeRepository: CompetitionStartTimeRepository by inject()
     private val interactor: OrienteeringCompetitionInteractor by inject()
@@ -41,9 +41,6 @@ class CompetitionForegroundService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var competitionId: String? = null
     private var startTimeMs: Long = 0L
-
-    /** Текст уведомления о последнем финишировавшем (из NFC-скана). */
-    @Volatile private var lastScanNotificationText: String? = null
 
     /** Следующий стартующий участник — обновляется мониторингом. */
     @Volatile private var nextStarterText: String? = null
@@ -73,57 +70,12 @@ class CompetitionForegroundService : Service() {
         }
 
         startForeground(NOTIFICATION_ID, buildNotification(""))
-        subscribeToNfcEvents()
 
         if (!competitionId.isNullOrEmpty()) {
             launchParticipantMonitoring()
         }
 
         return START_REDELIVER_INTENT
-    }
-
-    // ───────────────────────────────────────────────────────── NFC ──
-
-    private fun subscribeToNfcEvents() {
-        serviceScope.launch {
-            sportiduinoHelper.subscribeToReadCard { chipData ->
-                serviceScope.launch { handleChipData(chipData) }
-            }
-        }
-
-        serviceScope.launch {
-            sportiduinoHelper.nfcErrorFlow.collect { errorMessage ->
-                val event = NfcScanEvent.ReadError(errorMessage)
-                scanEventRepository.emit(event)
-            }
-        }
-    }
-
-    private suspend fun handleChipData(chipData: ReadChipData) {
-        when (chipData) {
-            is ReadChipData.RawResult -> {
-                val id = competitionId ?: return
-                interactor.getParticipantByChipNumber(
-                    competitionId = id,
-                    chipNumber = chipData.chipNumber
-                ).onSuccess { participant ->
-                    val name = "${participant.lastName} ${participant.firstName}"
-                    val event = NfcScanEvent.ParticipantScanned(
-                        participantName = name,
-                        startNumber = participant.startNumber,
-                        groupName = participant.groupName
-                    )
-                    scanEventRepository.emit(event)
-                    // Сохраняем текст последнего финишировавшего для уведомления
-                    lastScanNotificationText = "Финиш: $name №${participant.startNumber}"
-                }.onFailure {
-                    scanEventRepository.emit(NfcScanEvent.UnknownChip(chipData.chipNumber))
-                }
-            }
-            is ReadChipData.MasterChipData -> {
-                scanEventRepository.emit(NfcScanEvent.ReadError("Мастер-карта"))
-            }
-        }
     }
 
     // ─────────────────────────────────────── Monitoring participants ──
@@ -216,7 +168,7 @@ class CompetitionForegroundService : Service() {
             val currentSecond = now / 1000
             if (currentSecond != lastNotificationSecond) {
                 lastNotificationSecond = currentSecond
-                val notifText = nextStarterText ?: lastScanNotificationText ?: ""
+                val notifText = nextStarterText ?: ""
                 updateNotification(notifText)
             }
 

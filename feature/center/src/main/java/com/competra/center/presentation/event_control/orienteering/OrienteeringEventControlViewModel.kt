@@ -6,6 +6,7 @@ import com.competra.analytics.AnalyticsTracker
 import com.competra.center.data.event_control.OrientEventControlAction
 import com.competra.center.data.event_control.OrienteeringEventControlState
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
+import com.competra.center.data.write_chip.WriteChipTab
 import com.competra.data.navigation.CenterNavigation
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
@@ -205,7 +206,15 @@ class OrienteeringEventControlViewModel(
             }
 
             OrientEventControlAction.OpenWriteChip -> viewModelScope.launch {
-                navigation.navigate(destination = CenterNavigation.WriteChipRoute)
+                navigation.navigate(destination = CenterNavigation.WriteChipRoute(WriteChipTab.WRITE_NUMBER.name))
+            }
+
+            OrientEventControlAction.OpenClearChip -> viewModelScope.launch {
+                navigation.navigate(destination = CenterNavigation.WriteChipRoute(WriteChipTab.CLEAR.name))
+            }
+
+            OrientEventControlAction.OpenChipInspect -> viewModelScope.launch {
+                navigation.navigate(destination = CenterNavigation.ChipInspectRoute)
             }
 
             OrientEventControlAction.ShowStartConfirmDialog ->

@@ -79,7 +79,7 @@ private fun CenterScreenContent(state: CenterState, handleEffects: (CenterEffect
     if (state.isAuthed) {
         AuthorizedCenterContent(state, handleEffects)
     } else {
-        UnauthorizedCenterView()
+        UnauthorizedCenterView(handleEffects)
     }
 }
 
@@ -121,6 +121,9 @@ private fun AuthorizedCenterContent(state: CenterState, handleEffects: (CenterEf
             Spacer(modifier = Modifier.width(8.dp))
             Text(text = "Создать новое событие", fontSize = 16.sp)
         }
+
+        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+        StationToolsEntryCard(onClick = { handleEffects(CenterEffects.OpenStationTools) })
 
         Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
 
@@ -288,7 +291,7 @@ private fun EventControlCard(
  * Экран для неавторизованного пользователя.
  */
 @Composable
-private fun UnauthorizedCenterView() {
+private fun UnauthorizedCenterView(handleEffects: (CenterEffects) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -316,6 +319,52 @@ private fun UnauthorizedCenterView() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+        Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
+        // Инструменты оборудования не требуют аккаунта — судья может настроить станции без входа.
+        StationToolsEntryCard(onClick = { handleEffects(CenterEffects.OpenStationTools) })
+    }
+}
+
+/**
+ * Вход в инструменты «Станции и чипы»: чтение/проверка, очистка и запись чипов, настройка станций.
+ */
+@Composable
+private fun StationToolsEntryCard(onClick: () -> Unit) {
+    OutlinedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickRipple(onClick = onClick),
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(Dimens.SIZE_BASE.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = ImageVector.vectorResource(R.drawable.ic_build_24px),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(Dimens.SIZE_BASE.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Станции и чипы",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Проверка, очистка и запись чипов, настройка станций",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = ImageVector.vectorResource(R.drawable.ic_chevron_forward_24px),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

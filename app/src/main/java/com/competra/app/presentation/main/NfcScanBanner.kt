@@ -29,14 +29,6 @@ fun NfcScanBanner(event: NfcScanEvent?, modifier: Modifier = Modifier) {
         modifier = modifier
     ) {
         val (text, containerColor) = when (event) {
-            is NfcScanEvent.ParticipantScanned ->
-                "${event.participantName} • №${event.startNumber} • ${event.groupName}" to
-                        MaterialTheme.colorScheme.primaryContainer
-
-            is NfcScanEvent.UnknownChip ->
-                "Неизвестный чип: №${event.chipNumber}" to
-                        MaterialTheme.colorScheme.errorContainer
-
             is NfcScanEvent.ReadError ->
                 "Ошибка: ${event.message}" to
                         MaterialTheme.colorScheme.errorContainer

@@ -15,6 +15,9 @@ import com.competra.center.presentation.group_splits.GroupSplitsTableScreen
 import com.competra.center.presentation.race_graph.RaceGraphScreen
 import com.competra.center.presentation.score_graph.ScoreGraphScreen
 import com.competra.center.presentation.write_chip.WriteChipScreen
+import com.competra.center.presentation.chip_inspect.ChipInspectScreen
+import com.competra.center.presentation.station_tools.StationToolsScreen
+import com.competra.center.data.write_chip.WriteChipTab
 import com.competra.center.presentation.main.CenterScreen
 import com.competra.center.presentation.kind_of_sport.KindOfSportScreen
 import com.competra.center.presentation.map.MapPickerScreen
@@ -87,7 +90,12 @@ fun NavGraphBuilder.centerGraph(windowSizeClass: WindowSizeClass, navController:
         GetOrienteeringChipScreen(competitionId = route.competitionId)
     }
 
-    composable<CenterNavigation.WriteChipRoute> { WriteChipScreen() }
+    composable<CenterNavigation.WriteChipRoute> { backStackEntry ->
+        val route: CenterNavigation.WriteChipRoute = backStackEntry.toRoute()
+        WriteChipScreen(initialTab = route.tab?.let { name -> WriteChipTab.entries.firstOrNull { it.name == name } })
+    }
+    composable<CenterNavigation.StationToolsRoute> { StationToolsScreen() }
+    composable<CenterNavigation.ChipInspectRoute> { ChipInspectScreen() }
 
     composable<CenterNavigation.ParticipantSplitsRoute> { backStackEntry ->
         val route: CenterNavigation.ParticipantSplitsRoute = backStackEntry.toRoute()

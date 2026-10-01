@@ -108,7 +108,8 @@
       "Bash(find /Users/rodionov/web_projects/competra-web -type f -name \"*.kt\" -o -name \"*.gradle.kts\" -o -name \"*.toml\" | head -30)",
       "Bash(find /Users/rodionov/web_projects/competra-web -type f -name \"*.kt\" | grep -i result | head -20)",
       "Bash(find /Users/rodionov/web_projects/competra-web -type f -name \"*.kt\" | xargs grep -l \"SplitTime\\\\|Split\" | head -10)",
-      "Bash(xargs -I{} basename {})"
+      "Bash(xargs -I{} basename {})",
+      "Bash(rtk read *)"
     ]
   },
   "prefersReducedMotion": true

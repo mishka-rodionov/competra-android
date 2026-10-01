@@ -151,6 +151,19 @@ sealed class AnalyticsEvent(
     /** Чип привязан к участнику. */
     data object NfcChipAssigned : AnalyticsEvent("nfc_chip_assigned")
 
+    /**
+     * Чип считан на экране «Считать / Проверить» (инструменты «Станции и чипы», вне соревнования).
+     *
+     * @param isClean для чипа участника — нет ни одной отметки; для мастер-карты — `null`.
+     */
+    class NfcChipInspected(cardType: NfcCardType, isClean: Boolean?) : AnalyticsEvent(
+        "nfc_chip_inspected",
+        buildMap {
+            put("card_type", cardType.name.lowercase())
+            if (isClean != null) put("is_clean", isClean)
+        },
+    )
+
     enum class ParticipantAddMethod { MANUAL, NFC, IMPORT }
 
     /** Добавлен участник в соревнование. */

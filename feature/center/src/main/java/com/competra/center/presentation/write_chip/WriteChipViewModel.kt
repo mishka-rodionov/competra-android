@@ -23,6 +23,9 @@ class WriteChipViewModel(
     private val resourceProvider: ResourceProvider
 ) : BaseViewModel<WriteChipState>(WriteChipState()) {
 
+    /** Начальная вкладка из маршрута уже применена — не перебиваем выбор пользователя при возврате на экран. */
+    private var initialTabApplied = false
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             sportiduinoHelper.subscribeToWriteCard { result ->
@@ -38,7 +41,20 @@ class WriteChipViewModel(
 
     override fun onAction(action: BaseAction) {
         when (action) {
-            is WriteChipAction.SelectTab -> updateState { copy(selectedTab = action.tab) }
+            is WriteChipAction.SelectTab -> {
+                // Смена вкладки отменяет подготовленную операцию: иначе чип, приложенный на
+                // вкладке «Записать номер», очистился бы по нажатой ранее кнопке «Очистить».
+                cancelPendingWrite()
+                updateState { copy(selectedTab = action.tab) }
+            }
+
+            is WriteChipAction.ApplyInitialTab -> {
+                if (initialTabApplied) return
+                initialTabApplied = true
+                updateState { copy(selectedTab = action.tab) }
+            }
+
+            WriteChipAction.ScreenHidden -> cancelPendingWrite()
 
             is WriteChipAction.ChipNumberChanged -> updateState { copy(chipNumberInput = action.value) }
             is WriteChipAction.FastPunchToggled -> updateState { copy(fastPunch = action.enabled) }
@@ -127,6 +143,17 @@ class WriteChipViewModel(
                 copy(isWaitingForChip = false, lastResult = action.result.toOperationResult())
             }
         }
+    }
+
+    /** Возвращает NFC в режим чтения и снимает ожидание чипа. */
+    private fun cancelPendingWrite() {
+        sportiduinoHelper.resetToReadMode()
+        updateState { copy(isWaitingForChip = false) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        sportiduinoHelper.resetToReadMode()
     }
 
     private fun WriteChipResult.toOperationResult(): WriteChipOperationResult = when (this) {

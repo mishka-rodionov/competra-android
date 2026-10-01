@@ -640,8 +640,12 @@ fun OrienteeringEventControlContent(
             ControlGridItem(Modifier.weight(1f), "Сканировать", Color(0xFF2196F3), R.drawable.edit) {
                 userAction(OrientEventControlAction.OpenOrientReadCard)
             }
-            ControlGridItem(Modifier.weight(1f), "Очистить", Color(0xFF4CAF50), R.drawable.edit) {}
-            ControlGridItem(Modifier.weight(1f), "Проверить", Color(0xFFFFC107), R.drawable.edit) {}
+            ControlGridItem(Modifier.weight(1f), "Очистить", Color(0xFF4CAF50), R.drawable.edit) {
+                userAction(OrientEventControlAction.OpenClearChip)
+            }
+            ControlGridItem(Modifier.weight(1f), "Проверить", Color(0xFFFFC107), R.drawable.edit) {
+                userAction(OrientEventControlAction.OpenChipInspect)
+            }
             ControlGridItem(Modifier.weight(1f), "Записать", Color(0xFFF44336), R.drawable.edit) {
                 userAction(OrientEventControlAction.OpenWriteChip)
             }
@@ -652,10 +656,14 @@ fun OrienteeringEventControlContent(
                 ControlGridItem(Modifier.weight(1f), "Сканировать", Color(0xFF2196F3), R.drawable.edit) {
                     userAction(OrientEventControlAction.OpenOrientReadCard)
                 }
-                ControlGridItem(Modifier.weight(1f), "Очистить", Color(0xFF4CAF50), R.drawable.edit) {}
+                ControlGridItem(Modifier.weight(1f), "Очистить", Color(0xFF4CAF50), R.drawable.edit) {
+                    userAction(OrientEventControlAction.OpenClearChip)
+                }
             }
             Row(modifier = Modifier.fillMaxWidth()) {
-                ControlGridItem(Modifier.weight(1f), "Проверить", Color(0xFFFFC107), R.drawable.edit) {}
+                ControlGridItem(Modifier.weight(1f), "Проверить", Color(0xFFFFC107), R.drawable.edit) {
+                    userAction(OrientEventControlAction.OpenChipInspect)
+                }
                 ControlGridItem(Modifier.weight(1f), "Записать", Color(0xFFF44336), R.drawable.edit) {
                     userAction(OrientEventControlAction.OpenWriteChip)
                 }

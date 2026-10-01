@@ -26,9 +26,25 @@ import com.competra.designsystem.theme.Dimens
 import com.competra.resources.R
 import org.koin.compose.viewmodel.koinViewModel
 
+/**
+ * Экран записи/очистки чипов участников и настройки станций мастер-картами.
+ *
+ * @param initialTab вкладка, открываемая первой; `null` — вкладка по умолчанию.
+ */
 @Composable
-fun WriteChipScreen(viewModel: WriteChipViewModel = koinViewModel()) {
+fun WriteChipScreen(
+    initialTab: WriteChipTab? = null,
+    viewModel: WriteChipViewModel = koinViewModel()
+) {
     val state by viewModel.state.collectAsState()
+    LaunchedEffect(initialTab) {
+        initialTab?.let { viewModel.onAction(WriteChipAction.ApplyInitialTab(it)) }
+    }
+    // Режим записи живёт, только пока экран на виду: при уходе с него (назад, другая вкладка
+    // нижней навигации) NFC возвращается в режим чтения.
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.onAction(WriteChipAction.ScreenHidden) }
+    }
     WriteChipContent(state = state, onAction = viewModel::onAction)
 }
 

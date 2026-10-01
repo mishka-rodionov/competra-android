@@ -55,7 +55,9 @@ class MasterCard(adapter: CardAdapter, type: CardType, password: Password, priva
                 CardType.MASTER_CONFIG -> resourceProvider.getString(R.string.config_master_card)
                 CardType.MASTER_PASSWORD -> resourceProvider.getString(R.string.password_master_card)
                 else -> resourceProvider.getString(R.string.unknown_card_type)
-            } as String
+            // toString, а не `as String`: для MASTER_GET_STATE Html.fromHtml возвращает Spanned,
+            // и приведение падало с ClassCastException при чтении карты состояния станции.
+            }.toString()
         )
     }
 
