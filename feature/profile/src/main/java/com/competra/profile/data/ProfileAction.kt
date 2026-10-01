@@ -17,6 +17,9 @@ sealed class ProfileAction {
     /** Переход на экран «Предстоящие старты». */
     data object ToUserRegistrations: ProfileAction()
 
+    /** Переход на экран «Мои результаты в протоколах» — привязка вручную внесённых результатов. */
+    data object ToResultLinks: ProfileAction()
+
     /** Выход из аккаунта. */
     data object Logout: ProfileAction()
 

@@ -7,6 +7,7 @@ import com.competra.center.data.event_control.OrientEventControlAction
 import com.competra.center.data.event_control.OrienteeringEventControlState
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
 import com.competra.data.navigation.CenterNavigation
+import com.competra.data.navigation.EventsNavigation
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
 import com.competra.domain.exception.NetworkException
@@ -16,6 +17,7 @@ import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.NetworkErrorRepository
+import com.competra.domain.repository.participant_link.ParticipantLinkRepository
 import com.competra.ui.BaseAction
 import com.competra.ui.CompetitionServiceController
 import com.competra.ui.CompetitionStartTimeRepository
@@ -40,7 +42,8 @@ class OrienteeringEventControlViewModel(
     private val startTimeRepository: CompetitionStartTimeRepository,
     private val networkErrorRepository: NetworkErrorRepository,
     private val loadingRepository: LoadingRepository,
-    private val analytics: AnalyticsTracker
+    private val analytics: AnalyticsTracker,
+    private val participantLinkRepository: ParticipantLinkRepository
 ) : BaseViewModel<OrienteeringEventControlState>(OrienteeringEventControlState()) {
 
     val competitionId: String? = navigation.getArguments<String>(EventsConstants.EVENT_ID.name)
@@ -57,6 +60,7 @@ class OrienteeringEventControlViewModel(
                 orienteeringCompetitionInteractor.fetchAndSyncFromServer(id)
                 orienteeringCompetitionInteractor.fetchAndSyncParticipantsFromServer(id)
             }
+            loadPendingLinkRequests(id, serverConfirmed)
 
             orienteeringCompetitionInteractor.tryAutoStartFromRegistration(id)
 
@@ -202,6 +206,10 @@ class OrienteeringEventControlViewModel(
                         navigation.navigate(CenterNavigation.GetOrienteeringChipRoute(it))
                     }
                 }
+            }
+
+            OrientEventControlAction.OpenLinkRequests -> competitionId?.let { id ->
+                viewModelScope.launch { navigation.navigate(EventsNavigation.CompetitionLinkRequestsRoute(id)) }
             }
 
             OrientEventControlAction.OpenWriteChip -> viewModelScope.launch {
@@ -488,6 +496,19 @@ class OrienteeringEventControlViewModel(
         return participants.map { p ->
             if (!p.startTime.isValidStartTimestamp()) p
             else p.copy(startTime = firstStartTime + (p.startTime - baseStartTime))
+        }
+    }
+
+    /**
+     * Число заявок на привязку результатов по соревнованию. Только для соревнований, уже
+     * сохранённых на сервере; ошибку (офлайн, нет прав) не показываем — раздел просто скрыт.
+     */
+    private fun loadPendingLinkRequests(id: String, serverConfirmed: Boolean) {
+        if (!serverConfirmed) return
+        viewModelScope.launch {
+            participantLinkRepository.getPendingCounts().onSuccess { counts ->
+                updateState { copy(pendingLinkRequests = counts[id] ?: 0) }
+            }
         }
     }
 

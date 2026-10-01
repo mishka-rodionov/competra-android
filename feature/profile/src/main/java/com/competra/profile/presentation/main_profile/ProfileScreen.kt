@@ -255,6 +255,22 @@ fun AuthorizedUser(state: ProfileState, onAction: (ProfileAction) -> Unit) {
                     icon = ImageVector.vectorResource(R.drawable.ic_star_24px),
                     onClick = { /* TODO */ }
                 )
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp),
+                    thickness = 0.5.dp,
+                    color = LightColors.greyB8.copy(alpha = 0.3f)
+                )
+                ProfileMenuItem(
+                    text = "Результаты в протоколах",
+                    icon = ImageVector.vectorResource(R.drawable.ic_date_range_24px),
+                    subtitle = when {
+                        state.linkSuggestionsCount > 0 -> "Найдены похожие на ваши: ${state.linkSuggestionsCount}"
+                        state.pendingLinkRequestsCount > 0 -> "Заявок на рассмотрении: ${state.pendingLinkRequestsCount}"
+                        else -> "Привяжите результаты, внесённые организатором вручную"
+                    },
+                    isHighlighted = state.linkSuggestionsCount > 0,
+                    onClick = { onAction(ProfileAction.ToResultLinks) }
+                )
             }
         }
 
@@ -427,6 +443,8 @@ fun AuthorizedUser(state: ProfileState, onAction: (ProfileAction) -> Unit) {
 fun ProfileMenuItem(
     text: String,
     icon: ImageVector,
+    subtitle: String? = null,
+    isHighlighted: Boolean = false,
     onClick: () -> Unit
 ) {
     Row(
@@ -445,12 +463,21 @@ fun ProfileMenuItem(
         
         Spacer(modifier = Modifier.width(Dimens.SIZE_BASE.dp))
         
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isHighlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (isHighlighted) FontWeight.Medium else null
+                )
+            }
+        }
         
         Icon(
             imageVector = ImageVector.vectorResource(id = R.drawable.ic_chevron_forward_24px),

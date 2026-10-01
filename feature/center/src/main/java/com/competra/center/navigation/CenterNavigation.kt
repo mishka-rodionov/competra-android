@@ -27,6 +27,7 @@ import com.competra.center.presentation.start_grid.StartGridScreen
 import com.competra.center.presentation.orientiring_competition_create.MAP_RESULT_LAT
 import com.competra.center.presentation.orientiring_competition_create.MAP_RESULT_LON
 import com.competra.data.navigation.CenterNavigation
+import com.competra.eventdetails.navigation.competitionLinkRequestsDestination
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -36,6 +37,7 @@ fun NavGraphBuilder.centerGraph(windowSizeClass: WindowSizeClass, navController:
 //    navigation<CenterNavigationGraph.CenterBaseRoute>(startDestination = CenterNavigationGraph.CenterRoute) {
     composable<CenterNavigation.CenterRoute> { CenterScreen() }
     composable<CenterNavigation.KindOfSportRoute> { KindOfSportScreen() }
+    competitionLinkRequestsDestination()
     
     // Пошаговое создание соревнования
     composable<CenterNavigation.CommonCompetitionFieldRoute> { backStackEntry ->

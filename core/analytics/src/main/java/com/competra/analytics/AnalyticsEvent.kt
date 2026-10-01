@@ -373,4 +373,40 @@ sealed class AnalyticsEvent(
         AnalyticsEvent("rating_deleted", mapOf("rating_id" to ratingId))
 
     // endregion
+
+    // region Привязка вручную внесённых результатов к аккаунту (те же имена, что в веб-клиенте)
+
+    /** Откуда взят участник для заявки на привязку. */
+    enum class ResultLinkSource { SUGGESTION, MANUAL }
+
+    /** Кто отвязал участника от аккаунта. */
+    enum class ResultUnlinkedBy { SELF, ORGANIZER }
+
+    /** Открыт экран «Мои результаты в протоколах» — сколько подсказок по имени нашлось. */
+    class ResultLinkSuggestionsViewed(count: Int) :
+        AnalyticsEvent("result_link_suggestions_viewed", mapOf("count" to count))
+
+    /** Отправлена заявка на привязку — одно событие на соревнование. */
+    class ResultLinkRequested(competitionId: String, source: ResultLinkSource, count: Int) : AnalyticsEvent(
+        "result_link_requested",
+        mapOf("competition_id" to competitionId, "source" to source.name.lowercase(), "count" to count),
+    )
+
+    /** Пользователь отозвал свою заявку на привязку. */
+    class ResultLinkRequestCancelled(competitionId: String) :
+        AnalyticsEvent("result_link_request_cancelled", mapOf("competition_id" to competitionId))
+
+    /** Организатор одобрил или отклонил заявку на привязку. */
+    class ResultLinkRequestReviewed(competitionId: String, approved: Boolean) : AnalyticsEvent(
+        "result_link_request_reviewed",
+        mapOf("competition_id" to competitionId, "approved" to approved),
+    )
+
+    /** Участник отвязан от аккаунта. */
+    class ResultUnlinked(competitionId: String, by: ResultUnlinkedBy) : AnalyticsEvent(
+        "result_unlinked",
+        mapOf("competition_id" to competitionId, "by" to by.name.lowercase()),
+    )
+
+    // endregion
 }

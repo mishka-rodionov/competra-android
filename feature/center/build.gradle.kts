@@ -56,6 +56,8 @@ dependencies {
     implementation(project(":core:nfchelper"))
     implementation(project(":core:ui"))
     implementation(project(":core:analytics"))
+    // Экран заявок на привязку результатов живёт в подграфе деталей события — см. competitionLinkRequestsDestination.
+    implementation(project(":core:eventdetails"))
     implementation(project(":utils"))
 
     //compose navigation

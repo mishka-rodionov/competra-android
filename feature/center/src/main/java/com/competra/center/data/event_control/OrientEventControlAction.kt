@@ -14,6 +14,8 @@ sealed class OrientEventControlAction: BaseAction {
     data object OpenResults: OrientEventControlAction()
     data object OpenGetOrienteeringChip: OrientEventControlAction()
     data object OpenWriteChip: OrientEventControlAction()
+    /** Заявки спортсменов на привязку вручную внесённых результатов к их профилям. */
+    data object OpenLinkRequests: OrientEventControlAction()
 
     data object ShowStartConfirmDialog: OrientEventControlAction()
     data object HideStartConfirmDialog: OrientEventControlAction()

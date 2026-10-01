@@ -18,6 +18,8 @@ enum class AnalyticsScreen(val screenName: String) {
     EventLiveTrackRunner("event_live_track_runner"),
     EventLiveTracks("event_live_tracks"),
     EventLiveTrackMap("event_live_track_map"),
+    /** Организатор: заявки на привязку вручную внесённых результатов к аккаунтам. */
+    EventLinkRequests("event_link_requests"),
 
     // Center
     CenterHome("center_home"),
@@ -48,6 +50,8 @@ enum class AnalyticsScreen(val screenName: String) {
     Registration("registration"),
     UserRegistrations("user_registrations"),
     ProfilePushPreferences("profile_push_preferences"),
+    /** «Мои результаты в протоколах» — совпадает с веб-экраном `/profile/result-links`. */
+    ProfileResultLinks("profile_result_links"),
 
     // Diary
     DiaryList("diary_list"),
@@ -93,6 +97,8 @@ enum class AnalyticsScreen(val screenName: String) {
                 route.contains("LiveTrackRunnerRoute") -> EventLiveTrackRunner
                 route.contains("LiveTracksRoute") -> EventLiveTracks
                 route.contains("LiveTrackMapRoute") -> EventLiveTrackMap
+                route.contains("CompetitionLinkRequestsRoute") -> EventLinkRequests
+                route.contains("ResultLinksRoute") -> ProfileResultLinks
 
                 route.contains("CenterRoute") -> CenterHome
                 route.contains("KindOfSportRoute") -> CenterKindOfSport

@@ -60,7 +60,9 @@ internal fun formatResultScore(result: OrienteeringResult?): String {
 @Composable
 internal fun SplitsBottomSheet(
     participantWithResult: ParticipantWithResult,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Блок под именем участника — например, привязка результата к аккаунту (экран результатов). */
+    footer: (@Composable () -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val participant = participantWithResult.participant
@@ -88,6 +90,11 @@ internal fun SplitsBottomSheet(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 2.dp, bottom = Dimens.SIZE_BASE.dp)
             )
+
+            footer?.let {
+                it()
+                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+            }
 
             if (result != null) {
                 Row(
