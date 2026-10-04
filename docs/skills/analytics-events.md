@@ -18,6 +18,8 @@
 |---|---|---|
 | `event_opened` | Открыта карточка соревнования | `EventsViewModel.kt` |
 | `event_register_clicked` | Нажата кнопка «зарегистрироваться» | `EventDetailsViewModel.kt` |
+| `event_registered` | Регистрация на соревнование прошла (`team_source`: club_team / club / protocol / custom / none) | `EventDetailsViewModel.kt` |
+| `club_join_hint_clicked` | Нажата подсказка «такой клуб есть в Competra» под полем команды | `EventDetailsViewModel.kt` |
 | `auth_login_requested` | Запрошен код авторизации | `AuthViewModel.kt` |
 | `auth_login_failed` | Авторизация не удалась | `AuthCodeViewModel.kt` |
 | `nfc_chip_read_attempted` | Зафиксирована попытка чтения чипа | `OrientReadCardViewModel.kt` |

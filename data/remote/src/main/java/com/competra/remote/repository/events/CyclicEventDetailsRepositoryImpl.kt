@@ -2,8 +2,11 @@ package com.competra.remote.repository.events
 
 import com.competra.domain.models.Coordinates
 import com.competra.domain.models.CropRect
+import com.competra.domain.models.cyclic_event.ClubMatch
 import com.competra.domain.models.cyclic_event.CyclicEventDetails
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
+import com.competra.domain.models.cyclic_event.RegistrationTeamOption
+import com.competra.domain.models.cyclic_event.RegistrationTeamOptions
 import com.competra.domain.models.events.EventStatus
 import com.competra.domain.models.events.EventType
 import com.competra.domain.models.orienteering.OrienteeringParticipant
@@ -87,7 +90,8 @@ class CyclicEventDetailsRepositoryImpl(
         groupId: String,
         firstName: String,
         lastName: String,
-        commandName: String?
+        commandName: String?,
+        teamId: String?
     ): Result<Unit> {
         return dataSource.registerToEvent(
             RegisterEventRequest(
@@ -95,9 +99,37 @@ class CyclicEventDetailsRepositoryImpl(
                 groupId = groupId,
                 firstName = firstName,
                 lastName = lastName,
-                commandName = commandName
+                commandName = commandName,
+                teamId = teamId
             )
         ).mapCatching { }
+    }
+
+    override suspend fun getRegistrationTeamOptions(eventId: String): Result<RegistrationTeamOptions> {
+        return dataSource.getRegistrationTeamOptions(eventId)
+            .map { response ->
+                val dto = response.result ?: return@map RegistrationTeamOptions()
+                RegistrationTeamOptions(
+                    options = dto.options.orEmpty().map { option ->
+                        RegistrationTeamOption(
+                            teamId = option.teamId,
+                            clubId = option.clubId,
+                            clubName = option.clubName,
+                            teamName = option.teamName,
+                            label = option.label
+                        )
+                    },
+                    protocolNames = dto.protocolNames.orEmpty(),
+                    suggestedCommandName = dto.suggestedCommandName
+                )
+            }
+    }
+
+    override suspend fun matchClubs(commandName: String): Result<List<ClubMatch>> {
+        return dataSource.matchClubs(commandName)
+            .map { response ->
+                response.result.orEmpty().map { ClubMatch(id = it.id, name = it.name, allowJoinRequests = it.allowJoinRequests) }
+            }
     }
 
     override suspend fun cancelRegistration(eventId: String): Result<Unit> {

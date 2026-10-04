@@ -65,7 +65,7 @@ import com.competra.data.navigation.BaseNavigation
 import com.competra.data.navigation.CenterNavigation
 import com.competra.data.navigation.DiaryNavigation
 import com.competra.data.navigation.EventsNavigation
-import com.competra.data.navigation.PendingPushNavigationRepository
+import com.competra.data.navigation.PendingTabNavigationRepository
 import com.competra.data.navigation.ProfileNavigation
 import com.competra.diary.navigation.diaryGraph
 import com.competra.events.navigation.eventsGraph
@@ -304,7 +304,7 @@ internal fun MainScreen(viewModel: MainViewModel, windowSizeClass: WindowSizeCla
                     saveableStateHolder.SaveableStateProvider(tab.route) {
                         val navController = rememberNavController()
                         val analyticsTracker = koinInject<AnalyticsTracker>()
-                        val pendingPushNavigationRepository = koinInject<PendingPushNavigationRepository>()
+                        val pendingTabNavigationRepository = koinInject<PendingTabNavigationRepository>()
                         TrackNavScreens(navController, analyticsTracker)
 
                         val isSelectedTab = selectedTab == tab.route
@@ -334,22 +334,22 @@ internal fun MainScreen(viewModel: MainViewModel, windowSizeClass: WindowSizeCla
                                     )
                                 }
 
-                                // Отложенный переход по тапу на push-уведомление (см. MainViewModel.onPushNavigation).
-                                // Идёт напрямую через navController, а не через Navigation/SharedFlow: этот блок
-                                // выполняется, только когда таб уже активен и NavHost точно смонтирован.
-                                if (tab == BottomNavItem.CompetitionList) {
-                                    launch {
-                                        pendingPushNavigationRepository.pending.collectLatest { route ->
-                                            if (route == null) return@collectLatest
-                                            pendingPushNavigationRepository.clear()
-                                            val navBuilder = route.navOptionsBuilder
-                                            if (navBuilder != null) {
-                                                navController.navigate(route, navBuilder)
-                                            } else {
-                                                navController.navigate(route = route)
-                                            }
-                                            route.navOptionsBuilder = null
+                                // Отложенный переход в этот таб (тап на push-уведомление — см. MainViewModel.onPushNavigation,
+                                // карточка клуба из деталей события). Идёт напрямую через navController, а не через
+                                // Navigation/SharedFlow: этот блок выполняется, только когда таб уже активен и NavHost
+                                // точно смонтирован.
+                                launch {
+                                    pendingTabNavigationRepository.pending.collectLatest { pending ->
+                                        if (pending == null || pending.tabRoute != tab.route) return@collectLatest
+                                        pendingTabNavigationRepository.clear()
+                                        val route = pending.route
+                                        val navBuilder = route.navOptionsBuilder
+                                        if (navBuilder != null) {
+                                            navController.navigate(route, navBuilder)
+                                        } else {
+                                            navController.navigate(route = route)
                                         }
+                                        route.navOptionsBuilder = null
                                     }
                                 }
                             }

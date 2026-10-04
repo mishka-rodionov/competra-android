@@ -28,6 +28,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +48,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -58,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import com.competra.domain.models.cyclic_event.CyclicEventDetails
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
 import com.competra.domain.models.cyclic_event.GroupEligibility
+import com.competra.domain.models.cyclic_event.TeamSuggestion
 import com.competra.domain.models.events.EventStatus
 import com.competra.domain.models.events.EventType
 import com.competra.domain.models.orienteering.ResultsStatus
@@ -589,6 +597,112 @@ private fun formatFee(amount: Double, currency: String?): String {
 }
 
 /**
+ * Поле «Клуб/команда» в BottomSheet регистрации: свободный текст с выпадающими подсказками
+ * (свои клубные команды, подписи из протокола) и подсказкой вступить в клуб с таким же названием.
+ * @param state Состояние экрана.
+ * @param onAction Обработчик действий.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TeamNameField(
+    state: EventDetailsState,
+    onAction: (EventDetailsAction) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val suggestions = state.teamSuggestions
+    val selectedOption = state.selectedTeamOption
+
+    ExposedDropdownMenuBox(
+        expanded = expanded && suggestions.isNotEmpty(),
+        onExpandedChange = { expanded = it }
+    ) {
+        OutlinedTextField(
+            value = state.commandName,
+            onValueChange = {
+                expanded = true
+                onAction(EventDetailsAction.CommandNameChanged(it))
+            },
+            label = { Text("Клуб/команда (необязательно)") },
+            supportingText = when {
+                selectedOption?.teamId != null -> {
+                    { Text("Команда вашего клуба") }
+                }
+                selectedOption != null -> {
+                    { Text("Ваш клуб") }
+                }
+                else -> null
+            },
+            trailingIcon = {
+                if (suggestions.isNotEmpty()) {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                }
+            },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+        )
+        ExposedDropdownMenu(
+            expanded = expanded && suggestions.isNotEmpty(),
+            onDismissRequest = { expanded = false }
+        ) {
+            suggestions.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(text = suggestion.label)
+                            Text(
+                                text = when (suggestion) {
+                                    is TeamSuggestion.Own ->
+                                        if (suggestion.option.teamId != null) "Ваша команда" else "Ваш клуб"
+                                    is TeamSuggestion.Protocol -> "Уже есть в протоколе"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onAction(EventDetailsAction.SelectTeamSuggestion(suggestion))
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                )
+            }
+        }
+    }
+
+    state.clubMatches.firstOrNull()?.let { club ->
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (club.allowJoinRequests) {
+                        "Клуб «${club.name}» есть в Competra — можно подать заявку на вступление"
+                    } else {
+                        "Клуб «${club.name}» есть в Competra"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { onAction(EventDetailsAction.OpenClub(club.id)) }) {
+                    Text("Открыть")
+                }
+            }
+        }
+    }
+}
+
+/**
  * Диалог (BottomSheet) регистрации на событие.
  * @param state Состояние экрана.
  * @param sheetState Состояние BottomSheet.
@@ -674,13 +788,7 @@ private fun RegistrationBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
-                value = state.commandName,
-                onValueChange = { onAction(EventDetailsAction.CommandNameChanged(it)) },
-                label = { Text("Клуб/команда (необязательно)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            TeamNameField(state = state, onAction = onAction)
 
             Spacer(modifier = Modifier.height(24.dp))
 

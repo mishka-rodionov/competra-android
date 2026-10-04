@@ -9,6 +9,8 @@ import com.google.gson.annotations.SerializedName
  * @property groupId Идентификатор группы.
  * @property firstName Имя пользователя.
  * @property lastName Фамилия пользователя.
+ * @property commandName Подпись команды для протокола.
+ * @property teamId Клубная команда пользователя (сервер проверяет членство).
  */
 data class RegisterEventRequest(
     @SerializedName("competitionId")
@@ -20,5 +22,7 @@ data class RegisterEventRequest(
     @SerializedName("lastName")
     val lastName: String,
     @SerializedName("commandName")
-    val commandName: String? = null
+    val commandName: String? = null,
+    @SerializedName("teamId")
+    val teamId: String? = null
 )

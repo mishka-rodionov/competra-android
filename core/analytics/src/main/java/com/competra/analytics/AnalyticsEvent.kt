@@ -59,6 +59,30 @@ sealed class AnalyticsEvent(
     class EventRegisterClicked(eventId: String) :
         AnalyticsEvent("event_register_clicked", mapOf("event_id" to eventId))
 
+    /** Откуда взялась подпись команды при регистрации на соревнование. */
+    enum class RegistrationTeamSource {
+        /** Клубная команда пользователя. */
+        CLUB_TEAM,
+
+        /** Клуб пользователя без команды. */
+        CLUB,
+
+        /** Подпись из протокола соревнования. */
+        PROTOCOL,
+
+        /** Свободный текст. */
+        CUSTOM,
+
+        /** Команда не указана. */
+        NONE
+    }
+
+    /** Пользователь успешно зарегистрировался на соревнование. */
+    class EventRegistered(eventId: String, teamSource: RegistrationTeamSource) : AnalyticsEvent(
+        "event_registered",
+        mapOf("event_id" to eventId, "team_source" to teamSource.name.lowercase()),
+    )
+
     /** Открыт экран live-результатов. */
     class EventLiveResultsOpened(eventId: String) :
         AnalyticsEvent("event_live_results_opened", mapOf("event_id" to eventId))
@@ -328,6 +352,10 @@ sealed class AnalyticsEvent(
     /** Клуб удалён (только FOUNDER). */
     class ClubDeleted(clubId: String) :
         AnalyticsEvent("club_deleted", mapOf("club_id" to clubId))
+
+    /** Нажата подсказка «такой клуб есть в Competra» под полем команды при регистрации на соревнование. */
+    class ClubJoinHintClicked(clubId: String) :
+        AnalyticsEvent("club_join_hint_clicked", mapOf("club_id" to clubId))
 
     /** Подана заявка на вступление в клуб. */
     class ClubJoinRequested(clubId: String) :

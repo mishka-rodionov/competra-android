@@ -8,7 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.competra.data.navigation.BaseNavigation
 import com.competra.data.navigation.EventsNavigation
 import com.competra.data.navigation.Navigation
-import com.competra.data.navigation.PendingPushNavigationRepository
+import com.competra.data.navigation.PendingTabNavigationRepository
 import com.competra.data.navigation.TabRoutes
 import com.competra.domain.models.NetworkErrorEvent
 import com.competra.domain.models.onboarding.OnboardingSource
@@ -60,7 +60,7 @@ class MainViewModel(
     private val networkErrorRepository: NetworkErrorRepository,
     private val loadingRepository: LoadingRepository,
     private val onboardingRequestRepository: OnboardingRequestRepository,
-    private val pendingPushNavigationRepository: PendingPushNavigationRepository
+    private val pendingTabNavigationRepository: PendingTabNavigationRepository
 ) : BaseViewModel<BaseState>(object : BaseState {}) {
 
     /**
@@ -224,7 +224,7 @@ class MainViewModel(
 
     /**
      * Обрабатывает тап по push-уведомлению (extras из [MainActivity.onCreate]/[MainActivity.onNewIntent]).
-     * Кладёт целевой роут в [PendingPushNavigationRepository] и переключает таб на Events — сам
+     * Кладёт целевой роут в [PendingTabNavigationRepository] и переключает таб на Events — сам
      * переход выполняет NavHost этого таба, как только становится активным (см. MainScreen).
      */
     fun onPushNavigation(competitionId: String?, kind: String?) {
@@ -240,7 +240,7 @@ class MainViewModel(
                 EventsNavigation.ResultLinksRoute
             else -> return
         }
-        pendingPushNavigationRepository.set(route)
+        pendingTabNavigationRepository.set(TabRoutes.EVENTS, route)
         viewModelScope.launch {
             navigation.switchTab(TabRoutes.EVENTS)
         }

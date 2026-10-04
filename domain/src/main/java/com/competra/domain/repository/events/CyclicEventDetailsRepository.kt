@@ -1,6 +1,8 @@
 package com.competra.domain.repository.events
 
+import com.competra.domain.models.cyclic_event.ClubMatch
 import com.competra.domain.models.cyclic_event.CyclicEventDetails
+import com.competra.domain.models.cyclic_event.RegistrationTeamOptions
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 
 /**
@@ -29,14 +31,29 @@ interface CyclicEventDetailsRepository {
      * @param firstName Имя пользователя.
      * @param lastName Фамилия пользователя.
      * @param commandName Название клуба/команды участника (опционально, свободный текст или выбор из своих клубов/команд).
+     * @param teamId Клубная команда пользователя, если подпись выбрана из его команд.
      */
     suspend fun registerToEvent(
         eventId: String,
         groupId: String,
         firstName: String,
         lastName: String,
-        commandName: String? = null
+        commandName: String? = null,
+        teamId: String? = null
     ): Result<Unit>
+
+    /**
+     * Подсказки для поля «Команда» при регистрации: свои клубные команды по виду спорта события,
+     * подписи из протокола и подпись для автоподстановки. Требует авторизации.
+     * @param eventId Идентификатор события.
+     */
+    suspend fun getRegistrationTeamOptions(eventId: String): Result<RegistrationTeamOptions>
+
+    /**
+     * Клубы, чьё название совпадает с подписью команды и в которых пользователь не состоит.
+     * @param commandName Подпись команды из поля ввода.
+     */
+    suspend fun matchClubs(commandName: String): Result<List<ClubMatch>>
 
     /**
      * Отменить регистрацию текущего пользователя на событие.
