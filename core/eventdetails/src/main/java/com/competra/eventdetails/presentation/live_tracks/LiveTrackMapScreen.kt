@@ -25,10 +25,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +48,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -53,11 +58,17 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.competra.domain.models.livetrack.LiveTrackStatus
+import com.competra.domain.models.livetrack.REPLAY_TAIL_MS
+import com.competra.domain.models.livetrack.ReplayRunnerState
+import com.competra.domain.models.livetrack.ReplayTimeMode
+import com.competra.domain.models.livetrack.ReplayTrack
 import com.competra.domain.models.livetrack.SPEED_COLOR_STEPS
 import com.competra.domain.models.livetrack.TrackSpeedProfile
 import com.competra.domain.models.livetrack.ViewerTrack
+import com.competra.domain.models.livetrack.ViewerTrackPoint
 import com.competra.domain.models.orienteering.ControlPointRole
 import com.competra.domain.models.orienteering.DistanceMap
+import com.competra.resources.R
 import com.competra.utils.orienteering.toPace
 import kotlinx.coroutines.flow.SharedFlow
 import org.koin.androidx.compose.koinViewModel
@@ -73,6 +84,9 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 /** Растр карты дистанции ужимается до этого размера по большей стороне — память телефона. */
@@ -92,6 +106,11 @@ private const val SPEED_CASING_COLOR = 0x99000000.toInt()
 /** Медленнее этого (м/с) темп не пишем — участник стоит. */
 private const val STANDING_SPEED = 0.2
 
+/** Прозрачность полного трека за хвостом при просмотре (0–255). */
+private const val FAINT_TRACK_ALPHA = 0x66
+
+private val CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
+
 private fun trackColor(state: LiveTrackMapState, track: ViewerTrack): Int =
     TRACK_COLORS[(state.colorIndex[track.sessionId] ?: 0) % TRACK_COLORS.size]
 
@@ -103,7 +122,8 @@ private fun speedColor(level: Int): Int =
  * Карта онлайн-треков дистанции для зрителя: растр карты по трём углам поверх OSM, КП, треки
  * участников (разрывы дольше 30 с не соединяются), маркеры с номером (серые — нет данных больше
  * минуты), фильтр по группам и «хвост» за 5 минут. После финиша всех — архив. Завершённые треки
- * можно раскрасить по скорости участника (красный — медленно, зелёный — быстро).
+ * можно раскрасить по скорости участника (красный — медленно, зелёный — быстро) и просмотреть
+ * ползунком: маркеры движутся по трекам от старта до финиша — по общим часам или с общего старта.
  *
  * @param eventId Идентификатор соревнования.
  * @param distanceId Серверный идентификатор дистанции.
@@ -133,6 +153,8 @@ fun LiveTrackMapScreen(
                     SpeedLegend(state, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
                 }
             }
+            val range = state.replayRange
+            if (state.replay && range != null) ReplayPanel(state, range) { viewModel.onAction(it) }
             HorizontalDivider()
             ParticipantList(state = state, modifier = Modifier.weight(0.38f)) { viewModel.onAction(it) }
         }
@@ -171,12 +193,23 @@ private fun MapFilters(state: LiveTrackMapState, onAction: (LiveTrackMapAction) 
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
-        item {
-            FilterChip(
-                selected = state.tailOnly,
-                onClick = { onAction(LiveTrackMapAction.ToggleTail) },
-                label = { Text("Хвост 5 мин") }
-            )
+        if (!state.replay) {
+            item {
+                FilterChip(
+                    selected = state.tailOnly,
+                    onClick = { onAction(LiveTrackMapAction.ToggleTail) },
+                    label = { Text("Хвост 5 мин") }
+                )
+            }
+        }
+        if (state.canReplay || state.replay) {
+            item {
+                FilterChip(
+                    selected = state.replay,
+                    onClick = { onAction(LiveTrackMapAction.ToggleReplay) },
+                    label = { Text("Просмотр") }
+                )
+            }
         }
         if (state.canShowSpeed || state.speedMode) {
             item {
@@ -199,19 +232,27 @@ private fun MapFilters(state: LiveTrackMapState, onAction: (LiveTrackMapAction) 
 
 @Composable
 private fun ParticipantList(state: LiveTrackMapState, modifier: Modifier, onAction: (LiveTrackMapAction) -> Unit) {
+    val tracks = if (state.replay) state.visibleTracks.filter { it.sessionId in state.replayTracks } else state.visibleTracks
     LazyColumn(modifier = modifier.fillMaxWidth()) {
-        items(state.visibleTracks, key = { it.sessionId }) { track ->
+        items(tracks, key = { it.sessionId }) { track ->
             val stale = track.isStale(state.serverTime)
             val selected = state.speedSelection?.sessionId == track.sessionId
+            val replayTrack = state.replayTracks[track.sessionId]?.takeIf { state.replay }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
                     .clickable { onAction(LiveTrackMapAction.FocusTrack(track.sessionId)) }
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(start = if (replayTrack != null) 4.dp else 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (replayTrack != null) {
+                    Checkbox(
+                        checked = track.sessionId in state.checkedSessionIds,
+                        onCheckedChange = { onAction(LiveTrackMapAction.ToggleChecked(track.sessionId)) }
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .size(14.dp)
@@ -225,7 +266,7 @@ private fun ParticipantList(state: LiveTrackMapState, modifier: Modifier, onActi
                     }
                 }
                 Text(
-                    statusText(track, state.serverTime),
+                    replayTrack?.let { replayStatusText(state, it) } ?: statusText(track, state.serverTime),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (track.isActive && !stale) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -269,6 +310,86 @@ private fun SpeedLegend(state: LiveTrackMapState, modifier: Modifier) {
     }
 }
 
+/** Панель просмотра: ▶/пауза, ползунок, время, шкала времени и скорость воспроизведения. */
+@Composable
+private fun ReplayPanel(state: LiveTrackMapState, range: LongRange, onAction: (LiveTrackMapAction) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { onAction(LiveTrackMapAction.TogglePlay) }) {
+                Icon(
+                    painter = painterResource(if (state.isPlaying) R.drawable.pause_24px else R.drawable.play_arrow_24px),
+                    contentDescription = if (state.isPlaying) "Пауза" else "Воспроизвести"
+                )
+            }
+            // Ползунок — смещение от начала диапазона: Unix ms во Float теряет точность.
+            Slider(
+                value = (state.replayClampedPosition - range.first).toFloat(),
+                onValueChange = { onAction(LiveTrackMapAction.SeekReplay(range.first + it.toLong())) },
+                valueRange = 0f..(range.last - range.first).coerceAtLeast(1).toFloat(),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                replayTimeText(state),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp)
+            )
+        }
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp)
+        ) {
+            item {
+                FilterChip(
+                    selected = state.replayMode == ReplayTimeMode.MASS_START,
+                    onClick = { onAction(LiveTrackMapAction.SetReplayMode(ReplayTimeMode.MASS_START)) },
+                    label = { Text("Общий старт") }
+                )
+            }
+            item {
+                FilterChip(
+                    selected = state.replayMode == ReplayTimeMode.REAL_TIME,
+                    onClick = { onAction(LiveTrackMapAction.SetReplayMode(ReplayTimeMode.REAL_TIME)) },
+                    label = { Text("Реальное время") }
+                )
+            }
+            items(PLAYBACK_SPEEDS) { speed ->
+                FilterChip(
+                    selected = state.playbackSpeed == speed,
+                    onClick = { onAction(LiveTrackMapAction.SetPlaybackSpeed(speed)) },
+                    label = { Text("×$speed") }
+                )
+            }
+        }
+    }
+}
+
+/** Время на ползунке: время суток или «+М:СС» от старта. */
+private fun replayTimeText(state: LiveTrackMapState): String = when (state.replayMode) {
+    ReplayTimeMode.REAL_TIME -> CLOCK_FORMAT.format(Instant.ofEpochMilli(state.replayClampedPosition))
+    ReplayTimeMode.MASS_START -> "+${durationText(state.replayClampedPosition)}"
+}
+
+/** Состояние участника в момент просмотра для списка. */
+private fun replayStatusText(state: LiveTrackMapState, replayTrack: ReplayTrack): String {
+    val t = replayTrack.timeAt(state.replayClampedPosition, state.replayMode)
+    return when (replayTrack.positionAt(t).state) {
+        ReplayRunnerState.NOT_STARTED -> "старт ${CLOCK_FORMAT.format(Instant.ofEpochMilli(replayTrack.startAt))}"
+        ReplayRunnerState.FINISHED -> "финиш ${durationText(replayTrack.duration)}"
+        ReplayRunnerState.NO_DATA -> "${durationText(t - replayTrack.startAt)} • нет данных"
+        ReplayRunnerState.RUNNING -> durationText(t - replayTrack.startAt)
+    }
+}
+
+/** Длительность «М:СС» или «Ч:ММ:СС». */
+private fun durationText(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    val hours = total / 3600
+    val minutes = total % 3600 / 60
+    val seconds = total % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%d:%02d".format(minutes, seconds)
+}
+
 /** Темп «М:СС /км» по скорости в м/с. */
 private fun paceText(speed: Double): String =
     if (speed < STANDING_SPEED) "стоит" else "${(1000 / speed / 60).toPace()} /км"
@@ -285,11 +406,17 @@ private fun statusText(track: ViewerTrack, serverTime: Long): String = when (tra
     LiveTrackStatus.TIMED_OUT -> "трек закрыт"
 }
 
-/** Наши слои на карте — чтобы при обновлении заменять только их. */
+/**
+ * Наши слои на карте — чтобы при обновлении заменять только их. [static] (КП, треки) пересобираются,
+ * только когда изменились данные; [frame] (хвосты и маркеры просмотра) — на каждом кадре.
+ */
 private class OverlayHolder {
     var ground: GroundOverlay? = null
     var groundBitmap: Bitmap? = null
-    val dynamic = mutableListOf<Overlay>()
+    val static = mutableListOf<Overlay>()
+    var staticState: LiveTrackMapState? = null
+    val frame = mutableListOf<Overlay>()
+    val icons = HashMap<String, BitmapDrawable>()
     var initialZoomDone = false
 }
 
@@ -302,13 +429,12 @@ private fun LiveTrackOsmMap(state: LiveTrackMapState, focus: SharedFlow<TrackFoc
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
 
     LaunchedEffect(focus) {
-        focus.collect { (track, wholeTrack) ->
+        focus.collect { (track, wholeTrack, point) ->
             val mapView = mapViewRef.value ?: return@collect
-            val last = track.points.lastOrNull() ?: return@collect
             if (wholeTrack && track.points.size > 1) {
                 mapView.zoomToBoundingBox(BoundingBox.fromGeoPoints(track.points.map { GeoPoint(it.lat, it.lon) }), true, 48)
             } else {
-                mapView.controller.animateTo(GeoPoint(last.lat, last.lon))
+                mapView.controller.animateTo(GeoPoint(point.lat, point.lon))
             }
         }
     }
@@ -357,11 +483,26 @@ private fun render(mapView: MapView, state: LiveTrackMapState, raster: Bitmap?) 
         }
     }
 
-    mapView.overlays.removeAll(holder.dynamic)
-    holder.dynamic.clear()
-    holder.dynamic += controlPointOverlays(mapView, state)
-    state.mapTracks.forEach { track -> holder.dynamic += trackOverlays(mapView, state, track) }
-    mapView.overlays.addAll(holder.dynamic)
+    mapView.overlays.removeAll(holder.frame)
+    holder.frame.clear()
+    if (staticChanged(holder.staticState, state)) {
+        holder.staticState = state
+        mapView.overlays.removeAll(holder.static)
+        holder.static.clear()
+        holder.static += controlPointOverlays(mapView, state)
+        if (state.replay) {
+            state.replayShown.forEach { holder.static += faintTrackOverlays(mapView, state, it) }
+        } else {
+            state.mapTracks.forEach { track -> holder.static += trackOverlays(mapView, state, track, holder) }
+        }
+        mapView.overlays.addAll(holder.static)
+    }
+    if (state.replay) {
+        val frames = state.replayShown.map { replayFrame(mapView, state, it, holder) }
+        // Маркеры поверх всех хвостов.
+        holder.frame += frames.flatMap { it.first } + frames.mapNotNull { it.second }
+        mapView.overlays.addAll(holder.frame)
+    }
 
     if (!holder.initialZoomDone) {
         initialBounds(state)?.let { bounds ->
@@ -370,6 +511,13 @@ private fun render(mapView: MapView, state: LiveTrackMapState, raster: Bitmap?) 
         }
     }
     mapView.invalidate()
+}
+
+/** Изменилось ли что-то, кроме позиции и скорости воспроизведения. Списки сравниваются сначала по ссылке — это дёшево. */
+private fun staticChanged(previous: LiveTrackMapState?, state: LiveTrackMapState): Boolean {
+    if (previous == null) return true
+    fun LiveTrackMapState.withoutPlayback() = copy(replayPosition = 0, isPlaying = false, playbackSpeed = 0)
+    return previous.withoutPlayback() != state.withoutPlayback()
 }
 
 private fun controlPointOverlays(mapView: MapView, state: LiveTrackMapState): List<Overlay> =
@@ -388,7 +536,7 @@ private fun controlPointOverlays(mapView: MapView, state: LiveTrackMapState): Li
         }
     }
 
-private fun trackOverlays(mapView: MapView, state: LiveTrackMapState, track: ViewerTrack): List<Overlay> {
+private fun trackOverlays(mapView: MapView, state: LiveTrackMapState, track: ViewerTrack, holder: OverlayHolder): List<Overlay> {
     val color = trackColor(state, track)
     val since = if (state.tailOnly) (track.lastPointAt ?: state.serverTime) - TAIL_WINDOW_MS else null
     val profile = state.speedProfileOf(track)
@@ -401,7 +549,7 @@ private fun trackOverlays(mapView: MapView, state: LiveTrackMapState, track: Vie
     val markerColor = if (track.isStale(state.serverTime)) STALE_COLOR else color
     val marker = Marker(mapView).apply {
         position = GeoPoint(last.lat, last.lon)
-        icon = markerIcon(mapView.context, markerColor, track.startNumber?.toString() ?: track.displayName.take(1), faded = !track.isActive)
+        icon = holder.cachedMarkerIcon(mapView.context, markerColor, markerLabel(track), faded = !track.isActive)
         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
         title = track.displayName
         snippet = listOfNotNull(track.groupName, statusText(track, state.serverTime)).joinToString(" • ")
@@ -419,6 +567,59 @@ private fun speedLines(mapView: MapView, track: ViewerTrack, profile: TrackSpeed
     }
     return casing + chunks
 }
+
+/** Полный трек участника за хвостом при просмотре — бледный (в режиме скорости — бледный градиент). */
+private fun faintTrackOverlays(mapView: MapView, state: LiveTrackMapState, replayTrack: ReplayTrack): List<Overlay> {
+    val profile = state.speedProfileOf(replayTrack.track)
+    if (profile != null) {
+        return profile.chunks.mapNotNull { chunk ->
+            val points = chunk.points.filter { it.t in replayTrack.startAt..replayTrack.finishAt }
+            if (points.size < 2) null else trackLine(mapView, points.toGeoPoints(), withAlpha(speedColor(chunk.level), FAINT_TRACK_ALPHA), 5f)
+        }
+    }
+    val color = withAlpha(trackColor(state, replayTrack.track), FAINT_TRACK_ALPHA)
+    return replayTrack.track.segments().filter { it.size > 1 }.map { trackLine(mapView, it.toGeoPoints(), color, 5f) }
+}
+
+/** Кадр просмотра для участника: яркий хвост за последние [REPLAY_TAIL_MS] и маркер (до старта — ничего). */
+private fun replayFrame(mapView: MapView, state: LiveTrackMapState, replayTrack: ReplayTrack, holder: OverlayHolder): Pair<List<Overlay>, Marker?> {
+    val track = replayTrack.track
+    val t = replayTrack.timeAt(state.replayClampedPosition, state.replayMode)
+    val position = replayTrack.positionAt(t)
+    if (position.state == ReplayRunnerState.NOT_STARTED) return emptyList<Overlay>() to null
+    val color = trackColor(state, track)
+    val tail = replayTrack.tail(t)
+    val profile = state.speedProfileOf(track)
+    val lines = if (profile != null) {
+        val now = minOf(t, replayTrack.finishAt)
+        val casing = tail.filter { it.size > 1 }.map { trackLine(mapView, it.toGeoPoints(), SPEED_CASING_COLOR, 11f) }
+        casing + profile.chunks.mapNotNull { chunk ->
+            val points = chunk.points.filter { it.t > now - REPLAY_TAIL_MS && it.t <= now && it.t >= replayTrack.startAt }
+            if (points.size < 2) null else trackLine(mapView, points.toGeoPoints(), speedColor(chunk.level), 7f)
+        }
+    } else {
+        tail.filter { it.size > 1 }.map { trackLine(mapView, it.toGeoPoints(), color, 7f) }
+    }
+    val markerColor = if (position.state == ReplayRunnerState.NO_DATA) STALE_COLOR else color
+    val marker = Marker(mapView).apply {
+        this.position = GeoPoint(position.point.lat, position.point.lon)
+        icon = holder.cachedMarkerIcon(mapView.context, markerColor, markerLabel(track), faded = position.state == ReplayRunnerState.FINISHED)
+        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+        title = track.displayName
+        snippet = listOfNotNull(track.groupName, replayStatusText(state, replayTrack)).joinToString(" • ")
+    }
+    return lines to marker
+}
+
+private fun List<ViewerTrackPoint>.toGeoPoints(): List<GeoPoint> = map { GeoPoint(it.lat, it.lon) }
+
+private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha shl 24)
+
+private fun markerLabel(track: ViewerTrack): String = track.startNumber?.toString() ?: track.displayName.take(1)
+
+/** Иконки маркеров кэшируются: при просмотре маркеры пересоздаются на каждом кадре. */
+private fun OverlayHolder.cachedMarkerIcon(context: Context, color: Int, label: String, faded: Boolean): BitmapDrawable =
+    icons.getOrPut("$color|$label|$faded") { markerIcon(context, color, label, faded) }
 
 private fun trackLine(mapView: MapView, points: List<GeoPoint>, color: Int, width: Float): Polyline =
     Polyline(mapView).apply {

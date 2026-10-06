@@ -4,11 +4,15 @@ import androidx.lifecycle.viewModelScope
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.domain.models.livetrack.LiveTrackAccumulator
+import com.competra.domain.models.livetrack.ReplayTimeMode
+import com.competra.domain.models.livetrack.ReplayTrack
 import com.competra.domain.models.livetrack.TrackSpeedProfile
 import com.competra.domain.models.livetrack.ViewerTrack
 import com.competra.domain.models.livetrack.ViewerTrackPoint
 import com.competra.domain.models.livetrack.mergedByParticipant
+import com.competra.domain.models.livetrack.replayRange
 import com.competra.domain.models.livetrack.speedProfile
+import com.competra.domain.models.livetrack.toReplay
 import com.competra.domain.models.orienteering.ControlPoint
 import com.competra.domain.models.orienteering.DistanceMap
 import com.competra.domain.repository.livetrack.LiveTrackViewerRepository
@@ -37,6 +41,18 @@ private const val ERROR_RETRY_MS = 10_000L
 /** «Хвост» — последние столько минут трека. */
 val TAIL_WINDOW_MS: Long = TimeUnit.MINUTES.toMillis(5)
 
+/** Шаг анимации просмотра. */
+private const val REPLAY_FRAME_MS = 100L
+
+/** Скорости воспроизведения (во сколько раз быстрее реального времени). */
+val PLAYBACK_SPEEDS = listOf(1, 10, 30, 60)
+
+/** Скорость воспроизведения по умолчанию: часовая гонка — за две минуты. */
+private const val DEFAULT_PLAYBACK_SPEED = 30
+
+/** Перезапрос результатов, если появился финишировавший без результата, — не чаще. */
+private val RESULTS_RELOAD_MS = TimeUnit.MINUTES.toMillis(1)
+
 /**
  * Состояние карты онлайн-треков дистанции.
  *
@@ -52,6 +68,13 @@ val TAIL_WINDOW_MS: Long = TimeUnit.MINUTES.toMillis(5)
  * @property speedMode Завершённые треки раскрашены по скорости (красный — медленно, зелёный — быстро).
  * @property speedProfiles Раскраска по скорости завершённых треков по id сессии.
  * @property selectedSessionId Участник, выбранный в режиме скорости: показывается только его трек.
+ * @property replay Режим просмотра завершённых треков ползунком.
+ * @property replayTracks Завершённые треки, обрезанные по старту и финишу из результатов, по id сессии.
+ * @property replayMode Шкала времени просмотра.
+ * @property replayPosition Позиция ползунка: Unix ms в реальном времени, ms от старта при общем старте.
+ * @property isPlaying Идёт воспроизведение.
+ * @property playbackSpeed Скорость воспроизведения из [PLAYBACK_SPEEDS].
+ * @property checkedSessionIds Отмеченные для сравнения участники; пусто — все показанные.
  */
 data class LiveTrackMapState(
     val isLoading: Boolean = true,
@@ -66,7 +89,14 @@ data class LiveTrackMapState(
     val isConnectionLost: Boolean = false,
     val speedMode: Boolean = false,
     val speedProfiles: Map<String, TrackSpeedProfile> = emptyMap(),
-    val selectedSessionId: String? = null
+    val selectedSessionId: String? = null,
+    val replay: Boolean = false,
+    val replayTracks: Map<String, ReplayTrack> = emptyMap(),
+    val replayMode: ReplayTimeMode = ReplayTimeMode.MASS_START,
+    val replayPosition: Long = 0,
+    val isPlaying: Boolean = false,
+    val playbackSpeed: Int = DEFAULT_PLAYBACK_SPEED,
+    val checkedSessionIds: Set<String> = emptySet()
 ) : BaseState {
 
     /** Группы, встречающиеся среди треков. */
@@ -82,12 +112,32 @@ data class LiveTrackMapState(
     /** Есть завершённые треки, которые можно раскрасить по скорости. */
     val canShowSpeed: Boolean get() = visibleTracks.any { it.sessionId in speedProfiles }
 
-    /** Выбранный участник в режиме скорости, если он не скрыт фильтром групп. */
+    /** Выбранный участник в режиме скорости, если он не скрыт фильтром групп (при просмотре — не используется). */
     val speedSelection: ViewerTrack?
-        get() = if (speedMode) visibleTracks.firstOrNull { it.sessionId == selectedSessionId } else null
+        get() = if (speedMode && !replay) visibleTracks.firstOrNull { it.sessionId == selectedSessionId } else null
 
-    /** Треки на карте: в режиме скорости с выбранным участником — только он. */
-    val mapTracks: List<ViewerTrack> get() = speedSelection?.let { listOf(it) } ?: visibleTracks
+    /** Есть завершённые треки, которые можно просмотреть ползунком. */
+    val canReplay: Boolean get() = visibleTracks.any { it.sessionId in replayTracks }
+
+    /** Треки просмотра: завершённые показанные, а если кто-то отмечен — только отмеченные. */
+    val replayShown: List<ReplayTrack>
+        get() {
+            val finished = visibleTracks.mapNotNull { replayTracks[it.sessionId] }
+            return finished.filter { it.track.sessionId in checkedSessionIds }.ifEmpty { finished }
+        }
+
+    /** Диапазон ползунка. */
+    val replayRange: LongRange? get() = replayShown.replayRange(replayMode)
+
+    /** Позиция ползунка в пределах [replayRange] (диапазон меняется при смене галочек и групп). */
+    val replayClampedPosition: Long get() = replayRange?.let { replayPosition.coerceIn(it) } ?: 0
+
+    /** Треки на карте: при просмотре — [replayShown], в режиме скорости с выбранным участником — только он. */
+    val mapTracks: List<ViewerTrack>
+        get() = when {
+            replay -> replayShown.map { it.track }
+            else -> speedSelection?.let { listOf(it) } ?: visibleTracks
+        }
 
     /** Раскраска по скорости для трека, если режим включён и участник финишировал. */
     fun speedProfileOf(track: ViewerTrack): TrackSpeedProfile? =
@@ -97,15 +147,22 @@ data class LiveTrackMapState(
 /**
  * Запрос экрану показать участника.
  *
- * @property wholeTrack Вписать в экран весь трек (режим скорости), иначе — центрировать на последней точке.
+ * @property wholeTrack Вписать в экран весь трек (режим скорости), иначе — центрировать на [point].
+ * @property point Куда центрировать: положение при просмотре, иначе последняя точка трека.
  */
-data class TrackFocus(val track: ViewerTrack, val wholeTrack: Boolean)
+data class TrackFocus(val track: ViewerTrack, val wholeTrack: Boolean, val point: ViewerTrackPoint)
 
 /** Действия карты онлайн-треков. */
 sealed interface LiveTrackMapAction : BaseAction {
     data class ToggleGroup(val group: String) : LiveTrackMapAction
     data object ToggleTail : LiveTrackMapAction
     data object ToggleSpeedMode : LiveTrackMapAction
+    data object ToggleReplay : LiveTrackMapAction
+    data class SetReplayMode(val mode: ReplayTimeMode) : LiveTrackMapAction
+    data class SeekReplay(val position: Long) : LiveTrackMapAction
+    data object TogglePlay : LiveTrackMapAction
+    data class SetPlaybackSpeed(val speed: Int) : LiveTrackMapAction
+    data class ToggleChecked(val sessionId: String) : LiveTrackMapAction
 
     /** Нажатие на участника: показать на карте, в режиме скорости — выбрать (повторно — снять выбор). */
     data class FocusTrack(val sessionId: String) : LiveTrackMapAction
@@ -128,6 +185,12 @@ class LiveTrackMapViewModel(
     private var distanceLoaded = false
     private var archiveLoaded = false
     private var openedReported = false
+    private var eventId: String? = null
+    private var playJob: Job? = null
+
+    /** Старт и финиш из результатов по id участника. */
+    private var resultTimes: Map<String, Pair<Long?, Long?>> = emptyMap()
+    private var resultsLoadedAt = 0L
 
     /** Раскраска по скорости завершённых треков; пересчитывается, только если у трека изменились точки. */
     private val speedCache = HashMap<String, Pair<List<ViewerTrackPoint>, TrackSpeedProfile?>>()
@@ -140,6 +203,7 @@ class LiveTrackMapViewModel(
     /** Начинает (или возобновляет) загрузку и опрос треков дистанции. */
     fun start(eventId: String, distanceId: Long) {
         if (pollJob?.isActive == true) return
+        this.eventId = eventId
         pollJob = viewModelScope.launch {
             if (!distanceLoaded) loadDistance(eventId, distanceId)
             while (isActive) {
@@ -160,10 +224,11 @@ class LiveTrackMapViewModel(
         }
     }
 
-    /** Останавливает опрос (экран ушёл в фон). */
+    /** Останавливает опрос и воспроизведение (экран ушёл в фон). */
     fun stop() {
         pollJob?.cancel()
         pollJob = null
+        pause()
     }
 
     override fun onAction(action: BaseAction) {
@@ -174,18 +239,65 @@ class LiveTrackMapViewModel(
             is LiveTrackMapAction.ToggleTail -> updateState { copy(tailOnly = !tailOnly) }
             is LiveTrackMapAction.ToggleSpeedMode -> updateState { copy(speedMode = !speedMode, selectedSessionId = null) }
             is LiveTrackMapAction.FocusTrack -> focusTrack(action.sessionId)
+            is LiveTrackMapAction.ToggleReplay -> {
+                pause()
+                updateState { copy(replay = !replay, replayPosition = replayRange?.first ?: 0) }
+            }
+            is LiveTrackMapAction.SetReplayMode -> {
+                pause()
+                updateState { copy(replayMode = action.mode).let { it.copy(replayPosition = it.replayRange?.first ?: 0) } }
+            }
+            is LiveTrackMapAction.SeekReplay -> updateState { copy(replayPosition = action.position) }
+            is LiveTrackMapAction.TogglePlay -> if (stateValue.isPlaying) pause() else play()
+            is LiveTrackMapAction.SetPlaybackSpeed -> updateState { copy(playbackSpeed = action.speed) }
+            is LiveTrackMapAction.ToggleChecked -> updateState {
+                val id = action.sessionId
+                copy(checkedSessionIds = if (id in checkedSessionIds) checkedSessionIds - id else checkedSessionIds + id)
+            }
         }
+    }
+
+    /** Воспроизведение с текущей позиции (с начала, если ползунок в конце) до конца диапазона. */
+    private fun play() {
+        val range = stateValue.replayRange ?: return
+        if (stateValue.replayClampedPosition >= range.last) updateState { copy(replayPosition = range.first) }
+        updateState { copy(isPlaying = true) }
+        playJob?.cancel()
+        playJob = viewModelScope.launch {
+            while (isActive) {
+                delay(REPLAY_FRAME_MS)
+                val state = stateValue
+                val end = state.replayRange?.last ?: break
+                val next = state.replayClampedPosition + REPLAY_FRAME_MS * state.playbackSpeed
+                updateState { copy(replayPosition = minOf(next, end)) }
+                if (next >= end) break
+            }
+            updateState { copy(isPlaying = false) }
+        }
+    }
+
+    private fun pause() {
+        playJob?.cancel()
+        playJob = null
+        if (stateValue.isPlaying) updateState { copy(isPlaying = false) }
     }
 
     private fun focusTrack(sessionId: String) {
         val state = stateValue
         val track = state.tracks.firstOrNull { it.sessionId == sessionId } ?: return
-        if (state.speedMode) {
-            val deselect = state.selectedSessionId == sessionId
-            updateState { copy(selectedSessionId = if (deselect) null else sessionId) }
-            if (!deselect && track.points.isNotEmpty()) _focus.tryEmit(TrackFocus(track, wholeTrack = true))
-        } else if (track.points.isNotEmpty()) {
-            _focus.tryEmit(TrackFocus(track, wholeTrack = false))
+        val last = track.points.lastOrNull() ?: return
+        when {
+            state.replay -> {
+                val replayTrack = state.replayTracks[sessionId] ?: return
+                val position = replayTrack.positionAt(replayTrack.timeAt(state.replayClampedPosition, state.replayMode))
+                _focus.tryEmit(TrackFocus(replayTrack.track, wholeTrack = false, point = position.point))
+            }
+            state.speedMode -> {
+                val deselect = state.selectedSessionId == sessionId
+                updateState { copy(selectedSessionId = if (deselect) null else sessionId) }
+                if (!deselect) _focus.tryEmit(TrackFocus(track, wholeTrack = true, point = last))
+            }
+            else -> _focus.tryEmit(TrackFocus(track, wholeTrack = false, point = last))
         }
     }
 
@@ -213,8 +325,24 @@ class LiveTrackMapViewModel(
         }
         val result = viewerRepository.live(distanceId, accumulator.cursor)
         result.onSuccess { accumulator.applySnapshot(it) }
+        loadResultsIfNeeded()
         publish(connectionLost = result.isFailure)
         return result.isSuccess
+    }
+
+    /**
+     * Старт и финиш участников для обрезки треков при просмотре: при первом опросе и когда появился
+     * закрытый трек участника без результата (не чаще [RESULTS_RELOAD_MS]).
+     */
+    private suspend fun loadResultsIfNeeded() {
+        val eventId = eventId ?: return
+        val now = System.currentTimeMillis()
+        val missing = accumulator.tracks().any { !it.isActive && it.participantId !in resultTimes }
+        if (resultsLoadedAt != 0L && (!missing || now - resultsLoadedAt < RESULTS_RELOAD_MS)) return
+        resultsLoadedAt = now
+        competitionRepository.getResultsByCompetition(eventId).onSuccess { results ->
+            resultTimes = results.associate { it.participantId to (it.startTime?.takeIf { t -> t > 0 } to it.finishTime?.takeIf { t -> t > 0 }) }
+        }
     }
 
     private fun publish(connectionLost: Boolean) {
@@ -227,12 +355,17 @@ class LiveTrackMapViewModel(
             speedCache[track.sessionId] = track.points to profile
             profile?.let { track.sessionId to it }
         }.toMap()
+        val replayTracks = tracks.filter { !it.isActive }.mapNotNull { track ->
+            val (start, finish) = resultTimes[track.participantId] ?: (null to null)
+            track.toReplay(start, finish)?.let { track.sessionId to it }
+        }.toMap()
         updateState {
             copy(
                 isLoading = false,
                 tracks = tracks,
                 colorIndex = colors.toMap(),
                 speedProfiles = speedProfiles,
+                replayTracks = replayTracks,
                 serverTime = accumulator.serverTime.takeIf { it > 0 } ?: System.currentTimeMillis(),
                 isConnectionLost = connectionLost
             )
