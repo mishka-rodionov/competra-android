@@ -4,8 +4,11 @@ import androidx.lifecycle.viewModelScope
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.domain.models.livetrack.LiveTrackAccumulator
+import com.competra.domain.models.livetrack.TrackSpeedProfile
 import com.competra.domain.models.livetrack.ViewerTrack
+import com.competra.domain.models.livetrack.ViewerTrackPoint
 import com.competra.domain.models.livetrack.mergedByParticipant
+import com.competra.domain.models.livetrack.speedProfile
 import com.competra.domain.models.orienteering.ControlPoint
 import com.competra.domain.models.orienteering.DistanceMap
 import com.competra.domain.repository.livetrack.LiveTrackViewerRepository
@@ -46,6 +49,9 @@ val TAIL_WINDOW_MS: Long = TimeUnit.MINUTES.toMillis(5)
  * @property selectedGroups Показываемые группы; пусто — все.
  * @property tailOnly Показывать только последние [TAIL_WINDOW_MS] трека.
  * @property isConnectionLost Последний запрос не удался (данные на экране могут устареть).
+ * @property speedMode Завершённые треки раскрашены по скорости (красный — медленно, зелёный — быстро).
+ * @property speedProfiles Раскраска по скорости завершённых треков по id сессии.
+ * @property selectedSessionId Участник, выбранный в режиме скорости: показывается только его трек.
  */
 data class LiveTrackMapState(
     val isLoading: Boolean = true,
@@ -57,7 +63,10 @@ data class LiveTrackMapState(
     val serverTime: Long = 0,
     val selectedGroups: Set<String> = emptySet(),
     val tailOnly: Boolean = false,
-    val isConnectionLost: Boolean = false
+    val isConnectionLost: Boolean = false,
+    val speedMode: Boolean = false,
+    val speedProfiles: Map<String, TrackSpeedProfile> = emptyMap(),
+    val selectedSessionId: String? = null
 ) : BaseState {
 
     /** Группы, встречающиеся среди треков. */
@@ -69,12 +78,36 @@ data class LiveTrackMapState(
 
     /** Кто-то ещё на дистанции — режим «онлайн», иначе архив. */
     val isLive: Boolean get() = tracks.any { it.isActive }
+
+    /** Есть завершённые треки, которые можно раскрасить по скорости. */
+    val canShowSpeed: Boolean get() = visibleTracks.any { it.sessionId in speedProfiles }
+
+    /** Выбранный участник в режиме скорости, если он не скрыт фильтром групп. */
+    val speedSelection: ViewerTrack?
+        get() = if (speedMode) visibleTracks.firstOrNull { it.sessionId == selectedSessionId } else null
+
+    /** Треки на карте: в режиме скорости с выбранным участником — только он. */
+    val mapTracks: List<ViewerTrack> get() = speedSelection?.let { listOf(it) } ?: visibleTracks
+
+    /** Раскраска по скорости для трека, если режим включён и участник финишировал. */
+    fun speedProfileOf(track: ViewerTrack): TrackSpeedProfile? =
+        if (speedMode && !track.isActive) speedProfiles[track.sessionId] else null
 }
+
+/**
+ * Запрос экрану показать участника.
+ *
+ * @property wholeTrack Вписать в экран весь трек (режим скорости), иначе — центрировать на последней точке.
+ */
+data class TrackFocus(val track: ViewerTrack, val wholeTrack: Boolean)
 
 /** Действия карты онлайн-треков. */
 sealed interface LiveTrackMapAction : BaseAction {
     data class ToggleGroup(val group: String) : LiveTrackMapAction
     data object ToggleTail : LiveTrackMapAction
+    data object ToggleSpeedMode : LiveTrackMapAction
+
+    /** Нажатие на участника: показать на карте, в режиме скорости — выбрать (повторно — снять выбор). */
     data class FocusTrack(val sessionId: String) : LiveTrackMapAction
 }
 
@@ -96,10 +129,13 @@ class LiveTrackMapViewModel(
     private var archiveLoaded = false
     private var openedReported = false
 
-    private val _focus = MutableSharedFlow<ViewerTrack>(extraBufferCapacity = 1)
+    /** Раскраска по скорости завершённых треков; пересчитывается, только если у трека изменились точки. */
+    private val speedCache = HashMap<String, Pair<List<ViewerTrackPoint>, TrackSpeedProfile?>>()
+
+    private val _focus = MutableSharedFlow<TrackFocus>(extraBufferCapacity = 1)
 
     /** Запросы экрану показать участника на карте. */
-    val focus: SharedFlow<ViewerTrack> = _focus.asSharedFlow()
+    val focus: SharedFlow<TrackFocus> = _focus.asSharedFlow()
 
     /** Начинает (или возобновляет) загрузку и опрос треков дистанции. */
     fun start(eventId: String, distanceId: Long) {
@@ -136,9 +172,20 @@ class LiveTrackMapViewModel(
                 copy(selectedGroups = if (action.group in selectedGroups) selectedGroups - action.group else selectedGroups + action.group)
             }
             is LiveTrackMapAction.ToggleTail -> updateState { copy(tailOnly = !tailOnly) }
-            is LiveTrackMapAction.FocusTrack -> stateValue.tracks.firstOrNull { it.sessionId == action.sessionId }
-                ?.takeIf { it.points.isNotEmpty() }
-                ?.let { _focus.tryEmit(it) }
+            is LiveTrackMapAction.ToggleSpeedMode -> updateState { copy(speedMode = !speedMode, selectedSessionId = null) }
+            is LiveTrackMapAction.FocusTrack -> focusTrack(action.sessionId)
+        }
+    }
+
+    private fun focusTrack(sessionId: String) {
+        val state = stateValue
+        val track = state.tracks.firstOrNull { it.sessionId == sessionId } ?: return
+        if (state.speedMode) {
+            val deselect = state.selectedSessionId == sessionId
+            updateState { copy(selectedSessionId = if (deselect) null else sessionId) }
+            if (!deselect && track.points.isNotEmpty()) _focus.tryEmit(TrackFocus(track, wholeTrack = true))
+        } else if (track.points.isNotEmpty()) {
+            _focus.tryEmit(TrackFocus(track, wholeTrack = false))
         }
     }
 
@@ -174,11 +221,18 @@ class LiveTrackMapViewModel(
         // Перезапуски трека одним участником показываем как один трек.
         val tracks = accumulator.tracks().mergedByParticipant()
         tracks.sortedBy { it.startedAt }.forEach { colors.getOrPut(it.sessionId) { colors.size } }
+        val speedProfiles = tracks.filter { !it.isActive }.mapNotNull { track ->
+            val cached = speedCache[track.sessionId]?.takeIf { it.first == track.points }
+            val profile = if (cached != null) cached.second else track.speedProfile()
+            speedCache[track.sessionId] = track.points to profile
+            profile?.let { track.sessionId to it }
+        }.toMap()
         updateState {
             copy(
                 isLoading = false,
                 tracks = tracks,
                 colorIndex = colors.toMap(),
+                speedProfiles = speedProfiles,
                 serverTime = accumulator.serverTime.takeIf { it > 0 } ?: System.currentTimeMillis(),
                 isConnectionLost = connectionLost
             )

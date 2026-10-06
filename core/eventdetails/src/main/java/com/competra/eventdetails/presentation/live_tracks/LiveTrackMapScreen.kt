@@ -16,12 +16,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -49,9 +53,12 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.competra.domain.models.livetrack.LiveTrackStatus
+import com.competra.domain.models.livetrack.SPEED_COLOR_STEPS
+import com.competra.domain.models.livetrack.TrackSpeedProfile
 import com.competra.domain.models.livetrack.ViewerTrack
 import com.competra.domain.models.orienteering.ControlPointRole
 import com.competra.domain.models.orienteering.DistanceMap
+import com.competra.utils.orienteering.toPace
 import kotlinx.coroutines.flow.SharedFlow
 import org.koin.androidx.compose.koinViewModel
 import org.osmdroid.config.Configuration
@@ -79,13 +86,24 @@ private val TRACK_COLORS = intArrayOf(
 private const val STALE_COLOR = 0xFF9E9E9E.toInt()
 private const val CONTROL_POINT_COLOR = 0xFFC000C0.toInt()
 
+/** Подложка под линией скорости: жёлтый и светло-зелёный иначе теряются на топокарте. */
+private const val SPEED_CASING_COLOR = 0x99000000.toInt()
+
+/** Медленнее этого (м/с) темп не пишем — участник стоит. */
+private const val STANDING_SPEED = 0.2
+
 private fun trackColor(state: LiveTrackMapState, track: ViewerTrack): Int =
     TRACK_COLORS[(state.colorIndex[track.sessionId] ?: 0) % TRACK_COLORS.size]
+
+/** Цвет ступени скорости: от красного (0) через жёлтый к зелёному ([SPEED_COLOR_STEPS] − 1). */
+private fun speedColor(level: Int): Int =
+    android.graphics.Color.HSVToColor(floatArrayOf(120f * level / (SPEED_COLOR_STEPS - 1), 0.9f, 0.9f))
 
 /**
  * Карта онлайн-треков дистанции для зрителя: растр карты по трём углам поверх OSM, КП, треки
  * участников (разрывы дольше 30 с не соединяются), маркеры с номером (серые — нет данных больше
- * минуты), фильтр по группам и «хвост» за 5 минут. После финиша всех — архив.
+ * минуты), фильтр по группам и «хвост» за 5 минут. После финиша всех — архив. Завершённые треки
+ * можно раскрасить по скорости участника (красный — медленно, зелёный — быстро).
  *
  * @param eventId Идентификатор соревнования.
  * @param distanceId Серверный идентификатор дистанции.
@@ -111,6 +129,9 @@ fun LiveTrackMapScreen(
             Box(modifier = Modifier.fillMaxWidth().weight(0.62f).clipToBounds()) {
                 LiveTrackOsmMap(state = state, focus = viewModel.focus, modifier = Modifier.fillMaxSize())
                 if (state.isLoading) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                if (state.speedMode && state.canShowSpeed) {
+                    SpeedLegend(state, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+                }
             }
             HorizontalDivider()
             ParticipantList(state = state, modifier = Modifier.weight(0.38f)) { viewModel.onAction(it) }
@@ -157,6 +178,15 @@ private fun MapFilters(state: LiveTrackMapState, onAction: (LiveTrackMapAction) 
                 label = { Text("Хвост 5 мин") }
             )
         }
+        if (state.canShowSpeed || state.speedMode) {
+            item {
+                FilterChip(
+                    selected = state.speedMode,
+                    onClick = { onAction(LiveTrackMapAction.ToggleSpeedMode) },
+                    label = { Text("Скорость") }
+                )
+            }
+        }
         items(state.groups) { group ->
             FilterChip(
                 selected = group in state.selectedGroups,
@@ -172,9 +202,11 @@ private fun ParticipantList(state: LiveTrackMapState, modifier: Modifier, onActi
     LazyColumn(modifier = modifier.fillMaxWidth()) {
         items(state.visibleTracks, key = { it.sessionId }) { track ->
             val stale = track.isStale(state.serverTime)
+            val selected = state.speedSelection?.sessionId == track.sessionId
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
                     .clickable { onAction(LiveTrackMapAction.FocusTrack(track.sessionId)) }
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -202,6 +234,45 @@ private fun ParticipantList(state: LiveTrackMapState, modifier: Modifier, onActi
     }
 }
 
+/**
+ * Шкала скорости поверх карты. Шкала у каждого участника своя, поэтому темп на концах подписан,
+ * только когда на карте один раскрашенный трек.
+ */
+@Composable
+private fun SpeedLegend(state: LiveTrackMapState, modifier: Modifier) {
+    val profile: TrackSpeedProfile? = state.mapTracks.mapNotNull { state.speedProfileOf(it) }.singleOrNull()
+    val gradient = remember { (0 until SPEED_COLOR_STEPS).map { Color(speedColor(it)) } }
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Box(
+                modifier = Modifier
+                    .width(168.dp)
+                    .height(8.dp)
+                    .background(Brush.horizontalGradient(gradient), RoundedCornerShape(4.dp))
+            )
+            Row(modifier = Modifier.width(168.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(profile?.let { paceText(it.slowSpeed) } ?: "медленнее", style = MaterialTheme.typography.labelSmall)
+                Text(profile?.let { paceText(it.fastSpeed) } ?: "быстрее", style = MaterialTheme.typography.labelSmall)
+            }
+            if (state.speedSelection == null && profile == null) {
+                Text(
+                    "Нажмите на участника — только его трек",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/** Темп «М:СС /км» по скорости в м/с. */
+private fun paceText(speed: Double): String =
+    if (speed < STANDING_SPEED) "стоит" else "${(1000 / speed / 60).toPace()} /км"
+
 private fun statusText(track: ViewerTrack, serverTime: Long): String = when (track.status) {
     LiveTrackStatus.ACTIVE -> if (track.isStale(serverTime)) {
         val minutes = TimeUnit.MILLISECONDS.toMinutes(serverTime - (track.lastPointAt ?: track.startedAt)).coerceAtLeast(1)
@@ -223,7 +294,7 @@ private class OverlayHolder {
 }
 
 @Composable
-private fun LiveTrackOsmMap(state: LiveTrackMapState, focus: SharedFlow<ViewerTrack>, modifier: Modifier) {
+private fun LiveTrackOsmMap(state: LiveTrackMapState, focus: SharedFlow<TrackFocus>, modifier: Modifier) {
     val context = LocalContext.current
     val raster by produceState<Bitmap?>(initialValue = null, state.map?.url) {
         value = state.map?.url?.let { loadRaster(context, it) }
@@ -231,9 +302,14 @@ private fun LiveTrackOsmMap(state: LiveTrackMapState, focus: SharedFlow<ViewerTr
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
 
     LaunchedEffect(focus) {
-        focus.collect { track ->
+        focus.collect { (track, wholeTrack) ->
+            val mapView = mapViewRef.value ?: return@collect
             val last = track.points.lastOrNull() ?: return@collect
-            mapViewRef.value?.controller?.animateTo(GeoPoint(last.lat, last.lon))
+            if (wholeTrack && track.points.size > 1) {
+                mapView.zoomToBoundingBox(BoundingBox.fromGeoPoints(track.points.map { GeoPoint(it.lat, it.lon) }), true, 48)
+            } else {
+                mapView.controller.animateTo(GeoPoint(last.lat, last.lon))
+            }
         }
     }
 
@@ -284,7 +360,7 @@ private fun render(mapView: MapView, state: LiveTrackMapState, raster: Bitmap?) 
     mapView.overlays.removeAll(holder.dynamic)
     holder.dynamic.clear()
     holder.dynamic += controlPointOverlays(mapView, state)
-    state.visibleTracks.forEach { track -> holder.dynamic += trackOverlays(mapView, state, track) }
+    state.mapTracks.forEach { track -> holder.dynamic += trackOverlays(mapView, state, track) }
     mapView.overlays.addAll(holder.dynamic)
 
     if (!holder.initialZoomDone) {
@@ -315,14 +391,11 @@ private fun controlPointOverlays(mapView: MapView, state: LiveTrackMapState): Li
 private fun trackOverlays(mapView: MapView, state: LiveTrackMapState, track: ViewerTrack): List<Overlay> {
     val color = trackColor(state, track)
     val since = if (state.tailOnly) (track.lastPointAt ?: state.serverTime) - TAIL_WINDOW_MS else null
-    val lines = track.segments(since = since).filter { it.size > 1 }.map { segment ->
-        Polyline(mapView).apply {
-            setPoints(segment.map { GeoPoint(it.lat, it.lon) })
-            outlinePaint.color = color
-            outlinePaint.strokeWidth = 7f
-            outlinePaint.strokeCap = Paint.Cap.ROUND
-            infoWindow = null
-        }
+    val profile = state.speedProfileOf(track)
+    val lines = if (profile != null) {
+        speedLines(mapView, track, profile, since)
+    } else {
+        track.segments(since = since).filter { it.size > 1 }.map { segment -> trackLine(mapView, segment.map { GeoPoint(it.lat, it.lon) }, color, 7f) }
     }
     val last = track.points.lastOrNull() ?: return lines
     val markerColor = if (track.isStale(state.serverTime)) STALE_COLOR else color
@@ -335,6 +408,26 @@ private fun trackOverlays(mapView: MapView, state: LiveTrackMapState, track: Vie
     }
     return lines + marker
 }
+
+/** Трек по скорости: тёмная подложка по отрезкам трека и поверх неё — куски цвета своей ступени. */
+private fun speedLines(mapView: MapView, track: ViewerTrack, profile: TrackSpeedProfile, since: Long?): List<Overlay> {
+    val casing = track.segments(since = since).filter { it.size > 1 }
+        .map { segment -> trackLine(mapView, segment.map { GeoPoint(it.lat, it.lon) }, SPEED_CASING_COLOR, 11f) }
+    val chunks = profile.chunks.mapNotNull { chunk ->
+        val points = if (since == null) chunk.points else chunk.points.filter { it.t >= since }
+        if (points.size < 2) null else trackLine(mapView, points.map { GeoPoint(it.lat, it.lon) }, speedColor(chunk.level), 7f)
+    }
+    return casing + chunks
+}
+
+private fun trackLine(mapView: MapView, points: List<GeoPoint>, color: Int, width: Float): Polyline =
+    Polyline(mapView).apply {
+        setPoints(points)
+        outlinePaint.color = color
+        outlinePaint.strokeWidth = width
+        outlinePaint.strokeCap = Paint.Cap.ROUND
+        infoWindow = null
+    }
 
 /** Кружок цвета участника с его номером. */
 private fun markerIcon(context: Context, color: Int, label: String, faded: Boolean): BitmapDrawable {
