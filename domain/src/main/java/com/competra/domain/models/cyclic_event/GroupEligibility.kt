@@ -14,9 +14,27 @@ sealed interface GroupEligibility {
 
     /**
      * @property reason Текст причины для пользователя (совпадает с ответом сервера).
-     * @property fixInProfile Причину можно устранить, заполнив/исправив профиль.
+     * @property profileFix Что можно сделать в профиле, чтобы группа стала доступна.
      */
-    data class NotEligible(val reason: String, val fixInProfile: Boolean) : GroupEligibility
+    data class NotEligible(val reason: String, val profileFix: ProfileFix) : GroupEligibility
+}
+
+/** Что пользователь может сделать в профиле, чтобы группа стала доступна. */
+enum class ProfileFix {
+    /** Профиль не поможет (например, не подходит возраст). */
+    NONE,
+
+    /** Указать пол — он не заполнен. */
+    ADD_GENDER,
+
+    /** Указать дату рождения — она не заполнена. */
+    ADD_BIRTH_DATE,
+
+    /**
+     * Проверить пол: он не совпадает с полом группы. Сервер отдаёт MALE тем, кто пол не указывал,
+     * поэтому несовпадение может означать незаполненный профиль — но настойчиво это не предлагаем.
+     */
+    CHECK_GENDER
 }
 
 /**
@@ -54,7 +72,7 @@ fun competitionYear(startDate: Long, timeZoneId: String?): Int {
  * же текстами — здесь проверка нужна, чтобы не показывать кнопку, которая закончится ошибкой.
  *
  * @param userGender Пол из профиля. Сервер отдаёт MALE пользователям, не указавшим пол, поэтому
- * при несовпадении тоже предлагаем исправить профиль.
+ * при несовпадении предлагаем проверить пол в профиле ([ProfileFix.CHECK_GENDER]).
  * @param userBirthDate Дата рождения в мс; null или 0 — не указана.
  */
 fun checkGroupEligibility(
@@ -71,11 +89,11 @@ fun checkGroupEligibility(
         val gender = userGender?.takeIf { it != Gender.MIXED }
             ?: return GroupEligibility.NotEligible(
                 "Укажите пол в профиле, чтобы зарегистрироваться в группу $groupTitle",
-                fixInProfile = true
+                ProfileFix.ADD_GENDER
             )
         if (gender != requiredGender) {
             val who = if (requiredGender == Gender.MALE) "мужчин" else "женщин"
-            return GroupEligibility.NotEligible("Группа $groupTitle — только для $who", fixInProfile = true)
+            return GroupEligibility.NotEligible("Группа $groupTitle — только для $who", ProfileFix.CHECK_GENDER)
         }
     }
 
@@ -86,13 +104,13 @@ fun checkGroupEligibility(
     val born = userBirthDate?.takeIf { it != 0L }?.let(::birthYear)
         ?: return GroupEligibility.NotEligible(
             "Укажите дату рождения в профиле, чтобы зарегистрироваться в группу $groupTitle",
-            fixInProfile = true
+            ProfileFix.ADD_BIRTH_DATE
         )
     val age = competitionYear - born
     if ((min != null && age < min) || (max != null && age > max)) {
         return GroupEligibility.NotEligible(
             "Группа $groupTitle — для участников ${birthYearsRange(min, max, competitionYear)}, ваш год рождения — $born",
-            fixInProfile = false
+            ProfileFix.NONE
         )
     }
     return GroupEligibility.Eligible

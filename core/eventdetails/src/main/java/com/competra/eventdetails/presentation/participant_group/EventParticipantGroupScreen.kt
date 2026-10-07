@@ -11,11 +11,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,11 +38,15 @@ import androidx.compose.ui.unit.dp
 import com.competra.domain.models.Gender
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
 import com.competra.domain.models.cyclic_event.GroupEligibility
+import com.competra.domain.models.cyclic_event.ProfileFix
 import com.competra.domain.models.cyclic_event.birthYearsRange
 import com.competra.domain.models.cyclic_event.groupGenderRestriction
 import com.competra.domain.models.events.EventStatus
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.eventdetails.data.participant_group.EventParticipantGroupState
+import com.competra.eventdetails.data.registration.RegistrationTeamState
+import com.competra.eventdetails.presentation.registration.CheckGenderHint
+import com.competra.eventdetails.presentation.registration.RegistrationTeamField
 import com.competra.ui.BaseAction
 import com.competra.utils.DateTimeFormat
 import org.koin.androidx.compose.koinViewModel
@@ -54,6 +64,7 @@ fun EventParticipantGroupScreen(
     viewModel: EventParticipantGroupViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val teamState by viewModel.registrationTeamState.collectAsState()
 
     LaunchedEffect(eventId, participantGroup) {
         viewModel.initialize(eventId, participantGroup)
@@ -64,6 +75,98 @@ fun EventParticipantGroupScreen(
         state = state,
         onAction = viewModel::onAction
     )
+
+    if (state.isRegistrationSheetVisible) {
+        GroupRegistrationBottomSheet(
+            groupTitle = participantGroup.title,
+            isRegistering = state.isRegistering,
+            teamState = teamState,
+            onAction = viewModel::onAction
+        )
+    }
+}
+
+/**
+ * Шторка регистрации в группу: поле «Клуб/команда» и подтверждение.
+ * @param groupTitle Название группы.
+ * @param isRegistering Идёт запрос регистрации.
+ * @param teamState Состояние поля «Клуб/команда».
+ * @param onAction Обработчик действий.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GroupRegistrationBottomSheet(
+    groupTitle: String,
+    isRegistering: Boolean,
+    teamState: RegistrationTeamState,
+    onAction: (BaseAction) -> Unit
+) {
+    val onDismiss = { onAction(EventParticipantGroupAction.HideRegistrationSheet) }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { Spacer(modifier = Modifier.height(16.dp)) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Поле прокручивается, кнопки закреплены внизу — на маленьких экранах с открытой
+            // клавиатурой поле не обрезается.
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "Регистрация в группу $groupTitle",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                RegistrationTeamField(
+                    state = teamState,
+                    onCommandNameChange = { onAction(EventParticipantGroupAction.CommandNameChanged(it)) },
+                    onSuggestionSelect = { onAction(EventParticipantGroupAction.SelectTeamSuggestion(it)) },
+                    onOpenClub = { onAction(EventParticipantGroupAction.OpenClub(it)) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    enabled = !isRegistering
+                ) {
+                    Text("Отмена")
+                }
+                Button(
+                    onClick = { onAction(EventParticipantGroupAction.ConfirmRegistration) },
+                    modifier = Modifier.weight(1f),
+                    enabled = !isRegistering
+                ) {
+                    if (isRegistering) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Готово")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
 }
 
 /**
@@ -154,10 +257,14 @@ private fun NotEligibleBlock(notEligible: GroupEligibility.NotEligible, onAction
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.error
         )
-        if (notEligible.fixInProfile) {
-            TextButton(onClick = { onAction(EventParticipantGroupAction.OpenProfile) }) {
-                Text(text = "Открыть профиль")
-            }
+        when (notEligible.profileFix) {
+            ProfileFix.ADD_GENDER, ProfileFix.ADD_BIRTH_DATE ->
+                TextButton(onClick = { onAction(EventParticipantGroupAction.OpenProfile) }) {
+                    Text(text = "Открыть профиль")
+                }
+            ProfileFix.CHECK_GENDER ->
+                CheckGenderHint(onOpenProfile = { onAction(EventParticipantGroupAction.OpenProfile) })
+            ProfileFix.NONE -> Unit
         }
     }
 }

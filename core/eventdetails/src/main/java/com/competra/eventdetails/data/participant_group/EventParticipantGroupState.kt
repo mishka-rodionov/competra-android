@@ -16,6 +16,7 @@ import com.competra.ui.BaseState
  * @property isUserRegistered Зарегистрирован ли текущий пользователь в **этой** группе.
  * @property isUserRegisteredInEvent Зарегистрирован ли пользователь хоть в какой-либо группе данного события.
  * @property isRegistering Флаг процесса регистрации/отмены регистрации.
+ * @property isRegistrationSheetVisible Видимость шторки регистрации (поле «Клуб/команда» и подтверждение).
  * @property eventStatus Текущий статус события. Кнопка регистрации показывается только при [EventStatus.REGISTRATION].
  * @property competitionYear Год соревнования в его часовом поясе — от него считается возраст (по году рождения).
  * @property eligibility Подходит ли группа вошедшему пользователю по полу и возрасту; null — не вошёл или не загружено.
@@ -28,6 +29,7 @@ data class EventParticipantGroupState(
     val isUserRegistered: Boolean = false,
     val isUserRegisteredInEvent: Boolean = false,
     val isRegistering: Boolean = false,
+    val isRegistrationSheetVisible: Boolean = false,
     val eventStatus: EventStatus? = null,
     val competitionYear: Int? = null,
     val eligibility: GroupEligibility? = null

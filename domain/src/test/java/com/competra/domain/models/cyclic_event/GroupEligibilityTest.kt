@@ -23,6 +23,8 @@ class GroupEligibilityTest {
 
     private fun reason(result: GroupEligibility) = (result as GroupEligibility.NotEligible).reason
 
+    private fun profileFix(result: GroupEligibility) = (result as GroupEligibility.NotEligible).profileFix
+
     @Test
     fun `group gender accepts both web and android formats`() {
         assertEquals(Gender.MALE, groupGenderRestriction("M"))
@@ -51,13 +53,14 @@ class GroupEligibilityTest {
     fun `gender is checked`() {
         assertEquals(GroupEligibility.Eligible, check(groupGender = "M"))
         assertEquals(
-            GroupEligibility.NotEligible("Группа М14 — только для женщин", fixInProfile = true),
+            GroupEligibility.NotEligible("Группа М14 — только для женщин", ProfileFix.CHECK_GENDER),
             check(groupGender = "FEMALE")
         )
         assertEquals(
             "Укажите пол в профиле, чтобы зарегистрироваться в группу М14",
             reason(check(groupGender = "F", userGender = null))
         )
+        assertEquals(ProfileFix.ADD_GENDER, profileFix(check(groupGender = "F", userGender = null)))
     }
 
     @Test
@@ -68,7 +71,7 @@ class GroupEligibilityTest {
         assertEquals(
             GroupEligibility.NotEligible(
                 "Группа М14 — для участников 2011–2012 г.р., ваш год рождения — 2013",
-                fixInProfile = false
+                ProfileFix.NONE
             ),
             check(minAge = 14, maxAge = 15, birthDate = utcMidnight("2013-01-01"))
         )
@@ -93,6 +96,7 @@ class GroupEligibilityTest {
             "Укажите дату рождения в профиле, чтобы зарегистрироваться в группу М14",
             reason(check(maxAge = 14, birthDate = 0L))
         )
+        assertEquals(ProfileFix.ADD_BIRTH_DATE, profileFix(check(maxAge = 14, birthDate = 0L)))
         assertNull(birthYearsRange(null, 0, 2026))
     }
 }

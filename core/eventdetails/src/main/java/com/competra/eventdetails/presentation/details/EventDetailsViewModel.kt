@@ -12,13 +12,11 @@ import com.competra.data.navigation.TabRoutes
 import com.competra.domain.exception.NetworkException
 import com.competra.domain.models.NetworkErrorEvent
 import com.competra.domain.models.cyclic_event.EventParticipantGroup
-import com.competra.domain.models.cyclic_event.COMMAND_NAME_MAX_LENGTH
 import com.competra.domain.models.cyclic_event.GroupEligibility
 import com.competra.domain.models.cyclic_event.TeamSuggestion
 import com.competra.domain.models.cyclic_event.checkGroupEligibility
 import com.competra.domain.models.cyclic_event.competitionYear
 import com.competra.domain.models.cyclic_event.normalizeCommandName
-import com.competra.domain.models.cyclic_event.ownOptionFor
 import com.competra.domain.models.cyclic_event.teamIdFor
 import com.competra.domain.models.cyclic_event.teamSourceFor
 import com.competra.domain.models.user.User
@@ -38,12 +36,14 @@ import com.competra.domain.repository.livetrack.LiveTrackLocalRepository
 import com.competra.domain.repository.livetrack.LiveTrackViewerRepository
 import com.competra.eventdetails.data.details.EventDetailsState
 import com.competra.eventdetails.data.details.LiveTrackEntry
+import com.competra.eventdetails.data.registration.RegistrationTeamState
+import com.competra.eventdetails.presentation.registration.RegistrationTeamDelegate
 import com.competra.ui.BaseAction
 import com.competra.ui.viewmodel.BaseViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
@@ -85,8 +85,10 @@ class EventDetailsViewModel(
     private var currentUser: User? = null
     private var liveTrackSession: RunnerTrackSession? = null
     private var liveTrackJob: Job? = null
-    private var teamOptionsJob: Job? = null
-    private var clubMatchJob: Job? = null
+    private val registrationTeam = RegistrationTeamDelegate(cyclicEventDetailsRepository, viewModelScope)
+
+    /** Состояние поля «Клуб/команда» в BottomSheet регистрации. */
+    val registrationTeamState: StateFlow<RegistrationTeamState> = registrationTeam.state
 
     private val _liveTrackPermissionRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -104,8 +106,8 @@ class EventDetailsViewModel(
             is EventDetailsAction.ShowRegistrationDialog -> showRegistrationDialog()
             is EventDetailsAction.HideRegistrationDialog -> hideRegistrationDialog()
             is EventDetailsAction.SelectGroup -> selectGroup(action.group)
-            is EventDetailsAction.CommandNameChanged -> changeCommandName(action.commandName)
-            is EventDetailsAction.SelectTeamSuggestion -> changeCommandName(action.suggestion.label)
+            is EventDetailsAction.CommandNameChanged -> registrationTeam.changeCommandName(action.commandName)
+            is EventDetailsAction.SelectTeamSuggestion -> registrationTeam.changeCommandName(action.suggestion.label)
             is EventDetailsAction.OpenClub -> openClub(action.clubId)
             is EventDetailsAction.ConfirmRegistration -> confirmRegistration()
             is EventDetailsAction.OpenProfile -> {
@@ -191,65 +193,12 @@ class EventDetailsViewModel(
     private fun openRegistrationSheet() {
         updateState { copy(isRegistrationSheetVisible = true) }
         val eventId = stateValue.eventDetails?.eventId ?: return
-        teamOptionsJob?.cancel()
-        teamOptionsJob = viewModelScope.launch {
-            // Ошибка не критична: поле остаётся обычным текстовым, без подсказок.
-            cyclicEventDetailsRepository.getRegistrationTeamOptions(eventId)
-                .onSuccess { options ->
-                    updateState {
-                        copy(
-                            teamOptions = options,
-                            // Не перетираем то, что пользователь успел ввести, пока шёл запрос.
-                            commandName = if (isCommandNameEdited) commandName else options.suggestedCommandName.orEmpty()
-                        )
-                    }
-                    scheduleClubMatch()
-                }
-        }
+        registrationTeam.load(eventId)
     }
 
     private fun hideRegistrationDialog() {
-        teamOptionsJob?.cancel()
-        clubMatchJob?.cancel()
-        updateState {
-            copy(
-                isRegistrationSheetVisible = false,
-                selectedGroup = null,
-                commandName = "",
-                isCommandNameEdited = false,
-                clubMatches = emptyList()
-            )
-        }
-    }
-
-    private fun changeCommandName(commandName: String) {
-        updateState {
-            copy(
-                commandName = commandName.take(COMMAND_NAME_MAX_LENGTH),
-                isCommandNameEdited = true,
-                clubMatches = emptyList()
-            )
-        }
-        scheduleClubMatch()
-    }
-
-    /**
-     * Ищет клуб с названием, совпадающим с подписью команды, чтобы предложить вступить в него.
-     * Не ищет, если подпись — своя команда/клуб. Запрос откладывается, пока пользователь печатает.
-     */
-    private fun scheduleClubMatch() {
-        clubMatchJob?.cancel()
-        val commandName = stateValue.commandName
-        val normalized = normalizeCommandName(commandName) ?: return
-        if (normalized.length < CLUB_MATCH_MIN_LENGTH) return
-        if (stateValue.teamOptions.ownOptionFor(commandName) != null) return
-        clubMatchJob = viewModelScope.launch {
-            delay(CLUB_MATCH_DEBOUNCE_MS)
-            cyclicEventDetailsRepository.matchClubs(normalized)
-                .onSuccess { matches ->
-                    updateState { if (this.commandName == commandName) copy(clubMatches = matches) else this }
-                }
-        }
+        registrationTeam.reset()
+        updateState { copy(isRegistrationSheetVisible = false, selectedGroup = null) }
     }
 
     /** Переход в карточку клуба (вкладка «Клубы») из подсказки под полем команды. */
@@ -290,8 +239,8 @@ class EventDetailsViewModel(
         val eventId = stateValue.eventDetails?.eventId ?: return
         val user = currentUser ?: return
 
-        val commandName = stateValue.commandName
-        val teamOptions = stateValue.teamOptions
+        val commandName = registrationTeam.state.value.commandName
+        val teamOptions = registrationTeam.state.value.teamOptions
 
         viewModelScope.launch {
             updateState { copy(isRegistering = true, error = null) }
@@ -311,15 +260,12 @@ class EventDetailsViewModel(
                             teamSource = AnalyticsEvent.RegistrationTeamSource.valueOf(teamSource.name)
                         )
                     )
-                    clubMatchJob?.cancel()
+                    registrationTeam.reset()
                     updateState {
                         copy(
                             isRegistering = false,
                             isRegistrationSheetVisible = false,
                             selectedGroup = null,
-                            commandName = "",
-                            isCommandNameEdited = false,
-                            clubMatches = emptyList(),
                             isUserRegistered = true
                         )
                     }
@@ -506,14 +452,6 @@ class EventDetailsViewModel(
             val code = (throwable as? NetworkException)?.code
             networkErrorRepository.emit(NetworkErrorEvent(code = code, message = throwable.message))
         }
-    }
-
-    private companion object {
-        /** Пауза после последнего ввода перед поиском клуба по названию. */
-        const val CLUB_MATCH_DEBOUNCE_MS = 500L
-
-        /** Короче — не ищем клуб: слишком много случайных совпадений. */
-        const val CLUB_MATCH_MIN_LENGTH = 2
     }
 }
 
