@@ -11,6 +11,7 @@ import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.ControlPoint
 import com.competra.domain.models.orienteering.ControlPointRole
@@ -172,7 +173,14 @@ class OrientReadCardViewModel(
                     )
                 }
                 if (direction != null) {
-                    updateState { copy(competitionDirection = direction, startTimeMode = startTimeMode ?: this.startTimeMode) }
+                    val byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
+                    updateState {
+                        copy(
+                            competitionDirection = direction,
+                            byChoiceMode = byChoiceMode,
+                            startTimeMode = startTimeMode ?: this.startTimeMode
+                        )
+                    }
                     // updateState — fire-and-forget (постит апдейт на Main.immediate и не ждёт его
                     // применения). Если чип уже лежит на ридере в момент открытия экрана (обычный
                     // рабочий процесс судьи), скан может дойти до subscribeToReadCard раньше, чем
@@ -180,7 +188,7 @@ class OrientReadCardViewModel(
                     // ошибочно уйдёт в ветку checkControlPointOrderPro (без дедупликации повторных
                     // отметок и без учёта баллов КП) вместо computeByChoiceResult. Дожидаемся
                     // реального применения, чтобы гарантировать порядок.
-                    state.first { it.competitionDirection == direction }
+                    state.first { it.competitionDirection == direction && it.byChoiceMode == byChoiceMode }
                 }
             }
             sportiduinoHelper.subscribeToReadCard { chipData ->
@@ -556,6 +564,9 @@ class OrientReadCardViewModel(
         if (stateValue.competitionDirection != OrienteeringDirection.BY_CHOICE) {
             return checkControlPointOrderPro(expected, punchesAfterStart(actual, startTime))
         }
+        if (stateValue.byChoiceMode == ByChoiceMode.MIN_CONTROLS) {
+            return computeMinControlsResult(expected, actual, startTime, getDistance(groupId)?.minControlsCount)
+        }
         val group = orienteeringCompetitionInteractor.getParticipantGroup(groupId).getOrNull()
             ?: return CheckResult(ResultStatus.DSQ, "Группа участника не найдена")
         return computeByChoiceResult(expected, actual, startTime, group)
@@ -678,6 +689,55 @@ fun computeByChoiceResult(
         totalScore = finalScore,
         scorePenalty = scorePenalty
     )
+}
+
+/**
+ * Проверка отметок для формата «по выбору» с минимумом КП ([ByChoiceMode.MIN_CONTROLS]): порядок
+ * взятия КП не важен, повторные отметки одного КП засчитываются один раз, отметки до старта и
+ * чужих КП отбрасываются. Нужно взять все обязательные ([ControlPointRole.REQUIRED]) КП и не меньше
+ * [minControlsCount] КП дистанции (null — все); финишная станция в это число не входит. Иначе — DSQ
+ * с причиной. Баллов нет: [CheckResult.totalScore] остаётся null, места считаются по времени.
+ *
+ * @param expected КП дистанции плюс финишный пункт ([com.competra.domain.models.orienteering.expectedSequence]).
+ */
+fun computeMinControlsResult(
+    expected: List<ControlPoint>,
+    actual: List<SplitTime>,
+    startTime: Long,
+    minControlsCount: Int?
+): CheckResult {
+    val controls = expected.filter { it.role != ControlPointRole.FINISH }
+    if (controls.isEmpty()) {
+        return CheckResult(ResultStatus.DSQ, "Для группы не заданы КП")
+    }
+    if (actual.isEmpty()) {
+        return CheckResult(ResultStatus.DSQ, "В чипе нет отметок")
+    }
+
+    val expectedNumbers = expected.map { it.number }.toSet()
+    // Как и в computeByChoiceResult: отметки до старта отбрасываем до дедупликации, иначе отметка
+    // в стартовом городке вытеснила бы настоящую отметку этого КП.
+    val dedupedSplits = punchesAfterStart(actual, startTime)
+        .sortedBy { it.timestamp }
+        .distinctBy { it.controlPoint }
+        .filter { it.controlPoint in expectedNumbers }
+
+    val controlNumbers = controls.map { it.number }.toSet()
+    val takenNumbers = dedupedSplits.map { it.controlPoint }.filter { it in controlNumbers }.toSet()
+
+    val missingRequired = controls
+        .filter { it.role == ControlPointRole.REQUIRED }
+        .firstOrNull { it.number !in takenNumbers }
+    if (missingRequired != null) {
+        return CheckResult(ResultStatus.DSQ, "Пропущен обязательный КП ${missingRequired.number}")
+    }
+
+    val needed = minControlsCount?.takeIf { it > 0 }?.coerceAtMost(controlNumbers.size) ?: controlNumbers.size
+    if (takenNumbers.size < needed) {
+        return CheckResult(ResultStatus.DSQ, "Взято ${takenNumbers.size} из $needed КП")
+    }
+
+    return CheckResult(status = ResultStatus.FINISHED, validSplits = dedupedSplits)
 }
 
 /**

@@ -135,10 +135,13 @@ sealed class AnalyticsEvent(
         mapOf("step" to step.name.lowercase()),
     )
 
-    /** Мастер создания соревнования прошёл до конца. */
-    class CreateCompetitionFinished(competitionId: String, kindOfSport: String) : AnalyticsEvent(
+    /**
+     * Мастер создания соревнования прошёл до конца.
+     * [format] — forward / marking / by_choice_score / by_choice_min_controls.
+     */
+    class CreateCompetitionFinished(competitionId: String, kindOfSport: String, format: String) : AnalyticsEvent(
         "create_competition_finished",
-        mapOf("competition_id" to competitionId, "kind_of_sport" to kindOfSport),
+        mapOf("competition_id" to competitionId, "kind_of_sport" to kindOfSport, "format" to format),
     )
 
     /** Пользователь подтвердил удаление соревнования. */

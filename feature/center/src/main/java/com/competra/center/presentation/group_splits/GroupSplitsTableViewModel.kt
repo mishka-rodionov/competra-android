@@ -5,6 +5,7 @@ import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.center.data.group_splits.GroupSplitsTableState
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.buildSplitsTable
 import com.competra.domain.models.orienteering.sortedForResults
@@ -37,7 +38,13 @@ class GroupSplitsTableViewModel(
             val distance = interactor.getDistanceById(group.group.distanceId).getOrNull()
             val table = buildSplitsTable(sortedGroup, distance, direction)
             updateState {
-                copy(groupTitle = sortedGroup.group.title, table = table, direction = direction, isLoading = false)
+                copy(
+                    groupTitle = sortedGroup.group.title,
+                    table = table,
+                    direction = direction,
+                    byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                    isLoading = false
+                )
             }
         }
     }

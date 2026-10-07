@@ -24,6 +24,7 @@ import com.competra.center.data.read_card.OrientReadCardAction
 import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.ControlPoint
 import com.competra.domain.models.orienteering.ControlPointRole
 import com.competra.domain.models.orienteering.OrienteeringDirection
@@ -32,6 +33,7 @@ import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.SplitTime
 import com.competra.domain.models.orienteering.controlPointDistanceMeters
 import com.competra.domain.models.orienteering.paceMinPerKm
+import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.resources.R
 import com.competra.utils.DateTimeFormat
 import com.competra.utils.orienteering.toPace
@@ -78,6 +80,7 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                         startControlPoint = state.startControlPoint,
                         startPoint = state.startPoint,
                         competitionDirection = state.competitionDirection,
+                        byChoiceMode = state.byChoiceMode,
                         isPendingSave = state.isPendingSave,
                         isReadOnly = state.isCompetitionFinished,
                         statusMessage = state.statusMessage,
@@ -223,6 +226,7 @@ private fun ReadCardContent(
     startControlPoint: Int? = null,
     startPoint: ControlPoint? = null,
     competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     isPendingSave: Boolean = false,
     isReadOnly: Boolean = false,
     statusMessage: String? = null,
@@ -269,7 +273,7 @@ private fun ReadCardContent(
         // Карточка итогового времени
         if (result != null) {
             item {
-                RaceSummaryCard(participant, result, groupRank, groupTotalFinished, competitionDirection)
+                RaceSummaryCard(participant, result, groupRank, groupTotalFinished, competitionDirection, byChoiceMode)
             }
 
             // Секция сплитов
@@ -302,6 +306,7 @@ private fun ReadCardContent(
                         startControlPoint = startControlPoint,
                         startPoint = startPoint,
                         competitionDirection = competitionDirection,
+                        byChoiceMode = byChoiceMode,
                         onEditSplit = if (isReadOnly) null else onEditSplit,
                         onCreditCp = if (isPendingSave) onCreditCp else null,
                     )
@@ -428,8 +433,10 @@ internal fun RaceSummaryCard(
     groupRank: Int? = null,
     groupTotalFinished: Int = 0,
     competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
 ) {
-    val isByChoice = competitionDirection == OrienteeringDirection.BY_CHOICE
+    // Баллы — только в score-О; «по выбору» с минимумом КП, как и остальные форматы, — по времени.
+    val isByChoice = ranksByScore(competitionDirection, byChoiceMode)
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
@@ -683,15 +690,25 @@ internal fun SplitsCard(
     startControlPoint: Int? = null,
     startPoint: ControlPoint? = null,
     competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     onEditSplit: ((index: Int) -> Unit)? = null,
     onCreditCp: ((cpNumber: Int, distanceOrdinal: Int) -> Unit)? = null,
 ) {
     val isByChoice = competitionDirection == OrienteeringDirection.BY_CHOICE
+    // Колонка «Очки» — только в score-О; в «по выбору» с минимумом КП там помечаются обязательные КП.
+    val showsScore = ranksByScore(competitionDirection, byChoiceMode)
     val requiredCpNumbers = remember(expectedControlPoints) {
         expectedControlPoints.filter { it.role == ControlPointRole.REQUIRED }.map { it.number }.toSet()
     }
     val scoreByNumber = remember(expectedControlPoints) {
         expectedControlPoints.associate { it.number to it.score }
+    }
+    val byChoiceMarker: (cpNumber: Int) -> String = { cpNumber ->
+        when {
+            showsScore -> (scoreByNumber[cpNumber] ?: 0).toString()
+            cpNumber in requiredCpNumbers -> "Обяз."
+            else -> ""
+        }
     }
     val displayItems = remember(splits, expectedCpOrder, requiredCpNumbers, isByChoice, startControlPoint, participant.startTime) {
         buildSplitDisplayItems(splits, expectedCpOrder, requiredCpNumbers, isByChoice, startControlPoint, participant.startTime)
@@ -712,7 +729,11 @@ internal fun SplitsCard(
             ) {
                 Text(text = "Факт", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(0.6f))
                 Text(
-                    text = if (isByChoice) "Очки" else "Дист",
+                    text = when {
+                        showsScore -> "Очки"
+                        isByChoice -> ""
+                        else -> "Дист"
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.weight(0.6f)
                 )
@@ -784,7 +805,7 @@ internal fun SplitsCard(
                             )
                             Text(
                                 text = if (isByChoice) {
-                                    (scoreByNumber[item.split.controlPoint] ?: 0).toString()
+                                    byChoiceMarker(item.split.controlPoint)
                                 } else {
                                     item.distanceOrdinal?.toString() ?: when {
                                         item.isPreStart -> "До ст."
@@ -865,7 +886,7 @@ internal fun SplitsCard(
                             )
                             Text(
                                 text = if (isByChoice) {
-                                    (scoreByNumber[item.cpNumber] ?: 0).toString()
+                                    byChoiceMarker(item.cpNumber)
                                 } else {
                                     item.distanceOrdinal.toString()
                                 },

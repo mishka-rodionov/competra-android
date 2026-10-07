@@ -31,6 +31,8 @@ import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.Gender
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
@@ -115,6 +117,7 @@ fun LiveResultsScreen(
                         LiveResultsList(
                             participants = groups[page].participants,
                             direction = state.direction,
+                            byChoiceMode = state.byChoiceMode,
                             onParticipantClick = { viewModel.onAction(LiveResultsAction.ShowSplits(it)) }
                         )
                     }
@@ -175,6 +178,7 @@ private fun LiveResultsHeader(lastUpdated: Long?) {
 private fun LiveResultsList(
     participants: List<ParticipantWithResult>,
     direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     onParticipantClick: (ParticipantWithResult) -> Unit
 ) {
     LazyColumn(
@@ -199,6 +203,7 @@ private fun LiveResultsList(
             LiveResultRow(
                 item = item,
                 direction = direction,
+                byChoiceMode = byChoiceMode,
                 onClick = { onParticipantClick(item) }
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -208,16 +213,18 @@ private fun LiveResultsList(
 
 /**
  * Для формата "по выбору" (BY_CHOICE) клик по строке отключён — просмотр сплитов не имеет
- * смысла (порядок посещения КП не регламентирован), вместо времени показываются баллы и время
- * вместе (приоритет в определении победителя у баллов).
+ * смысла (порядок посещения КП не регламентирован). В score-О вместо времени показываются баллы
+ * и время вместе (приоритет в определении победителя у баллов), в «по выбору» с минимумом КП — время.
  */
 @Composable
 private fun LiveResultRow(
     item: ParticipantWithResult,
     direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     onClick: () -> Unit
 ) {
     val isByChoice = direction == OrienteeringDirection.BY_CHOICE
+    val showsScore = ranksByScore(direction, byChoiceMode)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -235,7 +242,7 @@ private fun LiveResultRow(
             modifier = Modifier.weight(0.5f),
             style = MaterialTheme.typography.bodyMedium
         )
-        if (isByChoice && item.result?.status == ResultStatus.FINISHED) {
+        if (showsScore && item.result?.status == ResultStatus.FINISHED) {
             Column(modifier = Modifier.weight(0.25f)) {
                 Text(
                     text = formatResultScore(item.result),

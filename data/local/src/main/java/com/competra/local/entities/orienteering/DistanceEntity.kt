@@ -49,6 +49,8 @@ data class DistanceEntity(
     val startLongitude: Double? = null,
     val finishLatitude: Double? = null,
     val finishLongitude: Double? = null,
+    // Минимум КП для «по выбору» с минимумом КП; null — все КП.
+    val minControlsCount: Int? = null,
     // Геопривязанная карта дистанции (см. DistanceMap): плоские колонки, как на сервере.
     val mapUrl: String? = null,
     val mapTopLeftLat: Double? = null,

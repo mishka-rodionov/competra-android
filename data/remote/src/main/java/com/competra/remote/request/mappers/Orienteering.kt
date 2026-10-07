@@ -25,6 +25,7 @@ fun OrienteeringCompetition.toRequest(): OrienteeringCompetitionRequest {
         startIntervalSeconds = startIntervalSeconds,
         controlTimeMinutes = controlTimeMinutes,
         overtimePolicy = overtimePolicy.name,
+        byChoiceMode = byChoiceMode.name,
         serverUpdatedAt = serverUpdatedAt
     )
 }
@@ -61,6 +62,8 @@ fun Distance.toRequest(): DistanceRequest {
         controlPoints = controlPoints.map { it.toRequest() },
         finishControlPoint = finishControlPoint,
         startControlPoint = startControlPoint,
+        // Клиент поле знает, поэтому шлёт его всегда: 0 — «все КП» (null для сервера — «не менять»).
+        minControlsCount = minControlsCount ?: 0,
         serverUpdatedAt = serverUpdatedAt
     )
 }

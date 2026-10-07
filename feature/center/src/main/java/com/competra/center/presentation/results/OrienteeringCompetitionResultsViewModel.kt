@@ -14,6 +14,8 @@ import com.competra.data.navigation.CenterNavigation
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
 import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
@@ -91,6 +93,7 @@ class OrienteeringCompetitionResultsViewModel(
                     copy(
                         groupsWithParticipantsAndResults = sortedResults,
                         direction = direction,
+                        byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
                         isApproved = isApproved,
                         isCompetitionFinished = isCompetitionFinished,
                         competitionTitle = competition?.competition?.title ?: "",
@@ -444,7 +447,7 @@ class OrienteeringCompetitionResultsViewModel(
             // надёжно из totalScore/scorePenalty (при обнулении баллов за сильное опоздание
             // totalScore=0, а scorePenalty может быть больше фактически заработанных баллов).
             val distancesByGroupId = loadDistancesByGroupId(groups)
-            val html = buildHtmlContent(title, groups, stateValue.direction, distancesByGroupId)
+            val html = buildHtmlContent(title, groups, stateValue.direction, stateValue.byChoiceMode, distancesByGroupId)
             val bytes = html.toByteArray(Charsets.UTF_8)
             uploadRepository.uploadFile(bytes, "results.html", "competition_results")
                 .onSuccess { url ->
@@ -497,9 +500,13 @@ class OrienteeringCompetitionResultsViewModel(
         title: String,
         groups: List<GroupWithParticipantsAndResults>,
         direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+        byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
         distancesByGroupId: Map<Long, Distance?> = emptyMap()
     ): String {
         val isByChoice = direction == OrienteeringDirection.BY_CHOICE
+        // Баллы и отставание внутри равных по баллам — только в score-О; «по выбору» с минимумом
+        // КП, как и остальные форматы, — время и отставание от лидера.
+        val showsScore = ranksByScore(direction, byChoiceMode)
         val sb = StringBuilder()
         sb.append(
             """<!DOCTYPE html>
@@ -556,7 +563,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
             // Для BY_CHOICE отставание имеет смысл только между участниками с одинаковыми
             // очками — время не является общим критерием ранжирования (первичны баллы), сравнивать
             // "отставание" по времени между разными по очкам участниками нельзя.
-            val byChoiceTieGroups = if (isByChoice) {
+            val byChoiceTieGroups = if (showsScore) {
                 group.participants
                     .filter { it.result?.status == ResultStatus.FINISHED }
                     .groupBy { it.result?.totalScore ?: 0 }
@@ -586,7 +593,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
 
                 val totalTime = pw.result?.totalTime?.toRaceTime() ?: ""
                 val statusText = when (pw.result?.status) {
-                    ResultStatus.FINISHED -> if (isByChoice) {
+                    ResultStatus.FINISHED -> if (showsScore) {
                         val netScore = pw.result?.totalScore ?: 0
                         val penalty = pw.result?.scorePenalty ?: 0
                         // Реальные "сырые" баллы — сумма очков по фактически взятым КП
@@ -611,7 +618,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
                 sb.append("<td><nobr>$statusText</td>")
                 sb.append("<td><nobr>${pw.result?.displayPlace?.toString() ?: ""}</td>")
 
-                val gap = if (isByChoice) {
+                val gap = if (showsScore) {
                     // Отставание считаем только внутри группы участников с одинаковыми очками —
                     // относительно самого быстрого из них по времени прохождения.
                     val tieGroup = byChoiceTieGroups[pw.result?.totalScore ?: 0].orEmpty()

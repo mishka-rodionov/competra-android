@@ -5,6 +5,7 @@ import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.data.navigation.EventsNavigation
 import com.competra.data.navigation.Navigation
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.ParticipantWithResult
@@ -31,6 +32,7 @@ data class EventResultsState(
     val groupsWithResults: List<GroupWithParticipantsAndResults> = emptyList(),
     val selectedParticipant: ParticipantWithResult? = null,
     val direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     /** Привязка ручных результатов к аккаунту — только для авторизованного пользователя. */
     val link: ResultLinkState = ResultLinkState(),
 ) : BaseState
@@ -192,7 +194,8 @@ class EventResultsViewModel(
             val participantsDeferred = async { remoteRepository.getParticipantsForCompetition(eventId).getOrNull() ?: emptyList() }
             val resultsDeferred = async { remoteRepository.getResultsByCompetition(eventId).getOrNull() ?: emptyList() }
 
-            val direction = competitionDeferred.await()?.direction ?: OrienteeringDirection.FORWARD
+            val competition = competitionDeferred.await()
+            val direction = competition?.direction ?: OrienteeringDirection.FORWARD
             val groups = groupsDeferred.await()
             val participants = participantsDeferred.await()
             val results = resultsDeferred.await()
@@ -221,6 +224,7 @@ class EventResultsViewModel(
                     isLoading = false,
                     groupsWithResults = groupsWithResults,
                     direction = direction,
+                    byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
                     selectedParticipant = refreshedSelection
                 )
             }

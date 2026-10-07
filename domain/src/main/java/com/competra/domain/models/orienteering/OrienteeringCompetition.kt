@@ -18,6 +18,7 @@ import com.competra.domain.models.Competition
  * @property controlTimeMinutes Контрольное время соревнования в минутах — умолчание для групп
  * без своего КВ (группа переопределяет его через ParticipantGroup.timeLimitMinutes)
  * @property overtimePolicy Что делать с результатами, превысившими КВ
+ * @property byChoiceMode Итог формата «по выбору»: по баллам или по минимуму КП (только для [OrienteeringDirection.BY_CHOICE])
  */
 data class OrienteeringCompetition(
     val competitionId: String,
@@ -30,6 +31,7 @@ data class OrienteeringCompetition(
     val startIntervalSeconds: Int? = null,
     val controlTimeMinutes: Int? = null,
     val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
+    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     val isDrawConducted: Boolean = false,
     val serverUpdatedAt: Long? = null
 )

@@ -1,6 +1,7 @@
 package com.competra.center.data.read_card
 
 import com.competra.domain.models.orienteering.ControlPoint
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
@@ -16,6 +17,8 @@ data class OrientReadCardState(
     val isCompetitionFinished: Boolean = false,
     /** Формат соревнования (FORWARD/BY_CHOICE/MARKING) — определяет алгоритм проверки отметок. */
     val competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    /** Итог формата «по выбору»: по баллам (score-О) или по минимуму КП — выбирает алгоритм проверки BY_CHOICE. */
+    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     /**
      * Режим определения времени старта соревнования. При [StartTimeMode.BY_START_STATION]
      * реальное время старта участника берётся из отметки на стартовом КП его чипа

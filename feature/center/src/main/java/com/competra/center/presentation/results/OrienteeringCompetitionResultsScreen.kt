@@ -29,6 +29,8 @@ import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.components.clickRipple
 import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.ParticipantWithResult
 import com.competra.domain.models.orienteering.ResultsStatus
@@ -304,7 +306,11 @@ fun OrienteeringCompetitionResultsScreen(
                             // отставания от лидера по времени показываем график набора очков
                             // во времени (у каждого свой набор и порядок КП, победитель
                             // определяется по сумме баллов, а не по времени на перегонах).
-                            TextButton(
+                            // В «по выбору» с минимумом КП нет ни баллов, ни общего порядка —
+                            // графика нет.
+                            if (state.direction != OrienteeringDirection.BY_CHOICE ||
+                                state.byChoiceMode == ByChoiceMode.SCORE
+                            ) TextButton(
                                 onClick = {
                                     val action = if (state.direction == OrienteeringDirection.BY_CHOICE) {
                                         OrienteeringCompetitionResultsViewModel.OrienteeringResultsAction.OpenScoreGraph(
@@ -326,6 +332,7 @@ fun OrienteeringCompetitionResultsScreen(
                         ResultParticipantCard(
                             result = participantWithResult,
                             direction = state.direction,
+                            byChoiceMode = state.byChoiceMode,
                             onEditClick = {
                                 selectedParticipant = participantWithResult
                                 showBottomSheet = true
@@ -427,9 +434,11 @@ fun ResultParticipantCard(
     result: ParticipantWithResult,
     onEditClick: () -> Unit,
     direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     onCardClick: (() -> Unit)? = null
 ) {
-    val isByChoice = direction == OrienteeringDirection.BY_CHOICE
+    // Баллы — только в score-О; в «по выбору» с минимумом КП показывается время.
+    val isByChoice = ranksByScore(direction, byChoiceMode)
     Card(
         modifier = Modifier
             .fillMaxWidth()

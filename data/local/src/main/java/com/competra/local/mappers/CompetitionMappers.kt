@@ -28,6 +28,7 @@ fun OrienteeringCompetition.toEntity(): OrienteeringCompetitionEntity {
         startIntervalSeconds = this.startIntervalSeconds,
         controlTimeMinutes = this.controlTimeMinutes,
         overtimePolicy = this.overtimePolicy,
+        byChoiceMode = this.byChoiceMode,
         isDrawConducted = this.isDrawConducted,
         serverUpdatedAt = this.serverUpdatedAt
     )
@@ -58,6 +59,7 @@ fun OrienteeringCompetitionEntity.toDomain(): OrienteeringCompetition {
         startIntervalSeconds = this.startIntervalSeconds,
         controlTimeMinutes = this.controlTimeMinutes,
         overtimePolicy = this.overtimePolicy,
+        byChoiceMode = this.byChoiceMode,
         isDrawConducted = this.isDrawConducted,
         serverUpdatedAt = this.serverUpdatedAt
     )
@@ -264,6 +266,7 @@ fun Distance.toEntity(): DistanceEntity {
         startLongitude = this.startPosition?.longitude,
         finishLatitude = this.finishPosition?.latitude,
         finishLongitude = this.finishPosition?.longitude,
+        minControlsCount = this.minControlsCount,
         mapUrl = this.map?.url,
         mapTopLeftLat = this.map?.topLeft?.latitude,
         mapTopLeftLng = this.map?.topLeft?.longitude,
@@ -297,6 +300,7 @@ fun DistanceEntity.toDomain(): Distance {
         startControlPoint = this.startControlPoint,
         startPosition = coordinatesOrNull(startLatitude, startLongitude),
         finishPosition = coordinatesOrNull(finishLatitude, finishLongitude),
+        minControlsCount = this.minControlsCount,
         map = DistanceMap.fromFields(
             url = mapUrl,
             topLeftLat = mapTopLeftLat,

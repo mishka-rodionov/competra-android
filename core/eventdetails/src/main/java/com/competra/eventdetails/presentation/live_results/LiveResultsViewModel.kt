@@ -2,6 +2,7 @@ package com.competra.eventdetails.presentation.live_results
 
 import androidx.lifecycle.viewModelScope
 import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
@@ -23,7 +24,8 @@ data class LiveResultsState(
     val isLoading: Boolean = true,
     val lastUpdated: Long? = null,
     val selectedParticipant: ParticipantWithResult? = null,
-    val direction: OrienteeringDirection = OrienteeringDirection.FORWARD
+    val direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT
 ) : BaseState
 
 sealed interface LiveResultsAction : BaseAction {
@@ -69,7 +71,8 @@ class LiveResultsViewModel(
             remoteRepository.getResultsByCompetition(eventId).getOrNull() ?: emptyList()
         }
 
-        val direction = competitionDeferred.await()?.direction ?: OrienteeringDirection.FORWARD
+        val competition = competitionDeferred.await()
+        val direction = competition?.direction ?: OrienteeringDirection.FORWARD
         val groups = groupsDeferred.await()
         val participants = participantsDeferred.await()
         val results = resultsDeferred.await()
@@ -93,7 +96,8 @@ class LiveResultsViewModel(
                 groupsWithResults = groupsWithResults,
                 isLoading = false,
                 lastUpdated = System.currentTimeMillis(),
-                direction = direction
+                direction = direction,
+                byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
             )
         }
     }

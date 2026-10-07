@@ -7,6 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import com.competra.domain.models.Competition
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
@@ -25,6 +26,7 @@ import com.competra.local.converters.CompetitionConverters
  * @property startTime Фактическое время начала соревнования (timestamp)
  * @property controlTimeMinutes Контрольное время соревнования в минутах (умолчание для групп)
  * @property overtimePolicy Что делать с результатами, превысившими КВ
+ * @property byChoiceMode Итог формата «по выбору»: по баллам или по минимуму КП
  */
 @Entity(
     tableName = "orienteering_competitions",
@@ -45,6 +47,8 @@ data class OrienteeringCompetitionEntity(
     val controlTimeMinutes: Int? = null,
     @ColumnInfo(defaultValue = "IGNORE")
     val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
+    @ColumnInfo(defaultValue = "SCORE")
+    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     @ColumnInfo(defaultValue = "0")
     val isDrawConducted: Boolean = false,
     // Хранит orient.updatedAt (таблица OrienteeringCompetitions), а НЕ comp.updatedAt.

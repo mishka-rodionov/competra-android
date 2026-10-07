@@ -17,6 +17,7 @@ import com.competra.domain.models.orienteering.SplitTime
 import com.competra.remote.response.orienteering.ControlPointResponse
 import com.competra.remote.response.orienteering.DistanceResponse
 import com.competra.remote.response.orienteering.OrienteeringCompetitionResponse
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.remote.response.orienteering.OrienteeringParticipantResponse
 import com.competra.remote.response.orienteering.OrienteeringResultResponse
 import com.competra.remote.response.orienteering.ParticipantGroupResponse
@@ -36,6 +37,7 @@ fun OrienteeringCompetitionResponse.toDomain(): OrienteeringCompetition {
         startIntervalSeconds = startIntervalSeconds,
         controlTimeMinutes = controlTimeMinutes,
         overtimePolicy = OvertimePolicy.fromString(overtimePolicy),
+        byChoiceMode = ByChoiceMode.fromString(byChoiceMode),
         serverUpdatedAt = updatedAt.takeIf { it > 0L }
     )
 }
@@ -87,6 +89,7 @@ fun DistanceResponse.toDomain(competitionId: String): Distance {
         startControlPoint = startControlPoint,
         startPosition = coordinatesOrNull(startLatitude, startLongitude),
         finishPosition = coordinatesOrNull(finishLatitude, finishLongitude),
+        minControlsCount = minControlsCount,
         map = DistanceMap.fromFields(
             url = mapUrl,
             topLeftLat = mapTopLeftLat,

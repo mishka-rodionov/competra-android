@@ -29,6 +29,9 @@ import com.competra.domain.models.Coordinates
  *                      (темп участника до первого КП). `null`, если дистанция создана вручную или
  *                      импортирована до появления поля.
  * @property finishPosition Координаты финиша (WGS84) из IOF XML — длина перегона на финишную станцию.
+ * @property minControlsCount Сколько КП нужно взять в формате «по выбору» с минимумом КП
+ *                         ([ByChoiceMode.MIN_CONTROLS]); `null` — все КП дистанции. Финишная станция
+ *                         не считается, обязательные КП ([ControlPointRole.REQUIRED]) входят в это число.
  * @property map Геопривязанная растровая карта дистанции или `null`, если она не прикреплена. Прикрепляется
  *               через веб, на Android только читается с сервера.
  */
@@ -51,6 +54,7 @@ data class Distance(
     val startControlPoint: Int? = null,
     val startPosition: Coordinates? = null,
     val finishPosition: Coordinates? = null,
+    val minControlsCount: Int? = null,
     val map: DistanceMap? = null
 )
 

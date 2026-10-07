@@ -41,7 +41,9 @@ import com.competra.designsystem.components.TimePickerDialog
 import com.competra.designsystem.theme.Dimens
 import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
+import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.StartTimeMode
@@ -320,6 +322,10 @@ private fun CommonCompetitionFieldContent(
 
             OrienteeringCompetitionDirection(state = state, userAction = onAction)
             FieldDescription("Тип ориентирования: в заданном направлении, по выбору или маркированная трасса")
+            if (state.competitionDirection == OrienteeringDirection.BY_CHOICE) {
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                ByChoiceModeSelector(state = state, userAction = onAction)
+            }
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
             PunchingSystemSelector(state = state, userAction = onAction)
             FieldDescription("Оборудование, которым участники отмечаются на КП")
@@ -485,6 +491,39 @@ private fun OrienteeringCompetitionDirection(
 }
 
 /**
+ * Итог формата «по выбору»: по сумме баллов (score-О) или по времени при взятом минимуме КП.
+ * Минимум и обязательные КП задаются у каждой дистанции.
+ */
+@Composable
+private fun ByChoiceModeSelector(
+    state: OrienteeringCreatorState,
+    userAction: (OrienteeringCreatorAction) -> Unit
+) {
+    Column {
+        ExposedDropdownMenuOutlined(
+            label = "Итог «по выбору»",
+            items = ByChoiceMode.entries,
+            selectedItem = state.byChoiceMode,
+            onItemSelected = { userAction.invoke(OrienteeringCreatorAction.UpdateByChoiceMode(it)) },
+            itemToString = {
+                when (it) {
+                    ByChoiceMode.SCORE -> "По баллам"
+                    ByChoiceMode.MIN_CONTROLS -> "По количеству КП"
+                }
+            }
+        )
+        FieldDescription(
+            when (state.byChoiceMode) {
+                ByChoiceMode.SCORE ->
+                    "У каждого КП своя стоимость, места — по сумме баллов"
+                ByChoiceMode.MIN_CONTROLS ->
+                    "Нужно взять не меньше заданного числа КП, места — по времени. Минимум и обязательные КП задаются у дистанции"
+            }
+        )
+    }
+}
+
+/**
  * Компонент выбора режима времени старта.
  */
 @Composable
@@ -574,11 +613,11 @@ private fun ControlTimeBlock(
     state: OrienteeringCreatorState,
     userAction: (OrienteeringCreatorAction) -> Unit
 ) {
-    val isByChoice = state.competitionDirection == OrienteeringDirection.BY_CHOICE
-    val policies = if (isByChoice) {
+    val policies = if (ranksByScore(state.competitionDirection, state.byChoiceMode)) {
         OvertimePolicy.entries
     } else {
-        // Штраф очками осмыслен только в score-О: в остальных форматах очков нет.
+        // Штраф очками осмыслен только в score-О: в остальных форматах, в т.ч. «по выбору»
+        // с минимумом КП, очков нет.
         OvertimePolicy.entries.filter { it != OvertimePolicy.SCORE_PENALTY }
     }
 

@@ -15,7 +15,11 @@ import com.competra.domain.exception.NetworkException
 import com.competra.domain.models.Coordinates
 import com.competra.domain.models.CropRect
 import com.competra.domain.models.NetworkErrorEvent
+import com.competra.domain.models.orienteering.OrienteeringCompetition
+import com.competra.domain.models.orienteering.OrienteeringDirection
+import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
+import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.domain.models.orienteering.RegistrationEndMode
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.user.User
@@ -215,7 +219,11 @@ class OrienteeringCreatorViewModel(
             }
 
             is OrienteeringCreatorAction.UpdateCompetitionDirection -> updateState {
-                copy(competitionDirection = action.direction)
+                copy(competitionDirection = action.direction).withValidOvertimePolicy()
+            }
+
+            is OrienteeringCreatorAction.UpdateByChoiceMode -> updateState {
+                copy(byChoiceMode = action.mode).withValidOvertimePolicy()
             }
 
             is OrienteeringCreatorAction.UpdateStartTimeMode -> updateState {
@@ -408,6 +416,7 @@ class OrienteeringCreatorViewModel(
                     startIntervalSeconds = comp.startIntervalSeconds,
                     controlTimeMinutes = comp.controlTimeMinutes,
                     overtimePolicy = comp.overtimePolicy,
+                    byChoiceMode = comp.byChoiceMode,
                     isTest = comp.competition.isTest,
                     organizingClubId = comp.competition.organizingClubId,
                 )
@@ -608,6 +617,7 @@ class OrienteeringCreatorViewModel(
                         AnalyticsEvent.CreateCompetitionFinished(
                             competitionId = competition.competitionId,
                             kindOfSport = KIND_ORIENTEERING,
+                            format = competition.analyticsFormat(),
                         )
                     )
                     // Загружаем дистанции из локальной БД и помечаем их unsynced —
@@ -802,3 +812,22 @@ class OrienteeringCreatorViewModel(
         const val KIND_ORIENTEERING = "orienteering"
     }
 }
+
+/**
+ * Штраф очками есть только в score-О: при переключении направления или режима «по выбору» на формат
+ * без баллов выбранный SCORE_PENALTY сбрасывается на умолчание, иначе он остался бы невидимым в селекторе.
+ */
+private fun OrienteeringCreatorState.withValidOvertimePolicy(): OrienteeringCreatorState =
+    if (overtimePolicy == OvertimePolicy.SCORE_PENALTY && !ranksByScore(competitionDirection, byChoiceMode)) {
+        copy(overtimePolicy = OvertimePolicy.DEFAULT)
+    } else {
+        this
+    }
+
+/** Формат соревнования для аналитики: forward / marking / by_choice_score / by_choice_min_controls. */
+private fun OrienteeringCompetition.analyticsFormat(): String =
+    if (direction == OrienteeringDirection.BY_CHOICE) {
+        "by_choice_" + byChoiceMode.name.lowercase()
+    } else {
+        direction.name.lowercase()
+    }

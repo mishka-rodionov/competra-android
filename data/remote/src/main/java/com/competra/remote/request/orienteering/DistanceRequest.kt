@@ -38,6 +38,9 @@ data class DistanceRequest(
     val finishControlPoint: Int? = null,
     @SerializedName("startControlPoint")
     val startControlPoint: Int? = null,
+    /** Минимум КП: N > 0 — минимум, 0 — все КП, null — сервер значение не меняет. */
+    @SerializedName("minControlsCount")
+    val minControlsCount: Int? = null,
     @SerializedName("serverUpdatedAt")
     val serverUpdatedAt: Long? = null
 )

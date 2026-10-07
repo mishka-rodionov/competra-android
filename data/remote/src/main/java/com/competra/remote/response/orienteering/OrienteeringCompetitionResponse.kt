@@ -48,6 +48,9 @@ data class OrienteeringCompetitionResponse(
     @SerializedName("overtimePolicy")
     val overtimePolicy: String? = null,
 
+    @SerializedName("byChoiceMode")
+    val byChoiceMode: String? = null,
+
     @SerializedName("updatedAt")
     val updatedAt: Long = 0L
 )

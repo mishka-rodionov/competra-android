@@ -27,7 +27,7 @@ import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.Distance
-import com.competra.domain.models.orienteering.OrienteeringDirection
+import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.resources.R
 
 /**
@@ -53,17 +53,18 @@ fun ParticipantGroupEditor(
     var maxAge by remember { mutableStateOf(initialGroup?.maxAge?.toString() ?: "") }
     var maxParticipants by remember { mutableStateOf(initialGroup?.maxParticipants?.toString() ?: "") }
     var selectedGender by remember { mutableStateOf(initialGroup?.gender) }
-    val isByChoice = state.competitionDirection == OrienteeringDirection.BY_CHOICE
+    // Штраф очками за опоздание есть только в score-О («по выбору» по баллам).
+    val isScoreO = ranksByScore(state.competitionDirection, state.byChoiceMode)
     // Пусто = наследовать КВ соревнования. Дефолт для BY_CHOICE не подставляем: иначе
     // организатор случайно переопределит КВ во всех группах.
     var timeLimitMinutes by remember {
         mutableStateOf(initialGroup?.timeLimitMinutes?.toString() ?: "")
     }
     var scorePenaltyPerMinute by remember {
-        mutableStateOf(initialGroup?.scorePenaltyPerMinute?.toString() ?: if (isByChoice) "1" else "")
+        mutableStateOf(initialGroup?.scorePenaltyPerMinute?.toString() ?: if (isScoreO) "1" else "")
     }
     var maxLatenessMinutes by remember {
-        mutableStateOf(initialGroup?.maxLatenessMinutes?.toString() ?: if (isByChoice) "30" else "")
+        mutableStateOf(initialGroup?.maxLatenessMinutes?.toString() ?: if (isScoreO) "30" else "")
     }
 
     // Выбранная дистанция для группы
@@ -205,11 +206,11 @@ fun ParticipantGroupEditor(
                     onValueChanged = { timeLimitMinutes = it.filter { c -> c.isDigit() } }
                 )
 
-                if (isByChoice) {
+                if (isScoreO) {
                     Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
                     Text(
-                        text = "Формат \"по выбору\"",
+                        text = "Формат \"по выбору\" по баллам",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -258,8 +259,8 @@ fun ParticipantGroupEditor(
                                     distanceId = selectedDistanceId, // Сохраняем ID выбранной дистанции
                                     maxParticipants = maxParticipants.toIntOrNull(),
                                     timeLimitMinutes = timeLimitMinutes.toIntOrNull(),
-                                    scorePenaltyPerMinute = if (isByChoice) scorePenaltyPerMinute.toIntOrNull() else null,
-                                    maxLatenessMinutes = if (isByChoice) maxLatenessMinutes.toIntOrNull() else null,
+                                    scorePenaltyPerMinute = if (isScoreO) scorePenaltyPerMinute.toIntOrNull() else null,
+                                    maxLatenessMinutes = if (isScoreO) maxLatenessMinutes.toIntOrNull() else null,
                                     isSynced = false,
                                     lastModified = System.currentTimeMillis()
                                 ),

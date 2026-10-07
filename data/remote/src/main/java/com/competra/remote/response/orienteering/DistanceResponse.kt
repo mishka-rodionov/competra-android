@@ -47,6 +47,9 @@ data class DistanceResponse(
     val finishLatitude: Double? = null,
     @SerializedName("finishLongitude")
     val finishLongitude: Double? = null,
+    /** Минимум КП (формат «по выбору» с минимумом КП); null — все КП. */
+    @SerializedName("minControlsCount")
+    val minControlsCount: Int? = null,
     @SerializedName("mapUrl")
     val mapUrl: String? = null,
     @SerializedName("mapTopLeftLat")

@@ -41,6 +41,10 @@ data class OrienteeringCompetitionRequest(
     @SerializedName("overtimePolicy")
     val overtimePolicy: String? = null,
 
+    /** Итог формата «по выбору»: SCORE / MIN_CONTROLS ([com.competra.domain.models.orienteering.ByChoiceMode]). */
+    @SerializedName("byChoiceMode")
+    val byChoiceMode: String? = null,
+
     @SerializedName("serverUpdatedAt")
     val serverUpdatedAt: Long? = null
 )

@@ -405,3 +405,15 @@ val MIGRATION_52_53 = object : Migration(52, 53) {
         db.execSQL("ALTER TABLE distances ADD COLUMN finishLongitude REAL")
     }
 }
+
+/**
+ * Миграция с версии 53 на 54.
+ * Формат «по выбору» с минимумом КП: режим итога у соревнования (по умолчанию — score-О, как у всех
+ * существующих BY_CHOICE-стартов) и минимум КП у дистанции (null — все КП).
+ */
+val MIGRATION_53_54 = object : Migration(53, 54) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN byChoiceMode TEXT NOT NULL DEFAULT 'SCORE'")
+        db.execSQL("ALTER TABLE distances ADD COLUMN minControlsCount INTEGER")
+    }
+}

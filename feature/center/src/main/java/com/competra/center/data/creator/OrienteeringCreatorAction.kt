@@ -2,6 +2,7 @@ package com.competra.center.data.creator
 
 import android.net.Uri
 import com.competra.domain.models.CropRect
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.OvertimePolicy
@@ -44,6 +45,7 @@ sealed class OrienteeringCreatorAction : BaseAction {
     data class UpdateStartInterval(val seconds: Int?): OrienteeringCreatorAction()
     data class UpdateControlTime(val minutes: Int?): OrienteeringCreatorAction()
     data class UpdateOvertimePolicy(val policy: OvertimePolicy): OrienteeringCreatorAction()
+    data class UpdateByChoiceMode(val mode: ByChoiceMode): OrienteeringCreatorAction()
     
     // Действия для регистрации
     data class UpdateRegistrationStartDate(val date: Long) : OrienteeringCreatorAction()

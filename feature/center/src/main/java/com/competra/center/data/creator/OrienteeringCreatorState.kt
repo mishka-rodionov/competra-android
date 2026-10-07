@@ -102,6 +102,8 @@ data class OrienteeringCreatorState(
     val controlTimeMinutes: Int? = null,
     /** Что делать с результатами, превысившими КВ. */
     val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
+    /** Итог формата «по выбору»: по баллам или по минимуму КП (только для BY_CHOICE). */
+    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
 
     val editGroupIndex: Int = -1,
     val isShowGroupCreateDialog: Boolean = false,
@@ -161,7 +163,8 @@ data class OrienteeringCreatorState(
             countdownTimer = countdownTimer,
             startIntervalSeconds = startIntervalSeconds,
             controlTimeMinutes = controlTimeMinutes,
-            overtimePolicy = overtimePolicy
+            overtimePolicy = overtimePolicy,
+            byChoiceMode = byChoiceMode
         )
     }
 }

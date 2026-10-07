@@ -46,7 +46,12 @@ fun GroupSplitsTableScreen(
                 )
             }
 
-            else -> GroupSplitsTableContent(groupTitle = state.groupTitle, table = state.table!!, direction = state.direction)
+            else -> GroupSplitsTableContent(
+                groupTitle = state.groupTitle,
+                table = state.table!!,
+                direction = state.direction,
+                byChoiceMode = state.byChoiceMode
+            )
         }
     }
 }

@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.ParticipantWithResult
@@ -37,9 +38,7 @@ class EventGroupSplitsTableViewModel(
             val participantsDeferred = async { remoteRepository.getParticipantsForCompetition(eventId).getOrNull() ?: emptyList() }
             val resultsDeferred = async { remoteRepository.getResultsByCompetition(eventId).getOrNull() ?: emptyList() }
             val distancesDeferred = async { remoteRepository.getDistancesForCompetition(eventId).getOrNull() ?: emptyList() }
-            val directionDeferred = async {
-                remoteRepository.getCompetitionById(eventId).getOrNull()?.direction ?: OrienteeringDirection.FORWARD
-            }
+            val competitionDeferred = async { remoteRepository.getCompetitionById(eventId).getOrNull() }
 
             val group = groupsDeferred.await().firstOrNull { it.remoteId == groupId }
             if (group == null) {
@@ -50,7 +49,9 @@ class EventGroupSplitsTableViewModel(
             val participants = participantsDeferred.await()
             val results = resultsDeferred.await()
             val distances = distancesDeferred.await()
-            val direction = directionDeferred.await()
+            val competition = competitionDeferred.await()
+            val direction = competition?.direction ?: OrienteeringDirection.FORWARD
+            val byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
             // distanceId группы — это серверный id дистанции, а он хранится в domain-модели
             // Distance.remoteId (см. DistanceResponse.toDomain), а не в Distance.id.
             val distance = distances.firstOrNull { it.remoteId == group.distanceId }
@@ -69,7 +70,9 @@ class EventGroupSplitsTableViewModel(
                 distance,
                 direction,
             )
-            updateState { copy(groupTitle = group.title, table = table, direction = direction, isLoading = false) }
+            updateState {
+                copy(groupTitle = group.title, table = table, direction = direction, byChoiceMode = byChoiceMode, isLoading = false)
+            }
         }
     }
 }

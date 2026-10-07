@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.competra.designsystem.theme.Dimens
+import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.SplitsTable
 import com.competra.domain.models.orienteering.SplitsTableCell
@@ -42,8 +44,11 @@ fun GroupSplitsTableContent(
     groupTitle: String,
     table: SplitsTable,
     direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
 ) {
     val isByChoice = direction == OrienteeringDirection.BY_CHOICE
+    // Под именем — баллы в score-О или время в «по выбору» с минимумом КП (колонки по позиции у обоих).
+    val showsScore = ranksByScore(direction, byChoiceMode)
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
             text = groupTitle,
@@ -90,7 +95,7 @@ fun GroupSplitsTableContent(
                         .background(rowBackground),
                 ) {
                     // Sticky первая колонка: находится вне горизонтально скроллящегося Row.
-                    ParticipantCell(row = row, isByChoice = isByChoice, modifier = Modifier.width(NAME_COLUMN_WIDTH))
+                    ParticipantCell(row = row, isByChoice = isByChoice, showsScore = showsScore, modifier = Modifier.width(NAME_COLUMN_WIDTH))
                     Row(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
                         row.cells.forEach { cell ->
                             SplitCell(cell = cell, isByChoice = isByChoice, modifier = Modifier.width(SPLIT_COLUMN_WIDTH))
@@ -119,16 +124,21 @@ private fun HeaderCell(text: String, modifier: Modifier = Modifier, textAlign: T
 }
 
 @Composable
-private fun ParticipantCell(row: SplitsTableRow, isByChoice: Boolean, modifier: Modifier = Modifier) {
+private fun ParticipantCell(row: SplitsTableRow, isByChoice: Boolean, showsScore: Boolean, modifier: Modifier = Modifier) {
     Column(modifier = modifier.padding(horizontal = Dimens.SIZE_HALF.dp, vertical = Dimens.SIZE_QUARTER.dp)) {
         Text(
             text = "${row.participant.lastName} ${row.participant.firstName}",
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 2,
         )
-        if (isByChoice) {
+        val byChoiceLabel = when {
+            !isByChoice -> null
+            showsScore -> scoreLabel(row)
+            else -> row.result?.totalTime?.toRaceTime()
+        }
+        if (byChoiceLabel != null) {
             Text(
-                text = scoreLabel(row),
+                text = byChoiceLabel,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

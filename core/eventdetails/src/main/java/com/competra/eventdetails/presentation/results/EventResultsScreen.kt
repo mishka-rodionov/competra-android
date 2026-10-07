@@ -34,6 +34,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.competra.designsystem.components.clickRipple
 import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
@@ -135,8 +137,11 @@ fun EventResultsScreen(
                                 // Для формата "по выбору" общего порядка КП нет — вместо графика
                                 // отставания от лидера по времени показываем график набора очков
                                 // во времени (победитель определяется по сумме баллов, а не по
-                                // времени на перегонах).
-                                TextButton(
+                                // времени на перегонах). В «по выбору» с минимумом КП нет ни
+                                // баллов, ни общего порядка — графика нет.
+                                if (state.direction != OrienteeringDirection.BY_CHOICE ||
+                                    state.byChoiceMode == ByChoiceMode.SCORE
+                                ) TextButton(
                                     onClick = {
                                         val action = if (state.direction == OrienteeringDirection.BY_CHOICE) {
                                             EventResultsAction.OpenScoreGraph(eventId = eventId, groupId = groupRemoteId)
@@ -153,6 +158,7 @@ fun EventResultsScreen(
                         ResultsList(
                             participants = groups[page].participants,
                             direction = state.direction,
+                            byChoiceMode = state.byChoiceMode,
                             onParticipantClick = { viewModel.onAction(EventResultsAction.ShowSplits(it)) }
                         )
                     }
@@ -310,6 +316,7 @@ private fun linkFooter(
 private fun ResultsList(
     participants: List<ParticipantWithResult>,
     direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     onParticipantClick: (ParticipantWithResult) -> Unit
 ) {
     LazyColumn(
@@ -321,7 +328,7 @@ private fun ResultsList(
             ResultsHeader()
         }
         items(participants) { item ->
-            ResultItem(item = item, direction = direction, onClick = { onParticipantClick(item) })
+            ResultItem(item = item, direction = direction, byChoiceMode = byChoiceMode, onClick = { onParticipantClick(item) })
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
@@ -348,8 +355,8 @@ private fun ResultsHeader() {
  * Строка результата участника.
  *
  * Для формата "по выбору" (BY_CHOICE) клик по строке отключён — просмотр сплитов не имеет
- * смысла (порядок посещения КП не регламентирован), вместо времени показываются баллы и время
- * вместе (приоритет в определении победителя у баллов).
+ * смысла (порядок посещения КП не регламентирован). В score-О вместо времени показываются баллы
+ * и время вместе (приоритет в определении победителя у баллов), в «по выбору» с минимумом КП — время.
  *
  * @param item Данные участника и его результата.
  */
@@ -357,9 +364,11 @@ private fun ResultsHeader() {
 private fun ResultItem(
     item: ParticipantWithResult,
     direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
+    byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     onClick: () -> Unit
 ) {
     val isByChoice = direction == OrienteeringDirection.BY_CHOICE
+    val showsScore = ranksByScore(direction, byChoiceMode)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -374,7 +383,7 @@ private fun ResultItem(
             text = "${item.participant.lastName} ${item.participant.firstName}",
             modifier = Modifier.weight(0.5f)
         )
-        if (isByChoice && item.result?.status == ResultStatus.FINISHED) {
+        if (showsScore && item.result?.status == ResultStatus.FINISHED) {
             Column(modifier = Modifier.weight(0.3f)) {
                 Text(text = formatResultScore(item.result), fontWeight = FontWeight.Bold)
                 Text(

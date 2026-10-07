@@ -41,6 +41,7 @@ import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.StartTimeMode
+import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.resources.R
 
 /**
@@ -74,6 +75,13 @@ fun DistanceEditor(
         mutableStateOf<List<ControlPoint>>(initialDistance?.controlPoints.orEmpty())
     }
     val isByChoice = state.competitionDirection == OrienteeringDirection.BY_CHOICE
+    // Баллы у КП есть только в score-О; «по выбору» с минимумом КП вместо них задаёт минимум.
+    val hasScores = ranksByScore(state.competitionDirection, state.byChoiceMode)
+    val hasMinControls = isByChoice && !hasScores
+    var minControlsInput by remember {
+        mutableStateOf(initialDistance?.minControlsCount?.toString() ?: "")
+    }
+    var showMinControlsError by remember { mutableStateOf(false) }
     var currentInput by remember { mutableStateOf("") }
     var finishCpInput by remember {
         mutableStateOf(initialDistance?.finishControlPoint?.toString() ?: "")
@@ -115,7 +123,7 @@ fun DistanceEditor(
     val addCurrentInput: () -> Unit = {
         val number = currentInput.trim().toIntOrNull()
         if (number != null) {
-            controlPointsList = controlPointsList + ControlPoint(number = number, score = if (isByChoice) 2 else 0)
+            controlPointsList = controlPointsList + ControlPoint(number = number, score = if (hasScores) 2 else 0)
             currentInput = ""
         }
     }
@@ -261,17 +269,19 @@ fun DistanceEditor(
                                         text = cp.number.toString(),
                                         modifier = Modifier.width(40.dp)
                                     )
-                                    DSTextInput(
-                                        modifier = Modifier.width(90.dp),
-                                        label = { Text("Баллы") },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        text = cp.score.toString(),
-                                        onValueChanged = { newValue ->
-                                            val score = newValue.filter { it.isDigit() }.toIntOrNull() ?: 0
-                                            updateControlPoint(index, cp.copy(score = score))
-                                        }
-                                    )
+                                    if (hasScores) {
+                                        DSTextInput(
+                                            modifier = Modifier.width(90.dp),
+                                            label = { Text("Баллы") },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            text = cp.score.toString(),
+                                            onValueChanged = { newValue ->
+                                                val score = newValue.filter { it.isDigit() }.toIntOrNull() ?: 0
+                                                updateControlPoint(index, cp.copy(score = score))
+                                            }
+                                        )
+                                    }
                                     FilterChip(
                                         selected = cp.role == ControlPointRole.REQUIRED,
                                         onClick = {
@@ -360,6 +370,34 @@ fun DistanceEditor(
                             contentDescription = "Добавить КП"
                         )
                     }
+                }
+
+                if (hasMinControls) {
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                    DSTextInput(
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Минимум КП") },
+                        supportingText = {
+                            Text(
+                                if (showMinControlsError) {
+                                    "На дистанции всего ${controlPointsList.size} КП — минимум не может быть больше"
+                                } else {
+                                    "Сколько КП нужно взять. Пусто — все КП дистанции. Обязательные КП входят в это число"
+                                }
+                            )
+                        },
+                        isError = showMinControlsError,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Next
+                        ),
+                        text = minControlsInput,
+                        onValueChanged = { newValue ->
+                            minControlsInput = newValue.filter { it.isDigit() }
+                            showMinControlsError = false
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
@@ -482,6 +520,18 @@ fun DistanceEditor(
                             return@Button
                         }
 
+                        // 0 и пусто — «все КП». Вне режима минимума значение не трогаем, чтобы смена
+                        // формата соревнования туда и обратно не стирала минимум из Mapper.
+                        val minControls = if (hasMinControls) {
+                            minControlsInput.toIntOrNull()?.takeIf { it > 0 }
+                        } else {
+                            initialDistance?.minControlsCount
+                        }
+                        if (hasMinControls && minControls != null && minControls > controlPointsList.size) {
+                            showMinControlsError = true
+                            return@Button
+                        }
+
                         // Сбрасываем фокус и скрываем клавиатуру при нажатии кнопки сохранения
                         focusManager.clearFocus()
                         keyboardController?.hide()
@@ -500,7 +550,8 @@ fun DistanceEditor(
                                     description = description,
                                     controlPoints = points,
                                     finishControlPoint = finishCp,
-                                    startControlPoint = startCp
+                                    startControlPoint = startCp,
+                                    minControlsCount = minControls
                                 ),
                                 index = state.editDistanceIndex
                             )
