@@ -114,8 +114,9 @@ The app uses NFC to read/write participant chips for orienteering competitions. 
 - **Создаёшь новый экран** (новый `*Screen.kt` или новая запись в navigation-graph) → прочитай `docs/workflows/analytics.md` ДО написания кода.
 - **Добавляешь новое пользовательское действие или фичу** (новый `Action`, новая кнопка, новый бизнес-сценарий) → прочитай `docs/workflows/analytics.md` и спроси пользователя про аналитику ДО написания кода.
 - **Пишешь имя нового аналитического события или экрана** → сверься с `docs/skills/analytics-events.md`.
+- **Реализуешь новую фичу или меняешь поведение существующей** (в любом из репо экосистемы) → в том же изменении создай/обнови `docs/features/<feature-name>/README.md` по шаблону из [`docs/features/README.md`](docs/features/README.md) и добавь фичу в список там же. Документация одна на Android и web, лежит в этом репо. Фича не считается готовой без документации.
 
-Индексы доступных файлов: [`docs/workflows/README.md`](docs/workflows/README.md), [`docs/skills/README.md`](docs/skills/README.md).
+Индексы доступных файлов: [`docs/workflows/README.md`](docs/workflows/README.md), [`docs/skills/README.md`](docs/skills/README.md), [`docs/features/README.md`](docs/features/README.md) (документация реализованных фич).
 
 ## Commands
 - Always use rtk for commands (rtk grep, rtk find, rtk git, and etc.)
