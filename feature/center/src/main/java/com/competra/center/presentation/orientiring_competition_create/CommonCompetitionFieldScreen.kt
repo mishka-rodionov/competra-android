@@ -331,7 +331,7 @@ private fun CommonCompetitionFieldContent(
             FieldDescription("Оборудование, которым участники отмечаются на КП")
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
             StartTimeModeSelector(state = state, userAction = onAction)
-            FieldDescription("Как назначается стартовое время каждого участника")
+            FieldDescription("По протоколу — судья запускает отсчёт, участники уходят по жеребьёвке через интервал. По стартовой станции — время старта каждого фиксирует отметка на стартовой станции")
             if (state.startTimeMode != StartTimeMode.BY_START_STATION) {
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
                 StartIntervalSelector(state = state, userAction = onAction)
@@ -532,10 +532,15 @@ private fun StartTimeModeSelector(
     userAction: (OrienteeringCreatorAction) -> Unit
 ) {
     val context = LocalContext.current
+    // Старое соревнование может хранить неподдерживаемый режим — оставляем его в списке,
+    // чтобы выбранное значение корректно отображалось при редактировании.
+    val items = StartTimeMode.entries.filter {
+        it in SUPPORTED_START_TIME_MODES || it == state.startTimeMode
+    }
     Column {
         ExposedDropdownMenuOutlined(
             label = stringResource(R.string.label_start_time_mode),
-            items = StartTimeMode.entries,
+            items = items,
             selectedItem = state.startTimeMode,
             onItemSelected = {
                 userAction.invoke(OrienteeringCreatorAction.UpdateStartTimeMode(it))
@@ -550,6 +555,15 @@ private fun StartTimeModeSelector(
         )
     }
 }
+
+/**
+ * Режимы старта, доступные организатору при создании соревнования.
+ * [StartTimeMode.STRICT] пока не отработан в сценарии проведения, поэтому скрыт.
+ */
+private val SUPPORTED_START_TIME_MODES = setOf(
+    StartTimeMode.USER_SET,
+    StartTimeMode.BY_START_STATION
+)
 
 /** Доступные значения интервала между стартами спортсменов (в секундах): от 20 до 180 с шагом 20. */
 private val START_INTERVAL_OPTIONS = (1..9).map { it * 20 }
@@ -571,16 +585,29 @@ private val ELECTRONIC_PUNCHING_SYSTEMS = setOf(
     PunchingSystem.SFR
 )
 
+/**
+ * Системы отметки, доступные организатору при создании соревнования.
+ * Остальные (карандаш, компостер, SFR, SportIdent) пока не поддержаны в коде, поэтому скрыты.
+ */
+private val SUPPORTED_PUNCHING_SYSTEMS = setOf(
+    PunchingSystem.SPORTIDUINO
+)
+
 @Composable
 private fun PunchingSystemSelector(
     state: OrienteeringCreatorState,
     userAction: (OrienteeringCreatorAction) -> Unit
 ) {
     val context = LocalContext.current
-    val items = if (state.startTimeMode == StartTimeMode.BY_START_STATION) {
-        PunchingSystem.entries.filter { it in ELECTRONIC_PUNCHING_SYSTEMS }
-    } else {
-        PunchingSystem.entries
+    // Неподдерживаемую систему из старого соревнования оставляем в списке, чтобы она отображалась.
+    val items = PunchingSystem.entries.filter {
+        it in SUPPORTED_PUNCHING_SYSTEMS || it == state.punchingSystem
+    }.let { available ->
+        if (state.startTimeMode == StartTimeMode.BY_START_STATION) {
+            available.filter { it in ELECTRONIC_PUNCHING_SYSTEMS }
+        } else {
+            available
+        }
     }
     ExposedDropdownMenuOutlined(
         label = stringResource(R.string.label_punching_system),

@@ -95,7 +95,7 @@ data class OrienteeringCreatorState(
 
     val competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
     val punchingSystem: PunchingSystem = PunchingSystem.SPORTIDUINO,
-    val startTimeMode: StartTimeMode = StartTimeMode.STRICT,
+    val startTimeMode: StartTimeMode = StartTimeMode.USER_SET,
     val countdownTimer: Int? = null,
     val startIntervalSeconds: Int? = null,
     /** Контрольное время соревнования в минутах (null — не задано); умолчание для групп. */
