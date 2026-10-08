@@ -342,6 +342,13 @@ private fun CommonCompetitionFieldContent(
             ControlTimeBlock(state = state, userAction = onAction)
 
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+            TeamScoringBlock(
+                teamScoring = state.teamScoring,
+                isScoreO = ranksByScore(state.competitionDirection, state.byChoiceMode),
+                onChange = { onAction(OrienteeringCreatorAction.UpdateTeamScoring(it)) }
+            )
+
+            Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
 
             // Поле ввода описания
             DSTextInput(

@@ -137,11 +137,22 @@ sealed class AnalyticsEvent(
 
     /**
      * Мастер создания соревнования прошёл до конца.
-     * [format] — forward / marking / by_choice_score / by_choice_min_controls.
+     * [format] — forward / marking / by_choice_score / by_choice_min_controls;
+     * [teamScoring] — none / groups / both (командный зачёт только в группах или ещё и общие).
      */
-    class CreateCompetitionFinished(competitionId: String, kindOfSport: String, format: String) : AnalyticsEvent(
+    class CreateCompetitionFinished(
+        competitionId: String,
+        kindOfSport: String,
+        format: String,
+        teamScoring: String,
+    ) : AnalyticsEvent(
         "create_competition_finished",
-        mapOf("competition_id" to competitionId, "kind_of_sport" to kindOfSport, "format" to format),
+        mapOf(
+            "competition_id" to competitionId,
+            "kind_of_sport" to kindOfSport,
+            "format" to format,
+            "team_scoring" to teamScoring,
+        ),
     )
 
     /** Пользователь подтвердил удаление соревнования. */
@@ -253,6 +264,10 @@ sealed class AnalyticsEvent(
         "race_graph_opened",
         mapOf("group_id" to groupId, "competition_id" to competitionId),
     )
+
+    /** Открыт командный зачёт в результатах (переключатель «Командный»). */
+    class TeamStandingsOpened(competitionId: String) :
+        AnalyticsEvent("team_standings_opened", mapOf("competition_id" to competitionId))
 
     /** Открыт график набора очков во времени (score graph, BY_CHOICE) по группе. */
     class ScoreGraphOpened(groupId: Long, competitionId: String) : AnalyticsEvent(

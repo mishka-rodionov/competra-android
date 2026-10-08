@@ -45,6 +45,10 @@ data class OrienteeringCompetitionRequest(
     @SerializedName("byChoiceMode")
     val byChoiceMode: String? = null,
 
+    /** Командный зачёт ([TeamScoringRequest]). */
+    @SerializedName("teamScoring")
+    val teamScoring: TeamScoringRequest? = null,
+
     @SerializedName("serverUpdatedAt")
     val serverUpdatedAt: Long? = null
 )

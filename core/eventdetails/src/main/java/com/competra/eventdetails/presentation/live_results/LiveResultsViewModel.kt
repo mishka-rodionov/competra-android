@@ -2,6 +2,8 @@ package com.competra.eventdetails.presentation.live_results
 
 import androidx.lifecycle.viewModelScope
 import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.orienteering.computeTeamStandings
+import com.competra.domain.models.orienteering.TeamStandings
 import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringDirection
@@ -25,12 +27,18 @@ data class LiveResultsState(
     val lastUpdated: Long? = null,
     val selectedParticipant: ParticipantWithResult? = null,
     val direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
-    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT
+    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+    /** Командный зачёт из загруженных результатов; null — зачёт в соревновании не включён. */
+    val teamStandings: TeamStandings? = null,
+    /** Показывается командный зачёт вместо личных результатов. */
+    val showTeamStandings: Boolean = false
 ) : BaseState
 
 sealed interface LiveResultsAction : BaseAction {
     data class ShowSplits(val participant: ParticipantWithResult) : LiveResultsAction
     data object HideSplits : LiveResultsAction
+    /** Переключатель «Личный / Командный». */
+    data class ShowTeamStandings(val show: Boolean) : LiveResultsAction
 }
 
 /**
@@ -45,6 +53,7 @@ class LiveResultsViewModel(
         when (action) {
             is LiveResultsAction.ShowSplits -> updateState { copy(selectedParticipant = action.participant) }
             is LiveResultsAction.HideSplits -> updateState { copy(selectedParticipant = null) }
+            is LiveResultsAction.ShowTeamStandings -> updateState { copy(showTeamStandings = action.show) }
         }
     }
 
@@ -97,7 +106,8 @@ class LiveResultsViewModel(
                 isLoading = false,
                 lastUpdated = System.currentTimeMillis(),
                 direction = direction,
-                byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
+                byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                teamStandings = competition?.teamScoring?.let { computeTeamStandings(it, groupsWithResults) }
             )
         }
     }

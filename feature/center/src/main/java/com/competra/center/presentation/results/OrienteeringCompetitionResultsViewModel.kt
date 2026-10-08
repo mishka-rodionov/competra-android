@@ -14,6 +14,9 @@ import com.competra.data.navigation.CenterNavigation
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
 import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.orienteering.TeamStandings
+import com.competra.domain.models.orienteering.TeamOverallScope
+import com.competra.domain.models.orienteering.computeTeamStandings
 import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.CompetitionStatus
@@ -94,6 +97,7 @@ class OrienteeringCompetitionResultsViewModel(
                         groupsWithParticipantsAndResults = sortedResults,
                         direction = direction,
                         byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                        teamStandings = competition?.teamScoring?.let { computeTeamStandings(it, sortedResults) },
                         isApproved = isApproved,
                         isCompetitionFinished = isCompetitionFinished,
                         competitionTitle = competition?.competition?.title ?: "",
@@ -122,6 +126,12 @@ class OrienteeringCompetitionResultsViewModel(
             is OrienteeringResultsAction.ImportHtml -> importHtml(action.htmlText)
             is OrienteeringResultsAction.ConfirmImport -> confirmImport(action.selectedRows)
             is OrienteeringResultsAction.DismissImportPreview -> updateState { copy(importDiff = null, importError = null) }
+            is OrienteeringResultsAction.ShowTeamStandings -> {
+                if (action.show && !stateValue.showTeamStandings) {
+                    competitionId?.let { analytics.trackEvent(AnalyticsEvent.TeamStandingsOpened(it)) }
+                }
+                updateState { copy(showTeamStandings = action.show) }
+            }
         }
     }
 
@@ -447,7 +457,8 @@ class OrienteeringCompetitionResultsViewModel(
             // надёжно из totalScore/scorePenalty (при обнулении баллов за сильное опоздание
             // totalScore=0, а scorePenalty может быть больше фактически заработанных баллов).
             val distancesByGroupId = loadDistancesByGroupId(groups)
-            val html = buildHtmlContent(title, groups, stateValue.direction, stateValue.byChoiceMode, distancesByGroupId)
+            val html = buildHtmlContent(title, groups, stateValue.direction, stateValue.byChoiceMode, distancesByGroupId) +
+                stateValue.teamStandings?.let(::buildTeamStandingsHtml).orEmpty()
             val bytes = html.toByteArray(Charsets.UTF_8)
             uploadRepository.uploadFile(bytes, "results.html", "competition_results")
                 .onSuccess { url ->
@@ -678,6 +689,43 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
         return sb.toString()
     }
 
+    /**
+     * Раздел «Командный зачёт» HTML-протокола (стили — из [buildHtmlContent], дописывается после
+     * личных результатов): общие зачёты, затем зачёт в каждой группе с участниками, вошедшими в зачёт.
+     */
+    private fun buildTeamStandingsHtml(standings: TeamStandings): String {
+        val sb = StringBuilder()
+        sb.appendLine("<h1>Командный зачёт</h1>")
+        standings.overallStandings.forEach { overall ->
+            val title = when (overall.scope) {
+                TeamOverallScope.MEN -> "Мужчины"
+                TeamOverallScope.WOMEN -> "Женщины"
+                TeamOverallScope.ALL -> "Общий зачёт"
+            }
+            sb.appendLine("<h2>$title</h2>")
+            sb.appendLine("<table class='rezult'>\n<tr><th>Место </th><th>Команда </th><th>Очки </th><th>Группы </th></tr>")
+            overall.teams.forEach { team ->
+                val groupsText = team.groups.joinToString(", ") { "${it.group.title}: ${it.place} м. (${it.points})" }
+                sb.appendLine("<tr><td>${team.place}</td><td class='cr'><nobr>${team.teamName}</td><td>${team.points}</td><td class='cr'>$groupsText</td></tr>")
+            }
+            sb.appendLine("</table><br>")
+        }
+        standings.groupStandings.forEach { groupStanding ->
+            sb.appendLine("<h2>${groupStanding.group.title}</h2>")
+            sb.appendLine("<table class='rezult'>\n<tr><th>Место </th><th>Команда </th><th>Результат </th><th>Участники в зачёте </th></tr>")
+            groupStanding.teams.forEach { team ->
+                val total = team.points?.let { "$it" } ?: team.timeSeconds?.toRaceTime() ?: "вне зачёта"
+                val members = team.members.filter { it.counted }.joinToString(", ") { member ->
+                    val result = if (team.points != null) "${member.points}" else member.timeSeconds?.toRaceTime().orEmpty()
+                    "${member.participant.lastName} ${member.participant.firstName} ($result)"
+                }
+                sb.appendLine("<tr><td>${team.place ?: ""}</td><td class='cr'><nobr>${team.teamName}</td><td><nobr>$total</td><td class='cr'>$members</td></tr>")
+            }
+            sb.appendLine("</table><br>")
+        }
+        return sb.toString()
+    }
+
     private fun formatGap(seconds: Long): String {
         val h = seconds / 3600
         val m = (seconds % 3600) / 60
@@ -707,6 +755,9 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
         data class OpenScoreGraph(val groupId: Long) : OrienteeringResultsAction()
 
         data object ExportCsv : OrienteeringResultsAction()
+
+        /** Переключатель «Личный / Командный». */
+        data class ShowTeamStandings(val show: Boolean) : OrienteeringResultsAction()
 
         data object ExportPdf : OrienteeringResultsAction()
 

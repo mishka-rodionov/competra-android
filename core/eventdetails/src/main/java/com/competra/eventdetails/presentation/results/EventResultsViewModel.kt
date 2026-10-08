@@ -5,6 +5,8 @@ import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.data.navigation.EventsNavigation
 import com.competra.data.navigation.Navigation
+import com.competra.domain.models.orienteering.computeTeamStandings
+import com.competra.domain.models.orienteering.TeamStandings
 import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringDirection
@@ -33,6 +35,10 @@ data class EventResultsState(
     val selectedParticipant: ParticipantWithResult? = null,
     val direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+    /** Командный зачёт из загруженных результатов; null — зачёт в соревновании не включён. */
+    val teamStandings: TeamStandings? = null,
+    /** Показывается командный зачёт вместо личных результатов. */
+    val showTeamStandings: Boolean = false,
     /** Привязка ручных результатов к аккаунту — только для авторизованного пользователя. */
     val link: ResultLinkState = ResultLinkState(),
 ) : BaseState
@@ -68,6 +74,8 @@ sealed interface EventResultsAction : BaseAction {
     data class AskUnlink(val participantId: String) : EventResultsAction
     data object ConfirmUnlink : EventResultsAction
     data object CancelUnlink : EventResultsAction
+    /** Переключатель «Личный / Командный». */
+    data class ShowTeamStandings(val show: Boolean) : EventResultsAction
 }
 
 class EventResultsViewModel(
@@ -94,6 +102,12 @@ class EventResultsViewModel(
             is EventResultsAction.AskUnlink -> updateLink { copy(unlinkParticipantId = action.participantId) }
             EventResultsAction.ConfirmUnlink -> unlink()
             EventResultsAction.CancelUnlink -> updateLink { copy(unlinkParticipantId = null) }
+            is EventResultsAction.ShowTeamStandings -> {
+                if (action.show && !stateValue.showTeamStandings) {
+                    eventId?.let { analytics.trackEvent(AnalyticsEvent.TeamStandingsOpened(it)) }
+                }
+                updateState { copy(showTeamStandings = action.show) }
+            }
         }
     }
 
@@ -225,6 +239,7 @@ class EventResultsViewModel(
                     groupsWithResults = groupsWithResults,
                     direction = direction,
                     byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                    teamStandings = competition?.teamScoring?.let { computeTeamStandings(it, groupsWithResults) },
                     selectedParticipant = refreshedSelection
                 )
             }

@@ -12,6 +12,7 @@ import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.StartTimeMode
+import com.competra.domain.models.orienteering.TeamScoring
 import com.competra.local.converters.CompetitionConverters
 
 /**
@@ -27,6 +28,7 @@ import com.competra.local.converters.CompetitionConverters
  * @property controlTimeMinutes Контрольное время соревнования в минутах (умолчание для групп)
  * @property overtimePolicy Что делать с результатами, превысившими КВ
  * @property byChoiceMode Итог формата «по выбору»: по баллам или по минимуму КП
+ * @property teamScoring Настройки командного зачёта; null — зачёта нет
  */
 @Entity(
     tableName = "orienteering_competitions",
@@ -49,6 +51,7 @@ data class OrienteeringCompetitionEntity(
     val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
     @ColumnInfo(defaultValue = "SCORE")
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+    val teamScoring: TeamScoring? = null,
     @ColumnInfo(defaultValue = "0")
     val isDrawConducted: Boolean = false,
     // Хранит orient.updatedAt (таблица OrienteeringCompetitions), а НЕ comp.updatedAt.

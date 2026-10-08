@@ -19,6 +19,8 @@ import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
+import com.competra.domain.models.orienteering.TeamScoring
+import com.competra.domain.models.orienteering.TeamScoringMethod
 import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.domain.models.orienteering.RegistrationEndMode
 import com.competra.domain.models.orienteering.StartTimeMode
@@ -226,6 +228,10 @@ class OrienteeringCreatorViewModel(
                 copy(byChoiceMode = action.mode).withValidOvertimePolicy()
             }
 
+            is OrienteeringCreatorAction.UpdateTeamScoring -> updateState {
+                copy(teamScoring = action.teamScoring).withValidOvertimePolicy()
+            }
+
             is OrienteeringCreatorAction.UpdateStartTimeMode -> updateState {
                 // При переходе на "по стартовой станции" механическая/бумажная отметка (PENCIL/PUNCH)
                 // теряет смысл — стартовая станция требует электронной системы. Если организатор уже
@@ -417,6 +423,7 @@ class OrienteeringCreatorViewModel(
                     controlTimeMinutes = comp.controlTimeMinutes,
                     overtimePolicy = comp.overtimePolicy,
                     byChoiceMode = comp.byChoiceMode,
+                    teamScoring = comp.teamScoring,
                     isTest = comp.competition.isTest,
                     organizingClubId = comp.competition.organizingClubId,
                 )
@@ -618,6 +625,7 @@ class OrienteeringCreatorViewModel(
                             competitionId = competition.competitionId,
                             kindOfSport = KIND_ORIENTEERING,
                             format = competition.analyticsFormat(),
+                            teamScoring = competition.teamScoring.analyticsValue(),
                         )
                     )
                     // Загружаем дистанции из локальной БД и помечаем их unsynced —
@@ -814,15 +822,25 @@ class OrienteeringCreatorViewModel(
 }
 
 /**
- * Штраф очками есть только в score-О: при переключении направления или режима «по выбору» на формат
- * без баллов выбранный SCORE_PENALTY сбрасывается на умолчание, иначе он остался бы невидимым в селекторе.
+ * Приводит зависящие от формата настройки к допустимым: штраф очками есть только в score-О, а
+ * командный зачёт по времени в score-О недоступен (места там по баллам). Без этого при смене
+ * направления или режима «по выбору» в состоянии остался бы выбор, невидимый в селекторе.
  */
-private fun OrienteeringCreatorState.withValidOvertimePolicy(): OrienteeringCreatorState =
-    if (overtimePolicy == OvertimePolicy.SCORE_PENALTY && !ranksByScore(competitionDirection, byChoiceMode)) {
-        copy(overtimePolicy = OvertimePolicy.DEFAULT)
-    } else {
-        this
+private fun OrienteeringCreatorState.withValidOvertimePolicy(): OrienteeringCreatorState {
+    val isScoreO = ranksByScore(competitionDirection, byChoiceMode)
+    val policy = if (overtimePolicy == OvertimePolicy.SCORE_PENALTY && !isScoreO) OvertimePolicy.DEFAULT else overtimePolicy
+    val team = teamScoring?.let {
+        if (isScoreO && it.groupMethod == TeamScoringMethod.TIME) it.copy(groupMethod = TeamScoringMethod.POINTS) else it
     }
+    return copy(overtimePolicy = policy, teamScoring = team)
+}
+
+/** Командный зачёт для аналитики: none / groups / both (общие зачёты всегда строятся из зачётов в группах). */
+private fun TeamScoring?.analyticsValue(): String = when {
+    this == null -> "none"
+    overallScopes.isEmpty() -> "groups"
+    else -> "both"
+}
 
 /** Формат соревнования для аналитики: forward / marking / by_choice_score / by_choice_min_controls. */
 private fun OrienteeringCompetition.analyticsFormat(): String =

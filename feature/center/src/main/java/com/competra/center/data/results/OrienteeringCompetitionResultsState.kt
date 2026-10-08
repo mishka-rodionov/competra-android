@@ -1,6 +1,7 @@
 package com.competra.center.data.results
 
 import com.competra.domain.models.orienteering.ByChoiceMode
+import com.competra.domain.models.orienteering.TeamStandings
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.ResultsStatus
@@ -11,6 +12,10 @@ data class OrienteeringCompetitionResultsState(
     val direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
     /** Итог формата «по выбору»: по баллам или по минимуму КП (места по времени, баллов нет). */
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+    /** Командный зачёт, посчитанный из текущих результатов; null — зачёт в соревновании не включён. */
+    val teamStandings: TeamStandings? = null,
+    /** Показывается командный зачёт вместо личных результатов. */
+    val showTeamStandings: Boolean = false,
     val isApproved: Boolean = false,
     /** Соревнование уже завершено — кнопка "Утвердить результаты" больше не показывается. */
     val isCompetitionFinished: Boolean = false,

@@ -36,6 +36,8 @@ import com.competra.domain.models.orienteering.ParticipantWithResult
 import com.competra.domain.models.orienteering.ResultsStatus
 import com.competra.domain.models.orienteering.displayPlace
 import com.competra.resources.R
+import com.competra.ui.components.TeamStandingsContent
+import com.competra.ui.components.ResultsModeToggle
 import com.competra.utils.DateTimeFormat
 import com.competra.utils.orienteering.toRaceTime
 import kotlinx.coroutines.Dispatchers
@@ -269,7 +271,19 @@ fun OrienteeringCompetitionResultsScreen(
                 }
             }
 
-            LazyColumn(
+            val teamStandings = state.teamStandings
+            if (teamStandings != null) {
+                ResultsModeToggle(
+                    showTeam = state.showTeamStandings,
+                    onChange = {
+                        viewModel.onAction(OrienteeringCompetitionResultsViewModel.OrienteeringResultsAction.ShowTeamStandings(it))
+                    },
+                    modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp)
+                )
+            }
+            if (teamStandings != null && state.showTeamStandings) {
+                TeamStandingsContent(standings = teamStandings, modifier = Modifier.weight(1f))
+            } else LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),

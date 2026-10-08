@@ -104,6 +104,8 @@ data class OrienteeringCreatorState(
     val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
     /** Итог формата «по выбору»: по баллам или по минимуму КП (только для BY_CHOICE). */
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+    /** Настройки командного зачёта; null — зачёта нет. */
+    val teamScoring: TeamScoring? = null,
 
     val editGroupIndex: Int = -1,
     val isShowGroupCreateDialog: Boolean = false,
@@ -164,7 +166,8 @@ data class OrienteeringCreatorState(
             startIntervalSeconds = startIntervalSeconds,
             controlTimeMinutes = controlTimeMinutes,
             overtimePolicy = overtimePolicy,
-            byChoiceMode = byChoiceMode
+            byChoiceMode = byChoiceMode,
+            teamScoring = teamScoring
         )
     }
 }

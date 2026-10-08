@@ -32,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.competra.ui.components.TeamStandingsContent
+import com.competra.ui.components.ResultsModeToggle
 import com.competra.designsystem.components.clickRipple
 import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.ranksByScore
@@ -91,76 +93,88 @@ fun EventResultsScreen(
 
             Column(modifier = Modifier.fillMaxSize()) {
                 LinkBanner(link = state.link, onAction = viewModel::onAction)
-                ScrollableTabRow(
-                    selectedTabIndex = pagerState.currentPage,
-                    edgePadding = 16.dp,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary
-                ) {
-                    groups.forEachIndexed { index, groupWithResults ->
-                        Tab(
-                            selected = pagerState.currentPage == index,
-                            onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                            text = { Text(text = groupWithResults.group.title) }
-                        )
-                    }
+                val teamStandings = state.teamStandings
+                if (teamStandings != null) {
+                    ResultsModeToggle(
+                        showTeam = state.showTeamStandings,
+                        onChange = { viewModel.onAction(EventResultsAction.ShowTeamStandings(it)) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
                 }
+                if (teamStandings != null && state.showTeamStandings) {
+                    TeamStandingsContent(standings = teamStandings, modifier = Modifier.weight(1f))
+                } else {
+                    ScrollableTabRow(
+                        selectedTabIndex = pagerState.currentPage,
+                        edgePadding = 16.dp,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        groups.forEachIndexed { index, groupWithResults ->
+                            Tab(
+                                selected = pagerState.currentPage == index,
+                                onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                                text = { Text(text = groupWithResults.group.title) }
+                            )
+                        }
+                    }
 
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.weight(1f)
-                ) { page ->
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        // remoteId, а не groupId — в этом remote-only потоке локальный groupId
-                        // не заполняется (см. ParticipantGroupResponse.toDomain()) и одинаков
-                        // у всех групп, поэтому именно remoteId уникально идентифицирует группу.
-                        val groupRemoteId = groups[page].group.remoteId
-                        if (groupRemoteId != null) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                TextButton(
-                                    onClick = {
-                                        viewModel.onAction(
-                                            EventResultsAction.OpenGroupSplitsTable(
-                                                eventId = eventId,
-                                                groupId = groupRemoteId
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.weight(1f)
+                    ) { page ->
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // remoteId, а не groupId — в этом remote-only потоке локальный groupId
+                            // не заполняется (см. ParticipantGroupResponse.toDomain()) и одинаков
+                            // у всех групп, поэтому именно remoteId уникально идентифицирует группу.
+                            val groupRemoteId = groups[page].group.remoteId
+                            if (groupRemoteId != null) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.onAction(
+                                                EventResultsAction.OpenGroupSplitsTable(
+                                                    eventId = eventId,
+                                                    groupId = groupRemoteId
+                                                )
                                             )
-                                        )
-                                    }
-                                ) {
-                                    Text(text = "Сплиты")
-                                }
-                                // Для формата "по выбору" общего порядка КП нет — вместо графика
-                                // отставания от лидера по времени показываем график набора очков
-                                // во времени (победитель определяется по сумме баллов, а не по
-                                // времени на перегонах). В «по выбору» с минимумом КП нет ни
-                                // баллов, ни общего порядка — графика нет.
-                                if (state.direction != OrienteeringDirection.BY_CHOICE ||
-                                    state.byChoiceMode == ByChoiceMode.SCORE
-                                ) TextButton(
-                                    onClick = {
-                                        val action = if (state.direction == OrienteeringDirection.BY_CHOICE) {
-                                            EventResultsAction.OpenScoreGraph(eventId = eventId, groupId = groupRemoteId)
-                                        } else {
-                                            EventResultsAction.OpenRaceGraph(eventId = eventId, groupId = groupRemoteId)
                                         }
-                                        viewModel.onAction(action)
+                                    ) {
+                                        Text(text = "Сплиты")
                                     }
-                                ) {
-                                    Text(text = "График")
+                                    // Для формата "по выбору" общего порядка КП нет — вместо графика
+                                    // отставания от лидера по времени показываем график набора очков
+                                    // во времени (победитель определяется по сумме баллов, а не по
+                                    // времени на перегонах). В «по выбору» с минимумом КП нет ни
+                                    // баллов, ни общего порядка — графика нет.
+                                    if (state.direction != OrienteeringDirection.BY_CHOICE ||
+                                        state.byChoiceMode == ByChoiceMode.SCORE
+                                    ) TextButton(
+                                        onClick = {
+                                            val action = if (state.direction == OrienteeringDirection.BY_CHOICE) {
+                                                EventResultsAction.OpenScoreGraph(eventId = eventId, groupId = groupRemoteId)
+                                            } else {
+                                                EventResultsAction.OpenRaceGraph(eventId = eventId, groupId = groupRemoteId)
+                                            }
+                                            viewModel.onAction(action)
+                                        }
+                                    ) {
+                                        Text(text = "График")
+                                    }
                                 }
                             }
+                            ResultsList(
+                                participants = groups[page].participants,
+                                direction = state.direction,
+                                byChoiceMode = state.byChoiceMode,
+                                onParticipantClick = { viewModel.onAction(EventResultsAction.ShowSplits(it)) }
+                            )
                         }
-                        ResultsList(
-                            participants = groups[page].participants,
-                            direction = state.direction,
-                            byChoiceMode = state.byChoiceMode,
-                            onParticipantClick = { viewModel.onAction(EventResultsAction.ShowSplits(it)) }
-                        )
                     }
                 }
             }

@@ -417,3 +417,14 @@ val MIGRATION_53_54 = object : Migration(53, 54) {
         db.execSQL("ALTER TABLE distances ADD COLUMN minControlsCount INTEGER")
     }
 }
+
+/**
+ * Миграция с версии 54 на 55.
+ * Настройки командного зачёта соревнования (строкой «метод|N|области», см. CompetitionConverters);
+ * null — зачёта нет. Сам зачёт не хранится — вычисляется из результатов.
+ */
+val MIGRATION_54_55 = object : Migration(54, 55) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN teamScoring TEXT")
+    }
+}

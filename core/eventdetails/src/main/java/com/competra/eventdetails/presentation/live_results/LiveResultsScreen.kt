@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.competra.ui.components.TeamStandingsContent
+import com.competra.ui.components.ResultsModeToggle
 import com.competra.designsystem.components.clickRipple
 import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.Gender
@@ -95,31 +97,43 @@ fun LiveResultsScreen(
                     val pagerState = rememberPagerState(pageCount = { groups.size })
                     val scope = rememberCoroutineScope()
 
-                    ScrollableTabRow(
-                        selectedTabIndex = pagerState.currentPage,
-                        edgePadding = 16.dp,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary
-                    ) {
-                        groups.forEachIndexed { index, groupWithResults ->
-                            Tab(
-                                selected = pagerState.currentPage == index,
-                                onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                                text = { Text(text = groupWithResults.group.title) }
+                    val teamStandings = state.teamStandings
+                    if (teamStandings != null) {
+                        ResultsModeToggle(
+                            showTeam = state.showTeamStandings,
+                            onChange = { viewModel.onAction(LiveResultsAction.ShowTeamStandings(it)) },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+                    if (teamStandings != null && state.showTeamStandings) {
+                        TeamStandingsContent(standings = teamStandings, modifier = Modifier.weight(1f))
+                    } else {
+                        ScrollableTabRow(
+                            selectedTabIndex = pagerState.currentPage,
+                            edgePadding = 16.dp,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ) {
+                            groups.forEachIndexed { index, groupWithResults ->
+                                Tab(
+                                    selected = pagerState.currentPage == index,
+                                    onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                                    text = { Text(text = groupWithResults.group.title) }
+                                )
+                            }
+                        }
+
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.weight(1f)
+                        ) { page ->
+                            LiveResultsList(
+                                participants = groups[page].participants,
+                                direction = state.direction,
+                                byChoiceMode = state.byChoiceMode,
+                                onParticipantClick = { viewModel.onAction(LiveResultsAction.ShowSplits(it)) }
                             )
                         }
-                    }
-
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.weight(1f)
-                    ) { page ->
-                        LiveResultsList(
-                            participants = groups[page].participants,
-                            direction = state.direction,
-                            byChoiceMode = state.byChoiceMode,
-                            onParticipantClick = { viewModel.onAction(LiveResultsAction.ShowSplits(it)) }
-                        )
                     }
                 }
             }

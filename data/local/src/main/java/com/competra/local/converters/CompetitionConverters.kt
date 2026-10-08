@@ -6,6 +6,9 @@ import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
+import com.competra.domain.models.orienteering.TeamOverallScope
+import com.competra.domain.models.orienteering.TeamScoring
+import com.competra.domain.models.orienteering.TeamScoringMethod
 
 /**
  * Конвертеры типов для хранения объектов соревнований в Room.
@@ -55,6 +58,25 @@ class CompetitionConverters {
     @TypeConverter
     fun toOvertimePolicy(value: String?): OvertimePolicy? {
         return value?.let { OvertimePolicy.fromString(it) }
+    }
+
+    /** Командный зачёт строкой «метод|N|области»: `POINTS|3|MEN,ALL`. */
+    @TypeConverter
+    fun fromTeamScoring(settings: TeamScoring?): String? {
+        return settings?.let {
+            "${it.groupMethod.name}|${it.groupCountedResults}|${it.overallScopes.joinToString(",") { scope -> scope.name }}"
+        }
+    }
+
+    /** Битое значение — зачёта нет, а не падение при чтении соревнования. */
+    @TypeConverter
+    fun toTeamScoring(value: String?): TeamScoring? {
+        val parts = value?.split("|")?.takeIf { it.size == 3 } ?: return null
+        return TeamScoring(
+            groupMethod = TeamScoringMethod.fromString(parts[0]),
+            groupCountedResults = parts[1].toIntOrNull()?.takeIf { it > 0 } ?: TeamScoring.DEFAULT_COUNTED_RESULTS,
+            overallScopes = parts[2].split(",").mapNotNull(TeamOverallScope::fromString).toSet()
+        )
     }
 
     @TypeConverter

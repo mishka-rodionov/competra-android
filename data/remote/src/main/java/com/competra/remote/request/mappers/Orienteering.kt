@@ -13,6 +13,7 @@ import com.competra.remote.request.orienteering.OrienteeringParticipantRequest
 import com.competra.remote.request.orienteering.OrienteeringResultRequest
 import com.competra.remote.request.orienteering.ParticipantGroupRequest
 import com.competra.remote.request.orienteering.SplitTimeRequest
+import com.competra.remote.request.orienteering.TeamScoringRequest
 
 fun OrienteeringCompetition.toRequest(): OrienteeringCompetitionRequest {
     return OrienteeringCompetitionRequest(
@@ -26,6 +27,14 @@ fun OrienteeringCompetition.toRequest(): OrienteeringCompetitionRequest {
         controlTimeMinutes = controlTimeMinutes,
         overtimePolicy = overtimePolicy.name,
         byChoiceMode = byChoiceMode.name,
+        teamScoring = teamScoring?.let {
+            TeamScoringRequest(
+                enabled = true,
+                groupMethod = it.groupMethod.name,
+                groupCountedResults = it.groupCountedResults,
+                overallScopes = it.overallScopes.map { scope -> scope.name }
+            )
+        } ?: TeamScoringRequest(enabled = false),
         serverUpdatedAt = serverUpdatedAt
     )
 }

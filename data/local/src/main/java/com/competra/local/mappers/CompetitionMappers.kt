@@ -29,6 +29,7 @@ fun OrienteeringCompetition.toEntity(): OrienteeringCompetitionEntity {
         controlTimeMinutes = this.controlTimeMinutes,
         overtimePolicy = this.overtimePolicy,
         byChoiceMode = this.byChoiceMode,
+        teamScoring = this.teamScoring,
         isDrawConducted = this.isDrawConducted,
         serverUpdatedAt = this.serverUpdatedAt
     )
@@ -60,6 +61,7 @@ fun OrienteeringCompetitionEntity.toDomain(): OrienteeringCompetition {
         controlTimeMinutes = this.controlTimeMinutes,
         overtimePolicy = this.overtimePolicy,
         byChoiceMode = this.byChoiceMode,
+        teamScoring = this.teamScoring,
         isDrawConducted = this.isDrawConducted,
         serverUpdatedAt = this.serverUpdatedAt
     )

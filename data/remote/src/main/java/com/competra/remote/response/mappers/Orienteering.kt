@@ -14,6 +14,7 @@ import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.SplitTime
+import com.competra.remote.response.orienteering.toDomain
 import com.competra.remote.response.orienteering.ControlPointResponse
 import com.competra.remote.response.orienteering.DistanceResponse
 import com.competra.remote.response.orienteering.OrienteeringCompetitionResponse
@@ -38,6 +39,7 @@ fun OrienteeringCompetitionResponse.toDomain(): OrienteeringCompetition {
         controlTimeMinutes = controlTimeMinutes,
         overtimePolicy = OvertimePolicy.fromString(overtimePolicy),
         byChoiceMode = ByChoiceMode.fromString(byChoiceMode),
+        teamScoring = teamScoring?.toDomain(),
         serverUpdatedAt = updatedAt.takeIf { it > 0L }
     )
 }
