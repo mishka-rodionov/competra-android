@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.competra.designsystem.theme.Dimens
 import com.competra.resources.R
 import kotlin.math.max
@@ -164,8 +164,8 @@ fun ImageCropperDialog(
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),
                     onSuccess = { state ->
-                        val drawable = state.result.drawable
-                        imageIntrinsicSize = Size(drawable.intrinsicWidth.toFloat(), drawable.intrinsicHeight.toFloat())
+                        val image = state.result.image
+                        imageIntrinsicSize = Size(image.width.toFloat(), image.height.toFloat())
                     }
                 )
 

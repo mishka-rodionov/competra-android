@@ -70,6 +70,7 @@ dependencies {
     // Карта онлайн-треков для зрителя: osmdroid + растр карты дистанции через Coil.
     implementation(libs.osmdroid)
     implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     //koin
     implementation(libs.koin.core)

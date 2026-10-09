@@ -64,11 +64,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.LifecycleStartEffect
-import coil.imageLoader
-import coil.request.ImageRequest
-import coil.request.SuccessResult
+import coil3.imageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.allowHardware
+import coil3.toBitmap
 import com.competra.domain.models.livetrack.LiveTrackStatus
 import com.competra.domain.models.livetrack.REPLAY_TAIL_MS
 import com.competra.domain.models.livetrack.ReplayRunnerState
@@ -767,5 +768,5 @@ private suspend fun loadRaster(context: Context, url: String): Bitmap? = runCatc
         .size(MAX_RASTER_PX)
         .allowHardware(false)
         .build()
-    (context.imageLoader.execute(request) as? SuccessResult)?.drawable?.toBitmap()
+    (context.imageLoader.execute(request) as? SuccessResult)?.image?.toBitmap()
 }.getOrNull()

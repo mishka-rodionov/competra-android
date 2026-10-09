@@ -19,7 +19,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import kotlin.math.max
 
 /**
@@ -137,8 +137,8 @@ private fun CroppedNetworkImage(
                     translationY = displayedHeight * (0.5f - cropRect.y - cropRect.height / 2f)
                 },
             onSuccess = { state ->
-                val drawable = state.result.drawable
-                imageSize = Size(drawable.intrinsicWidth.toFloat(), drawable.intrinsicHeight.toFloat())
+                val image = state.result.image
+                imageSize = Size(image.width.toFloat(), image.height.toFloat())
             }
         )
     }

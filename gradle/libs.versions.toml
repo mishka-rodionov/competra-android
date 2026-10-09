@@ -3,14 +3,14 @@
 #Android Settings
 
 compileSdk = "37"
-coreKtx = "1.19.0"
+coreKtx = "1.19.1"
 datastorePreferences = "1.2.1"
-exifinterface = "1.4.1"
+exifinterface = "1.4.2"
 gson = "2.14.0"
 lifecycle-extensions = "2.2.0"
 lifecycleRuntimeKtx = "2.11.0"
-loggingInterceptor = "5.4.0"
-material = "1.11.4"
+loggingInterceptor = "5.5.0"
+material = "1.12.1"
 minSdk = "26"
 navigationCompose = "2.8.6"
 retrofit = "3.0.0"
@@ -19,14 +19,14 @@ targetSdk = "36"
 
 #Compose
 activityCompose = "1.13.0"
-composeBomVersion = "2026.06.01"
+composeBomVersion = "2026.09.00"
 material3 = "1.4.0"
 
 #Kotlin
-android-koltin = "2.4.0"
+android-koltin = "2.4.21"
 kotlinxSerializationJson = "1.11.0"
 kotlinCompilerExtension = "1.5.8"
-ksp = "2.3.9"
+ksp = "2.3.12"
 #Chucker
 chuckerVersion = "4.3.1"
 
@@ -36,42 +36,42 @@ junit = "4.13.2"
 junitVersion = "1.3.0"
 
 #Navigation
-navigation-fragment-ktx = "2.9.8"
+navigation-fragment-ktx = "2.10.2"
 navigation-safe-args-gradle-plugin = "2.7.7"
 navigation-ui-ktx = "2.7.7"
-uiVersion = "1.11.4"
-agp = "9.3.1"
-appcompat = "1.7.1"
+uiVersion = "1.12.1"
+agp = "9.4.1"
+appcompat = "1.8.0"
 materialVersion = "1.14.0"
 
 #Room
-room = "2.8.4"
+room = "2.8.5"
 
 #Koin
 koin = "4.2.2"
-adaptive = "1.2.0"
+adaptive = "1.3.0"
 windowCore = "1.5.1"
 osmdroid = "6.1.20"
-coil = "2.7.0"
-work = "2.11.2"
+coil = "3.6.3"
+work = "2.12.0"
 coroutines = "1.11.0"
 
 #Firebase
 googleServices = "4.5.0"
-firebaseBom = "34.15.0"
-firebaseCrashlyticsPlugin = "3.0.7"
+firebaseBom = "35.0.0"
+firebaseCrashlyticsPlugin = "3.0.8"
 
 #AppMetrica
-appmetrica = "8.3.0"
+appmetrica = "8.6.0"
 
 #Jsoup
-jsoupVersion = "1.22.2"
+jsoupVersion = "1.23.2"
 
 #Vico
-vico = "3.2.3"
+vico = "3.3.1"
 
 #Paging
-paging = "3.5.0"
+paging = "3.5.2"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -114,7 +114,8 @@ koin-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = 
 androidx-adaptive = { group = "androidx.compose.material3.adaptive", name = "adaptive", version.ref = "adaptive" }
 androidx-window-core = { group = "androidx.window", name = "window-core", version.ref = "windowCore" }
 osmdroid = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
-coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
