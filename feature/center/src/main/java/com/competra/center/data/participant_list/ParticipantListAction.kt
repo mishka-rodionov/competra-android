@@ -29,8 +29,13 @@ sealed class ParticipantListAction : BaseAction {
     /**
      * Создать нового участника.
      */
-    data class CreateNewParticipant(val group: Int, val firstName: String, val secondName: String) :
-        ParticipantListAction()
+    data class CreateNewParticipant(
+        val group: Int,
+        val firstName: String,
+        val secondName: String,
+        /** Подпись команды для протокола; пусто — без команды. */
+        val commandName: String = ""
+    ) : ParticipantListAction()
 
     /**
      * Обновить данные существующего участника.

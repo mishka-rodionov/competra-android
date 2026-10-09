@@ -34,6 +34,10 @@ import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.theme.Dimens
 import com.competra.center.data.participant_list.ParticipantListAction
 import com.competra.center.data.participant_list.ParticipantListState
+import com.competra.domain.models.cyclic_event.protocolCommandSuggestions
+import com.competra.domain.models.cyclic_event.protocolCommandNames
+import com.competra.domain.models.cyclic_event.normalizeCommandName
+import com.competra.domain.models.cyclic_event.COMMAND_NAME_MAX_LENGTH
 import com.competra.domain.models.Gender
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.ResultStatus
@@ -79,7 +83,10 @@ fun ParticipantListScreen(
             userAction = userAction,
             group = state.group,
             groupName = state.participantGroupWithParticipants.getOrNull(state.group)?.group?.title ?: "",
-            editingParticipant = state.editingParticipant
+            editingParticipant = state.editingParticipant,
+            protocolTeams = remember(state.participantGroupWithParticipants) {
+                protocolCommandNames(state.participantGroupWithParticipants.flatMap { it.participants }.map { it.commandName })
+            }
         )
     }
 
@@ -388,7 +395,9 @@ fun CreateParticipantDialog(
     userAction: (BaseAction) -> Unit,
     group: Int,
     groupName: String,
-    editingParticipant: OrienteeringParticipant?
+    editingParticipant: OrienteeringParticipant?,
+    /** Подписи команд из протокола соревнования — для подсказок ([protocolCommandNames]). */
+    protocolTeams: List<String> = emptyList()
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     DSBottomDialog(
@@ -398,22 +407,26 @@ fun CreateParticipantDialog(
                 userAction = userAction,
                 group = group,
                 groupName = groupName,
-                editingParticipant = editingParticipant
+                editingParticipant = editingParticipant,
+                protocolTeams = protocolTeams
             )
         },
         onDismiss = { userAction.invoke(ParticipantListAction.HideCreateParticipantDialog) },
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CreateParticipantDialogContent(
     userAction: (BaseAction) -> Unit,
     group: Int,
     groupName: String,
-    editingParticipant: OrienteeringParticipant?
+    editingParticipant: OrienteeringParticipant?,
+    protocolTeams: List<String> = emptyList()
 ) {
     var firstName by remember(editingParticipant) { mutableStateOf(editingParticipant?.firstName ?: "") }
     var secondName by remember(editingParticipant) { mutableStateOf(editingParticipant?.lastName ?: "") }
+    var commandName by remember(editingParticipant) { mutableStateOf(editingParticipant?.commandName ?: "") }
     var startTimeInput by remember(editingParticipant) {
         mutableStateOf(
             if (editingParticipant != null && isValidTimestamp(editingParticipant.startTime))
@@ -469,6 +482,28 @@ fun CreateParticipantDialogContent(
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
         )
 
+        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+        // Команда — подпись в протоколе, по ней считается командный зачёт. Подсказки из протокола
+        // помогают писать одну команду одинаково.
+        DSTextInput(
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(text = "Команда (необязательно)") },
+            text = commandName,
+            onValueChanged = { commandName = it.take(COMMAND_NAME_MAX_LENGTH) },
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+        )
+        val teamSuggestions = remember(protocolTeams, commandName) {
+            protocolCommandSuggestions(protocolTeams, commandName, limit = 4)
+        }
+        if (teamSuggestions.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)) {
+                teamSuggestions.forEach { suggestion ->
+                    SuggestionChip(onClick = { commandName = suggestion }, label = { Text(suggestion) })
+                }
+            }
+        }
+
         if (editingParticipant != null) {
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
@@ -508,9 +543,11 @@ fun CreateParticipantDialogContent(
                             ParticipantListAction.CreateNewParticipant(
                                 group = group,
                                 firstName = firstName,
-                                secondName = secondName
+                                secondName = secondName,
+                                commandName = commandName
                             )
                         )
+                        // Команду не сбрасываем: участников одной команды обычно вносят подряд.
                         firstName = ""
                         secondName = ""
                         focusRequester.requestFocus()
@@ -529,6 +566,7 @@ fun CreateParticipantDialogContent(
                                 participant = editingParticipant.copy(
                                     firstName = firstName,
                                     lastName = secondName,
+                                    commandName = normalizeCommandName(commandName).orEmpty(),
                                     startTime = parsedStartTime ?: editingParticipant.startTime
                                 )
                             )

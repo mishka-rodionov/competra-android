@@ -129,3 +129,25 @@ fun RegistrationTeamOptions.suggestionsFor(query: String, limit: Int = 8): List<
         .filterNot { sameCommandName(it.label, query) }
         .take(limit)
 }
+
+/**
+ * Подписи команд, уже встречающиеся в протоколе соревнования, — для подсказок организатору при
+ * ручном добавлении участника в Центре, чтобы одна команда не записывалась по-разному (от этого
+ * зависит командный зачёт). Без повторов с точностью до регистра и пробелов, самые частые первыми,
+ * при равенстве — по алфавиту.
+ */
+fun protocolCommandNames(commandNames: List<String?>): List<String> =
+    commandNames.mapNotNull(::normalizeCommandName)
+        .groupBy { it.lowercase() }
+        .values
+        .sortedWith(compareByDescending<List<String>> { it.size }.thenBy { it.first().lowercase() })
+        .map { it.first() }
+
+/** Подсказки из [protocolNames] к введённому тексту [query]: содержащие его, кроме точного совпадения. */
+fun protocolCommandSuggestions(protocolNames: List<String>, query: String, limit: Int = 5): List<String> {
+    val needle = normalizeCommandName(query)?.lowercase()
+    return protocolNames
+        .filter { needle == null || it.lowercase().contains(needle) }
+        .filterNot { sameCommandName(it, query) }
+        .take(limit)
+}

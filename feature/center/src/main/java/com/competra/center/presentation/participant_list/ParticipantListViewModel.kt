@@ -10,6 +10,7 @@ import com.competra.center.data.participant_list.ParticipantListState
 import com.competra.center.data.participant_list.TestParticipantFixtures
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
+import com.competra.domain.models.cyclic_event.normalizeCommandName
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.repository.LoadingRepository
@@ -77,7 +78,7 @@ class ParticipantListViewModel(
                     groupId = group.groupId,
                     groupName = group.title,
                     competitionId = group.competitionId,
-                    commandName = "",
+                    commandName = normalizeCommandName(action.commandName).orEmpty(),
                     startNumber = nextStartNumber.toString(),
                     startTime = startTime,
                     chipNumber = "",

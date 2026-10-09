@@ -43,4 +43,20 @@ class RegistrationTeamTest {
         assertEquals(listOf("Лесные лисы"), options.suggestionsFor("лис").map { it.label })
         assertEquals(emptyList<String>(), options.suggestionsFor("Компас").map { it.label })
     }
+
+    @Test
+    fun `protocol names are unique up to case and spaces, most frequent first`() {
+        val names = protocolCommandNames(listOf("Компас", " азимут ", "Азимут", "", null, "АЗИМУТ", "Компас", "Ориент"))
+
+        assertEquals(listOf("азимут", "Компас", "Ориент"), names)
+    }
+
+    @Test
+    fun `protocol suggestions filter by query and hide exact match`() {
+        val names = listOf("Азимут", "СК Азимут", "Компас")
+
+        assertEquals(listOf("Азимут", "СК Азимут"), protocolCommandSuggestions(names, "азим"))
+        assertEquals(listOf("СК Азимут"), protocolCommandSuggestions(names, "азимут"))
+        assertEquals(names, protocolCommandSuggestions(names, ""))
+    }
 }
