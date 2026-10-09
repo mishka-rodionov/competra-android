@@ -15,8 +15,10 @@ data class TeamStandings(
     val overallStandings: List<OverallTeamStanding>
 )
 
+/** @property countedResults N этой группы — своё ([ParticipantGroup.teamCountedResults]) или соревнования. */
 data class GroupTeamStanding(
     val group: ParticipantGroup,
+    val countedResults: Int,
     val teams: List<GroupTeam>
 )
 
@@ -75,7 +77,7 @@ data class OverallTeamGroup(
  *
  * - Команда — подпись участника без учёта регистра и пробелов ([normalizeCommandName]); без подписи — не участвует.
  * - В группе: POINTS — сумма очков за места ([placePoints]) N лучших; TIME — сумма времени N лучших,
- *   финишировавших меньше N — вне зачёта.
+ *   финишировавших меньше N — вне зачёта. N — своё у группы ([ParticipantGroup.teamCountedResults]), иначе у соревнования.
  * - Общие зачёты: сумма баллов за командные места в группах по той же таблице.
  *
  * @param groups группы соревнования с участниками и результатами — в порядке вывода.
@@ -88,11 +90,12 @@ fun computeTeamStandings(settings: TeamScoring, groups: List<GroupWithParticipan
             pw.result != null && normalizeCommandName(pw.participant.commandName) != null
         }
         if (entries.isEmpty()) return@mapNotNull null
+        val groupCounted = group.group.teamCountedResults?.takeIf { it > 0 } ?: counted
         val teams = when (settings.groupMethod) {
-            TeamScoringMethod.POINTS -> pointsStanding(entries, counted)
-            TeamScoringMethod.TIME -> timeStanding(entries, counted)
+            TeamScoringMethod.POINTS -> pointsStanding(entries, groupCounted)
+            TeamScoringMethod.TIME -> timeStanding(entries, groupCounted)
         }
-        GroupTeamStanding(group.group, teams)
+        GroupTeamStanding(group.group, groupCounted, teams)
     }
 
     val overallStandings = TeamOverallScope.entries

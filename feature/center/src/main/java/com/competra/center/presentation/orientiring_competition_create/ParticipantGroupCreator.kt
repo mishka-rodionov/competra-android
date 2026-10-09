@@ -66,6 +66,10 @@ fun ParticipantGroupEditor(
     var maxLatenessMinutes by remember {
         mutableStateOf(initialGroup?.maxLatenessMinutes?.toString() ?: if (isScoreO) "30" else "")
     }
+    // Пусто = N командного зачёта как у соревнования.
+    var teamCountedResults by remember {
+        mutableStateOf(initialGroup?.teamCountedResults?.toString() ?: "")
+    }
 
     // Выбранная дистанция для группы
     var selectedDistanceId by remember { mutableLongStateOf(initialGroup?.distanceId ?: state.distances.firstOrNull()?.id ?: 0L) }
@@ -206,6 +210,20 @@ fun ParticipantGroupEditor(
                     onValueChanged = { timeLimitMinutes = it.filter { c -> c.isDigit() } }
                 )
 
+                state.teamScoring?.let { teamScoring ->
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+                    DSTextInput(
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Участников в командный зачёт") },
+                        supportingText = { Text("Пусто — как у соревнования: ${teamScoring.groupCountedResults}") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        text = teamCountedResults,
+                        onValueChanged = { teamCountedResults = it.filter { c -> c.isDigit() } }
+                    )
+                }
+
                 if (isScoreO) {
                     Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
@@ -261,6 +279,12 @@ fun ParticipantGroupEditor(
                                     timeLimitMinutes = timeLimitMinutes.toIntOrNull(),
                                     scorePenaltyPerMinute = if (isScoreO) scorePenaltyPerMinute.toIntOrNull() else null,
                                     maxLatenessMinutes = if (isScoreO) maxLatenessMinutes.toIntOrNull() else null,
+                                    // Без командного зачёта поле скрыто — сохраняем прежнее значение.
+                                    teamCountedResults = if (state.teamScoring != null) {
+                                        teamCountedResults.toIntOrNull()?.takeIf { it > 0 }
+                                    } else {
+                                        initialGroup?.teamCountedResults
+                                    },
                                     isSynced = false,
                                     lastModified = System.currentTimeMillis()
                                 ),

@@ -55,6 +55,8 @@ fun ParticipantGroup.toRequest(): ParticipantGroupRequest {
         timeLimitMinutes = timeLimitMinutes,
         scorePenaltyPerMinute = scorePenaltyPerMinute,
         maxLatenessMinutes = maxLatenessMinutes,
+        // Клиент поле знает, поэтому шлёт его всегда: 0 — «как у соревнования» (null для сервера — «не менять»).
+        teamCountedResults = teamCountedResults ?: 0,
         serverUpdatedAt = serverUpdatedAt
     )
 }

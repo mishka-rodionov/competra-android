@@ -52,7 +52,8 @@ data class OrienteeringCompetitionRemoteRepositoryImpl(
                     maxParticipants = group.maxParticipants,
                     timeLimitMinutes = group.timeLimitMinutes,
                     scorePenaltyPerMinute = group.scorePenaltyPerMinute,
-                    maxLatenessMinutes = group.maxLatenessMinutes
+                    maxLatenessMinutes = group.maxLatenessMinutes,
+                    teamCountedResults = group.teamCountedResults ?: 0
                 )
             }
         ).mapCatching { response ->

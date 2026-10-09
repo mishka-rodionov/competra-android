@@ -147,6 +147,22 @@ class TeamStandingsTest {
     }
 
     @Test
+    fun `group override of N takes precedence over the competition N`() {
+        val standings = computeTeamStandings(
+            points(n = 2),
+            listOf(
+                GroupWithParticipantsAndResults(
+                    m16.copy(teamCountedResults = 1),
+                    listOf(finished(m16, "Азимут", 1, 30), finished(m16, "Азимут", 2, 31))
+                ),
+                GroupWithParticipantsAndResults(m21, listOf(finished(m21, "Азимут", 1, 40), finished(m21, "Азимут", 2, 41))),
+            )
+        )
+
+        assertEquals(listOf(1 to 100, 2 to 180), standings.groupStandings.map { it.countedResults to it.teams.single().points })
+    }
+
+    @Test
     fun `place points follow the rating table`() {
         assertEquals(listOf(100, 80, 60, 33, 31, 1, 0, 0), listOf(1, 2, 3, 9, 10, 40, 41, 0).map(::placePoints))
     }

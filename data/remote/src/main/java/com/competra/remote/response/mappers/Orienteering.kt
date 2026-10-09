@@ -64,6 +64,7 @@ fun ParticipantGroupResponse.toDomain() : ParticipantGroup {
         timeLimitMinutes = timeLimitMinutes,
         scorePenaltyPerMinute = scorePenaltyPerMinute,
         maxLatenessMinutes = maxLatenessMinutes,
+        teamCountedResults = teamCountedResults,
         remoteId = groupId,
         isSynced = true,
         lastModified = System.currentTimeMillis(),

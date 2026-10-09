@@ -428,3 +428,13 @@ val MIGRATION_54_55 = object : Migration(54, 55) {
         db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN teamScoring TEXT")
     }
 }
+
+/**
+ * Миграция с версии 55 на 56.
+ * Своё N командного зачёта у группы (null — как у соревнования, см. TeamScoring).
+ */
+val MIGRATION_55_56 = object : Migration(55, 56) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE participant_groups ADD COLUMN teamCountedResults INTEGER")
+    }
+}

@@ -91,7 +91,7 @@ fun TeamStandingsContent(standings: TeamStandings, modifier: Modifier = Modifier
                 standings.groupStandings.forEachIndexed { groupIndex, groupStanding ->
                     item(key = "group-$groupIndex") {
                         Text(
-                            text = groupStanding.group.title,
+                            text = "${groupStanding.group.title} · в зачёт ${groupStanding.countedResults}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,

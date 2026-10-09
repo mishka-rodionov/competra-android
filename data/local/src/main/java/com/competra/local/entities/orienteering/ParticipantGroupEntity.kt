@@ -52,6 +52,7 @@ data class ParticipantGroupEntity(
     val timeLimitMinutes: Int? = null,         // лимит времени для формата "по выбору" (BY_CHOICE)
     val scorePenaltyPerMinute: Int? = null,    // штраф в очках за минуту опоздания сверх лимита
     val maxLatenessMinutes: Int? = null,       // порог сильного опоздания → результат обнуляется
+    val teamCountedResults: Int? = null,       // своё N командного зачёта; null — как у соревнования
     // Поля синхронизации
     val remoteId: Long? = null,            // ID группы на сервере
     val isSynced: Boolean = false,

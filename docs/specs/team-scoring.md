@@ -20,7 +20,7 @@
 |---|---|
 | `groupStandings` | зачёт в каждой группе; `null` — нет |
 | `groupStandings.method` | `POINTS` (очки за места) / `TIME` (сумма времени) |
-| `groupStandings.countedResults` | N — сколько лучших результатов команды в группе |
+| `groupStandings.countedResults` | N — сколько лучших результатов команды в группе; группа может задать своё N (`participant_groups.team_counted_results`, как своё КВ), способ подсчёта — общий |
 | `overallScopes` | общие зачёты: набор из `MEN` / `WOMEN` / `ALL` (по полу группы или все группы); пусто — нет |
 
 Общие зачёты строятся из зачётов в группах, поэтому `groupStandings` при включённом зачёте обязателен.
