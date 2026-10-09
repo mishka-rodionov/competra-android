@@ -3,6 +3,7 @@ package com.competra.eventdetails.presentation.live_tracks
 import androidx.lifecycle.viewModelScope
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
+import com.competra.data.navigation.Navigation
 import com.competra.domain.models.livetrack.LiveTrackAccumulator
 import com.competra.domain.models.livetrack.ReplayTimeMode
 import com.competra.domain.models.livetrack.ReplayTrack
@@ -163,6 +164,7 @@ sealed interface LiveTrackMapAction : BaseAction {
     data object TogglePlay : LiveTrackMapAction
     data class SetPlaybackSpeed(val speed: Int) : LiveTrackMapAction
     data class ToggleChecked(val sessionId: String) : LiveTrackMapAction
+    data object Back : LiveTrackMapAction
 
     /** Нажатие на участника: показать на карте, в режиме скорости — выбрать (повторно — снять выбор). */
     data class FocusTrack(val sessionId: String) : LiveTrackMapAction
@@ -176,7 +178,8 @@ sealed interface LiveTrackMapAction : BaseAction {
 class LiveTrackMapViewModel(
     private val viewerRepository: LiveTrackViewerRepository,
     private val competitionRepository: OrienteeringCompetitionRemoteRepository,
-    private val analytics: AnalyticsTracker
+    private val analytics: AnalyticsTracker,
+    private val navigation: Navigation
 ) : BaseViewModel<LiveTrackMapState>(LiveTrackMapState()) {
 
     private val accumulator = LiveTrackAccumulator()
@@ -254,6 +257,7 @@ class LiveTrackMapViewModel(
                 val id = action.sessionId
                 copy(checkedSessionIds = if (id in checkedSessionIds) checkedSessionIds - id else checkedSessionIds + id)
             }
+            is LiveTrackMapAction.Back -> viewModelScope.launch { navigation.back() }
         }
     }
 

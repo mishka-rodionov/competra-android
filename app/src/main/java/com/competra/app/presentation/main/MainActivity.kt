@@ -25,13 +25,15 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
+import androidx.compose.material3.ShortNavigationBarItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,7 +53,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.window.core.layout.WindowSizeClass
 import com.competra.analytics.AnalyticsTracker
@@ -242,6 +247,8 @@ internal fun MainScreen(viewModel: MainViewModel, windowSizeClass: WindowSizeCla
     val networkError by viewModel.networkErrorEvent.collectAsState()
     val isLoading by viewModel.loadingEvent.collectAsState()
     val onboardingRequest by viewModel.onboardingRequest.collectAsState()
+    // Текущий экран активного таба — полноэкранный (см. isFullScreen): нижняя навигация прячется.
+    var fullScreen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.switchTabEffect.collect { tabRoute ->
@@ -252,40 +259,43 @@ internal fun MainScreen(viewModel: MainViewModel, windowSizeClass: WindowSizeCla
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NavigationBar(
-                windowInsets = WindowInsets.navigationBars,
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
-            ) {
-                BottomNavItem.all.forEach { tab ->
-                    val isSelected = selectedTab == tab.route
-                    NavigationBarItem(
-                        icon = {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(tab.iconRes),
-                                contentDescription = tab.title,
-                                modifier = Modifier.size(24.dp)
+            if (!fullScreen) {
+                // Короткая панель (64 dp вместо 80 dp у NavigationBar) — больше места под контент экранов.
+                ShortNavigationBar(
+                    windowInsets = WindowInsets.navigationBars,
+                    // Тот же цвет, что был у NavigationBar с tonalElevation = 8.dp.
+                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp)
+                ) {
+                    BottomNavItem.all.forEach { tab ->
+                        val isSelected = selectedTab == tab.route
+                        ShortNavigationBarItem(
+                            icon = {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(tab.iconRes),
+                                    contentDescription = tab.title,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = tab.title,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            selected = isSelected,
+                            onClick = { selectedTab = tab.route },
+                            colors = ShortNavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                selectedIndicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        },
-                        label = { 
-                            Text(
-                                text = tab.title,
-                                style = MaterialTheme.typography.labelMedium,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
-                            ) 
-                        },
-                        selected = isSelected,
-                        onClick = { selectedTab = tab.route },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    )
+                    }
                 }
             }
         }
@@ -308,6 +318,9 @@ internal fun MainScreen(viewModel: MainViewModel, windowSizeClass: WindowSizeCla
                         TrackNavScreens(navController, analyticsTracker)
 
                         val isSelectedTab = selectedTab == tab.route
+                        val currentEntry by navController.currentBackStackEntryAsState()
+                        val isFullScreenEntry = currentEntry?.destination?.isFullScreen() == true
+                        if (isSelectedTab) SideEffect { fullScreen = isFullScreenEntry }
                         LaunchedEffect(navController, isSelectedTab) {
                             if (!isSelectedTab) return@LaunchedEffect
                             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -423,6 +436,12 @@ internal fun MainScreen(viewModel: MainViewModel, windowSizeClass: WindowSizeCla
         }
     }
 }
+
+/**
+ * Экраны, на которых нижняя навигация прячется ради места под контент; выход — стрелкой «назад» на самом экране.
+ */
+private fun NavDestination.isFullScreen(): Boolean =
+    hasRoute<EventsNavigation.LiveTrackMapRoute>()
 
 /**
  * Определяет начальный роут для каждого таба нижней навигации.

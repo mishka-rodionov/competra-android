@@ -26,6 +26,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -43,9 +45,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import com.competra.designsystem.components.NetworkImage
 import androidx.compose.ui.tooling.preview.Preview
@@ -141,11 +145,19 @@ fun ScrollableColumnScreenWithImageAnimation(
             .fillMaxSize()
             .verticalScroll(scrollState)
     ) {
-        Text(
-            text = state.eventDetails?.title ?: "",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { onAction(EventDetailsAction.Back) }) {
+                Icon(imageVector = ImageVector.vectorResource(R.drawable.ic_arrow_back_24px), contentDescription = "Назад")
+            }
+            Text(
+                text = state.eventDetails?.title ?: "",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.weight(1f).padding(start = 4.dp)
+            )
+        }
         NetworkImage(
             url = state.eventDetails?.imageUrl,
             cropRect = state.eventDetails?.imageCropRect?.toFractionalRect(),

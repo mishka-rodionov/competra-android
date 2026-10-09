@@ -120,6 +120,7 @@ class EventDetailsViewModel(
             is EventDetailsAction.LiveTrackConsentAccepted -> onLiveTrackConsentAccepted()
             is EventDetailsAction.LiveTrackConsentDismissed -> updateState { copy(isLiveTrackConsentVisible = false) }
             is EventDetailsAction.LiveTrackPermissionsResult -> onLiveTrackPermissionsResult(action.locationGranted)
+            is EventDetailsAction.Back -> viewModelScope.launch { navigation.back() }
         }
     }
 
@@ -491,4 +492,7 @@ sealed interface EventDetailsAction : BaseAction {
 
     /** Экран проверил/запросил разрешения; [locationGranted] — есть точная геолокация. */
     data class LiveTrackPermissionsResult(val locationGranted: Boolean) : EventDetailsAction
+
+    /** Стрелка «назад» в шапке. */
+    data object Back : EventDetailsAction
 }

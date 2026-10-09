@@ -39,6 +39,7 @@ data class LiveTracksState(
 /** Действия экрана выбора дистанции. */
 sealed interface LiveTracksAction : BaseAction {
     data class OpenDistance(val distanceId: Long) : LiveTracksAction
+    data object Back : LiveTracksAction
 }
 
 /**
@@ -100,6 +101,7 @@ class LiveTracksViewModel(
                     navigation.navigate(EventsNavigation.LiveTrackMapRoute(eventId = id, distanceId = action.distanceId))
                 }
             }
+            is LiveTracksAction.Back -> viewModelScope.launch { navigation.back() }
         }
     }
 }

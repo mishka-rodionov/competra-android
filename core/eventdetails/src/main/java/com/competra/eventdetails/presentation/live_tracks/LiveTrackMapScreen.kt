@@ -11,15 +11,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -35,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,9 +55,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
@@ -141,47 +153,122 @@ fun LiveTrackMapScreen(
         onStopOrDispose { viewModel.stop() }
     }
 
+    val onAction: (LiveTrackMapAction) -> Unit = { viewModel.onAction(it) }
+
+    // Нижняя навигация на этом экране спрятана (MainScreen), поэтому системные панели и вырез экрана отступаем сами.
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            MapHeader(state)
-            MapFilters(state) { viewModel.onAction(it) }
-            // osmdroid рисует тайлы и треки за пределами своего View — без обрезки они наезжают на список.
-            Box(modifier = Modifier.fillMaxWidth().weight(0.62f).clipToBounds()) {
-                LiveTrackOsmMap(state = state, focus = viewModel.focus, modifier = Modifier.fillMaxSize())
-                if (state.isLoading) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                if (state.speedMode && state.canShowSpeed) {
-                    SpeedLegend(state, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
-                }
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+        ) {
+            if (maxWidth > maxHeight) {
+                LandscapeLayout(state, viewModel.focus, sidePanelWidth = (maxWidth * 0.4f).coerceIn(280.dp, 400.dp), onAction)
+            } else {
+                PortraitLayout(state, viewModel.focus, onAction)
             }
-            val range = state.replayRange
-            if (state.replay && range != null) ReplayPanel(state, range) { viewModel.onAction(it) }
-            HorizontalDivider()
-            ParticipantList(state = state, modifier = Modifier.weight(0.38f)) { viewModel.onAction(it) }
         }
     }
 }
 
+/** Вертикально: шапка, фильтры, карта, панель просмотра и список участников под картой. */
 @Composable
-private fun MapHeader(state: LiveTrackMapState) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(state.distanceName.ifBlank { "Онлайн-треки" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        val active = state.tracks.count { it.isActive }
-        Text(
-            when {
-                state.isLoading -> "Загрузка…"
-                active > 0 -> "На дистанции: $active • треков: ${state.tracks.size}"
-                state.tracks.isEmpty() -> "Пока нет треков"
-                else -> "Архив треков: ${state.tracks.size}"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        if (state.isConnectionLost) {
+private fun PortraitLayout(state: LiveTrackMapState, focus: SharedFlow<TrackFocus>, onAction: (LiveTrackMapAction) -> Unit) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        MapHeader(state, onAction)
+        MapFilters(state, onAction)
+        MapArea(state, focus, modifier = Modifier.fillMaxWidth().weight(0.62f))
+        val range = state.replayRange
+        if (state.replay && range != null) {
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                ReplayControls(state, range, onAction)
+                ReplayOptions(state, onAction)
+            }
+        }
+        HorizontalDivider()
+        ParticipantList(state = state, modifier = Modifier.weight(0.38f), onAction = onAction)
+    }
+}
+
+/**
+ * Горизонтально карта занимает всю высоту справа, а шапка, фильтры, настройки просмотра и список
+ * участников — в панели слева. Ползунок просмотра — под картой, чтобы был длинным.
+ */
+@Composable
+private fun LandscapeLayout(
+    state: LiveTrackMapState,
+    focus: SharedFlow<TrackFocus>,
+    sidePanelWidth: Dp,
+    onAction: (LiveTrackMapAction) -> Unit
+) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.width(sidePanelWidth).fillMaxHeight()) {
+            MapHeader(state, onAction)
+            MapFilters(state, onAction)
+            if (state.replay && state.replayRange != null) {
+                ReplayOptions(state, onAction, modifier = Modifier.padding(top = 4.dp))
+            }
+            HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+            ParticipantList(state = state, modifier = Modifier.weight(1f), onAction = onAction)
+        }
+        VerticalDivider()
+        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            MapArea(state, focus, modifier = Modifier.fillMaxWidth().weight(1f))
+            val range = state.replayRange
+            if (state.replay && range != null) ReplayControls(state, range, onAction)
+        }
+    }
+}
+
+/** Карта с индикатором загрузки и шкалой скорости. */
+@Composable
+private fun MapArea(state: LiveTrackMapState, focus: SharedFlow<TrackFocus>, modifier: Modifier) {
+    // osmdroid рисует тайлы и треки за пределами своего View — без обрезки они наезжают на соседние элементы.
+    Box(modifier = modifier.clipToBounds()) {
+        LiveTrackOsmMap(state = state, focus = focus, modifier = Modifier.fillMaxSize())
+        if (state.isLoading) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        if (state.speedMode && state.canShowSpeed) {
+            SpeedLegend(state, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+        }
+    }
+}
+
+/** Шапка со стрелкой «назад»: название дистанции и сводка по трекам. */
+@Composable
+private fun MapHeader(state: LiveTrackMapState, onAction: (LiveTrackMapAction) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = { onAction(LiveTrackMapAction.Back) }) {
+            Icon(imageVector = ImageVector.vectorResource(R.drawable.ic_arrow_back_24px), contentDescription = "Назад")
+        }
+        Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
             Text(
-                "Нет связи с сервером треков — показаны последние данные",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error
+                state.distanceName.ifBlank { "Онлайн-треки" },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+            val active = state.tracks.count { it.isActive }
+            Text(
+                when {
+                    state.isLoading -> "Загрузка…"
+                    active > 0 -> "На дистанции: $active • треков: ${state.tracks.size}"
+                    state.tracks.isEmpty() -> "Пока нет треков"
+                    else -> "Архив треков: ${state.tracks.size}"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (state.isConnectionLost) {
+                Text(
+                    "Нет связи с сервером треков — показаны последние данные",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
     }
 }
@@ -310,56 +397,59 @@ private fun SpeedLegend(state: LiveTrackMapState, modifier: Modifier) {
     }
 }
 
-/** Панель просмотра: ▶/пауза, ползунок, время, шкала времени и скорость воспроизведения. */
+/** Управление просмотром: ▶/пауза, ползунок и время. */
 @Composable
-private fun ReplayPanel(state: LiveTrackMapState, range: LongRange, onAction: (LiveTrackMapAction) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onAction(LiveTrackMapAction.TogglePlay) }) {
-                Icon(
-                    painter = painterResource(if (state.isPlaying) R.drawable.pause_24px else R.drawable.play_arrow_24px),
-                    contentDescription = if (state.isPlaying) "Пауза" else "Воспроизвести"
-                )
-            }
-            // Ползунок — смещение от начала диапазона: Unix ms во Float теряет точность.
-            Slider(
-                value = (state.replayClampedPosition - range.first).toFloat(),
-                onValueChange = { onAction(LiveTrackMapAction.SeekReplay(range.first + it.toLong())) },
-                valueRange = 0f..(range.last - range.first).coerceAtLeast(1).toFloat(),
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                replayTimeText(state),
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(start = 8.dp, end = 8.dp)
+private fun ReplayControls(state: LiveTrackMapState, range: LongRange, onAction: (LiveTrackMapAction) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onAction(LiveTrackMapAction.TogglePlay) }) {
+            Icon(
+                painter = painterResource(if (state.isPlaying) R.drawable.pause_24px else R.drawable.play_arrow_24px),
+                contentDescription = if (state.isPlaying) "Пауза" else "Воспроизвести"
             )
         }
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp)
-        ) {
-            item {
-                FilterChip(
-                    selected = state.replayMode == ReplayTimeMode.MASS_START,
-                    onClick = { onAction(LiveTrackMapAction.SetReplayMode(ReplayTimeMode.MASS_START)) },
-                    label = { Text("Общий старт") }
-                )
-            }
-            item {
-                FilterChip(
-                    selected = state.replayMode == ReplayTimeMode.REAL_TIME,
-                    onClick = { onAction(LiveTrackMapAction.SetReplayMode(ReplayTimeMode.REAL_TIME)) },
-                    label = { Text("Реальное время") }
-                )
-            }
-            items(PLAYBACK_SPEEDS) { speed ->
-                FilterChip(
-                    selected = state.playbackSpeed == speed,
-                    onClick = { onAction(LiveTrackMapAction.SetPlaybackSpeed(speed)) },
-                    label = { Text("×$speed") }
-                )
-            }
+        // Ползунок — смещение от начала диапазона: Unix ms во Float теряет точность.
+        Slider(
+            value = (state.replayClampedPosition - range.first).toFloat(),
+            onValueChange = { onAction(LiveTrackMapAction.SeekReplay(range.first + it.toLong())) },
+            valueRange = 0f..(range.last - range.first).coerceAtLeast(1).toFloat(),
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            replayTimeText(state),
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = 8.dp, end = 8.dp)
+        )
+    }
+}
+
+/** Настройки просмотра: шкала времени и скорость воспроизведения. */
+@Composable
+private fun ReplayOptions(state: LiveTrackMapState, onAction: (LiveTrackMapAction) -> Unit, modifier: Modifier = Modifier) {
+    LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp)
+    ) {
+        item {
+            FilterChip(
+                selected = state.replayMode == ReplayTimeMode.MASS_START,
+                onClick = { onAction(LiveTrackMapAction.SetReplayMode(ReplayTimeMode.MASS_START)) },
+                label = { Text("Общий старт") }
+            )
+        }
+        item {
+            FilterChip(
+                selected = state.replayMode == ReplayTimeMode.REAL_TIME,
+                onClick = { onAction(LiveTrackMapAction.SetReplayMode(ReplayTimeMode.REAL_TIME)) },
+                label = { Text("Реальное время") }
+            )
+        }
+        items(PLAYBACK_SPEEDS) { speed ->
+            FilterChip(
+                selected = state.playbackSpeed == speed,
+                onClick = { onAction(LiveTrackMapAction.SetPlaybackSpeed(speed)) },
+                label = { Text("×$speed") }
+            )
         }
     }
 }
