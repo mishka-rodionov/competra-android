@@ -1,5 +1,7 @@
 package com.competra.local.mappers
 
+import com.competra.domain.models.orienteering.DrawMode
+import com.competra.domain.models.orienteering.DrawSettings
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.OrienteeringParticipant
@@ -31,6 +33,9 @@ fun OrienteeringCompetition.toEntity(): OrienteeringCompetitionEntity {
         byChoiceMode = this.byChoiceMode,
         teamScoring = this.teamScoring,
         isDrawConducted = this.isDrawConducted,
+        drawMode = this.drawSettings?.mode?.name,
+        drawCorridors = this.drawSettings?.corridors,
+        drawGap = this.drawSettings?.gap,
         serverUpdatedAt = this.serverUpdatedAt
     )
 }
@@ -63,6 +68,7 @@ fun OrienteeringCompetitionEntity.toDomain(): OrienteeringCompetition {
         byChoiceMode = this.byChoiceMode,
         teamScoring = this.teamScoring,
         isDrawConducted = this.isDrawConducted,
+        drawSettings = DrawMode.fromStringOrNull(drawMode)?.let { DrawSettings(it, drawCorridors, drawGap) },
         serverUpdatedAt = this.serverUpdatedAt
     )
 }

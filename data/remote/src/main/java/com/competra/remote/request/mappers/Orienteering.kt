@@ -35,6 +35,9 @@ fun OrienteeringCompetition.toRequest(): OrienteeringCompetitionRequest {
                 overallScopes = it.overallScopes.map { scope -> scope.name }
             )
         } ?: TeamScoringRequest(enabled = false),
+        drawMode = drawSettings?.mode?.name,
+        drawCorridors = drawSettings?.corridors,
+        drawGap = drawSettings?.gap,
         serverUpdatedAt = serverUpdatedAt
     )
 }

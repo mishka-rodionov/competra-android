@@ -438,3 +438,15 @@ val MIGRATION_55_56 = object : Migration(55, 56) {
         db.execSQL("ALTER TABLE participant_groups ADD COLUMN teamCountedResults INTEGER")
     }
 }
+
+/**
+ * Миграция с версии 56 на 57.
+ * Режим и параметры проведённой жеребьёвки — по ним дозаявка подбирает свободную стартовую минуту.
+ */
+val MIGRATION_56_57 = object : Migration(56, 57) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN drawMode TEXT")
+        db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN drawCorridors INTEGER")
+        db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN drawGap INTEGER")
+    }
+}

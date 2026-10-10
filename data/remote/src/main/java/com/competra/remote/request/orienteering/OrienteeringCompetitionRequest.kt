@@ -49,6 +49,16 @@ data class OrienteeringCompetitionRequest(
     @SerializedName("teamScoring")
     val teamScoring: TeamScoringRequest? = null,
 
+    /** Режим проведённой жеребьёвки; null — сервер оставляет сохранённый. */
+    @SerializedName("drawMode")
+    val drawMode: String? = null,
+
+    @SerializedName("drawCorridors")
+    val drawCorridors: Int? = null,
+
+    @SerializedName("drawGap")
+    val drawGap: Int? = null,
+
     @SerializedName("serverUpdatedAt")
     val serverUpdatedAt: Long? = null
 )

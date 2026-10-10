@@ -96,20 +96,26 @@ class OrienteeringCompetitionLocalRepositoryImpl(
             // SyncWorker'ом — сохраняем его, чтобы conflict-detection на сервере не ломался.
             // Идентичность (competitionId) клиент знает с момента создания, переводить local↔remote
             // больше не нужно.
+            val existing = orienteeringCompetitionDao
+                .getCompetitionById(orienteeringCompetition.competitionId)
+                ?.toDomain()
+            // Жеребьёвку не отменяют, а редактор соревнования и старые ответы сервера (без drawMode)
+            // приносят модель без неё — сохраняем уже записанные флаг и режим жеребьёвки.
+            val withDraw = orienteeringCompetition.copy(
+                isDrawConducted = orienteeringCompetition.isDrawConducted || existing?.isDrawConducted == true,
+                drawSettings = orienteeringCompetition.drawSettings ?: existing?.drawSettings
+            )
             val merged = if (markUnsynced) {
-                val existing = orienteeringCompetitionDao
-                    .getCompetitionById(orienteeringCompetition.competitionId)
-                    ?.toDomain()
                 val preservedServerUpdatedAt =
-                    orienteeringCompetition.competition.serverUpdatedAt
+                    withDraw.competition.serverUpdatedAt
                         ?: existing?.competition?.serverUpdatedAt
-                orienteeringCompetition.copy(
-                    competition = orienteeringCompetition.competition.copy(
+                withDraw.copy(
+                    competition = withDraw.competition.copy(
                         serverUpdatedAt = preservedServerUpdatedAt
                     )
                 ).applyUnsynced()
             } else {
-                orienteeringCompetition
+                withDraw
             }
             orienteeringCompetitionDao.update(merged.toEntity())
         }

@@ -29,6 +29,9 @@ import com.competra.local.converters.CompetitionConverters
  * @property overtimePolicy Что делать с результатами, превысившими КВ
  * @property byChoiceMode Итог формата «по выбору»: по баллам или по минимуму КП
  * @property teamScoring Настройки командного зачёта; null — зачёта нет
+ * @property drawMode Режим проведённой жеребьёвки; null — не проводилась
+ * @property drawCorridors Коридоры жеребьёвки по дистанциям
+ * @property drawGap Зазор жеребьёвки по дистанциям (в стартовых интервалах)
  */
 @Entity(
     tableName = "orienteering_competitions",
@@ -54,6 +57,9 @@ data class OrienteeringCompetitionEntity(
     val teamScoring: TeamScoring? = null,
     @ColumnInfo(defaultValue = "0")
     val isDrawConducted: Boolean = false,
+    val drawMode: String? = null,
+    val drawCorridors: Int? = null,
+    val drawGap: Int? = null,
     // Хранит orient.updatedAt (таблица OrienteeringCompetitions), а НЕ comp.updatedAt.
     // Сервер при conflict-check сравнивает именно с orient.updatedAt: comp.updatedAt
     // обновляется автоматически планировщиком статусов и не отражает изменений ориентирования.

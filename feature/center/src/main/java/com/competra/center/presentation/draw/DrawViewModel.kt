@@ -8,6 +8,8 @@ import com.competra.center.data.draw.DrawState
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
+import com.competra.domain.models.orienteering.DrawMode
+import com.competra.domain.models.orienteering.DrawSettings
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.repository.LoadingRepository
@@ -64,7 +66,7 @@ class DrawViewModel(
                 )
                 interactor.updateParticipants(sortedParticipants)
                 interactor.syncParticipantsAfterDraw(sortedParticipants)
-                interactor.setDrawConducted(compId)
+                interactor.setDrawConducted(compId, DrawSettings(DrawMode.GENERAL))
                 analytics.trackEvent(
                     AnalyticsEvent.ParticipantDrawn(
                         participantsCount = sortedParticipants.size,
@@ -102,7 +104,7 @@ class DrawViewModel(
                 )
                 interactor.updateParticipants(sortedParticipants)
                 interactor.syncParticipantsAfterDraw(sortedParticipants)
-                interactor.setDrawConducted(compId)
+                interactor.setDrawConducted(compId, DrawSettings(DrawMode.GROUP))
                 analytics.trackEvent(
                     AnalyticsEvent.ParticipantDrawn(
                         participantsCount = sortedParticipants.size,
@@ -148,7 +150,10 @@ class DrawViewModel(
                 )
                 interactor.updateParticipants(sortedParticipants)
                 interactor.syncParticipantsAfterDraw(sortedParticipants)
-                interactor.setDrawConducted(compId)
+                interactor.setDrawConducted(
+                    compId,
+                    DrawSettings(DrawMode.DISTANCE, corridors = corridors.coerceAtLeast(1), gap = gap.coerceAtLeast(1))
+                )
                 analytics.trackEvent(
                     AnalyticsEvent.ParticipantDrawn(
                         participantsCount = sortedParticipants.size,

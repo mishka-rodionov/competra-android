@@ -19,6 +19,8 @@ import com.competra.remote.response.orienteering.ControlPointResponse
 import com.competra.remote.response.orienteering.DistanceResponse
 import com.competra.remote.response.orienteering.OrienteeringCompetitionResponse
 import com.competra.domain.models.orienteering.ByChoiceMode
+import com.competra.domain.models.orienteering.DrawMode
+import com.competra.domain.models.orienteering.DrawSettings
 import com.competra.remote.response.orienteering.OrienteeringParticipantResponse
 import com.competra.remote.response.orienteering.OrienteeringResultResponse
 import com.competra.remote.response.orienteering.ParticipantGroupResponse
@@ -27,6 +29,7 @@ import com.competra.remote.response.orienteering.ParticipantGroupResponse
  * Преобразует ответ сервера по соревнованию по ориентированию в доменную модель.
  */
 fun OrienteeringCompetitionResponse.toDomain(): OrienteeringCompetition {
+    val drawSettings = DrawMode.fromStringOrNull(drawMode)?.let { DrawSettings(it, drawCorridors, drawGap) }
     return OrienteeringCompetition(
         competitionId = competitionId,
         competition = competition.toDomain(),
@@ -40,6 +43,10 @@ fun OrienteeringCompetitionResponse.toDomain(): OrienteeringCompetition {
         overtimePolicy = OvertimePolicy.fromString(overtimePolicy),
         byChoiceMode = ByChoiceMode.fromString(byChoiceMode),
         teamScoring = teamScoring?.toDomain(),
+        // Флаг жеребьёвки на сервере не хранится — восстанавливаем его по сохранённому режиму,
+        // иначе синхронизация сбрасывала бы его.
+        isDrawConducted = drawSettings != null,
+        drawSettings = drawSettings,
         serverUpdatedAt = updatedAt.takeIf { it > 0L }
     )
 }

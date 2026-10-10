@@ -14,6 +14,7 @@ import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.ParticipantWithResult
 import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.Distance
+import com.competra.domain.models.orienteering.DrawSettings
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.orienteering.applyOvertimePolicy
@@ -886,11 +887,12 @@ class OrienteeringCompetitionInteractor(
     }
 
     /**
-     * Помечает соревнование как «жеребьёвка проведена» и сохраняет в локальной БД.
+     * Помечает соревнование как «жеребьёвка проведена», запоминает её режим и параметры
+     * (по ним дозаявка подбирает свободную минуту) и сохраняет в локальной БД.
      */
-    suspend fun setDrawConducted(competitionId: String) {
+    suspend fun setDrawConducted(competitionId: String, drawSettings: DrawSettings) {
         val competition = localRepository.getCompetition(competitionId).getOrNull() ?: return
-        localRepository.updateCompetition(competition.copy(isDrawConducted = true))
+        localRepository.updateCompetition(competition.copy(isDrawConducted = true, drawSettings = drawSettings))
         touch()
     }
 

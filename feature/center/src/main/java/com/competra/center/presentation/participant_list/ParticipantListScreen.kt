@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import com.competra.designsystem.components.DSBottomDialog
 import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.theme.Dimens
+import com.competra.center.data.draw.LateEntryPlacement
+import com.competra.center.data.participant_list.LateEntryPreview
 import com.competra.center.data.participant_list.ParticipantListAction
 import com.competra.center.data.participant_list.ParticipantListState
 import com.competra.domain.models.cyclic_event.protocolCommandSuggestions
@@ -84,6 +86,7 @@ fun ParticipantListScreen(
             group = state.group,
             groupName = state.participantGroupWithParticipants.getOrNull(state.group)?.group?.title ?: "",
             editingParticipant = state.editingParticipant,
+            lateEntry = state.lateEntry,
             protocolTeams = remember(state.participantGroupWithParticipants) {
                 protocolCommandNames(state.participantGroupWithParticipants.flatMap { it.participants }.map { it.commandName })
             }
@@ -396,6 +399,8 @@ fun CreateParticipantDialog(
     group: Int,
     groupName: String,
     editingParticipant: OrienteeringParticipant?,
+    /** Варианты стартового времени дозаявки после жеребьёвки (null — жеребьёвки не было). */
+    lateEntry: LateEntryPreview? = null,
     /** Подписи команд из протокола соревнования — для подсказок ([protocolCommandNames]). */
     protocolTeams: List<String> = emptyList()
 ) {
@@ -408,6 +413,7 @@ fun CreateParticipantDialog(
                 group = group,
                 groupName = groupName,
                 editingParticipant = editingParticipant,
+                lateEntry = lateEntry,
                 protocolTeams = protocolTeams
             )
         },
@@ -422,8 +428,10 @@ fun CreateParticipantDialogContent(
     group: Int,
     groupName: String,
     editingParticipant: OrienteeringParticipant?,
+    lateEntry: LateEntryPreview? = null,
     protocolTeams: List<String> = emptyList()
 ) {
+    var placement by remember { mutableStateOf(LateEntryPlacement.FREE_SLOT) }
     var firstName by remember(editingParticipant) { mutableStateOf(editingParticipant?.firstName ?: "") }
     var secondName by remember(editingParticipant) { mutableStateOf(editingParticipant?.lastName ?: "") }
     var commandName by remember(editingParticipant) { mutableStateOf(editingParticipant?.commandName ?: "") }
@@ -504,6 +512,54 @@ fun CreateParticipantDialogContent(
             }
         }
 
+        // Дозаявка после жеребьёвки: организатор выбирает, куда поставить участника в протоколе.
+        if (editingParticipant == null && lateEntry != null) {
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+            Text(
+                text = "Стартовое время",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)) {
+                FilterChip(
+                    selected = placement == LateEntryPlacement.FREE_SLOT,
+                    onClick = { placement = LateEntryPlacement.FREE_SLOT },
+                    label = { Text("Свободная минута · ${formatStartTime(lateEntry.freeSlotTime)}") }
+                )
+                FilterChip(
+                    selected = placement == LateEntryPlacement.END,
+                    onClick = { placement = LateEntryPlacement.END },
+                    label = { Text("В конец · ${formatStartTime(lateEntry.endTime)}") }
+                )
+                FilterChip(
+                    selected = placement == LateEntryPlacement.MANUAL,
+                    onClick = { placement = LateEntryPlacement.MANUAL },
+                    label = { Text("Вручную") }
+                )
+            }
+            if (placement == LateEntryPlacement.MANUAL) {
+                DSTextInput(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(text = "Стартовое время (ЧЧ:ММ или ЧЧ:ММ:СС)") },
+                    text = startTimeInput,
+                    onValueChanged = {
+                        startTimeInput = it
+                        startTimeError = false
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    isError = startTimeError
+                )
+                if (startTimeError) {
+                    Text(
+                        text = "Введите время в формате ЧЧ:ММ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(start = Dimens.SIZE_HALF.dp, top = 2.dp)
+                    )
+                }
+            }
+        }
+
         if (editingParticipant != null) {
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
@@ -539,17 +595,27 @@ fun CreateParticipantDialogContent(
             onClick = {
                 if (firstName.isNotEmpty() && secondName.isNotEmpty()) {
                     if (editingParticipant == null) {
+                        val isManual = lateEntry != null && placement == LateEntryPlacement.MANUAL
+                        val manualStartTime = if (isManual) {
+                            parseTimeInput(startTimeInput, lateEntry.freeSlotTime) ?: run {
+                                startTimeError = true
+                                return@Button
+                            }
+                        } else null
                         userAction.invoke(
                             ParticipantListAction.CreateNewParticipant(
                                 group = group,
                                 firstName = firstName,
                                 secondName = secondName,
-                                commandName = commandName
+                                commandName = commandName,
+                                placement = placement,
+                                manualStartTime = manualStartTime
                             )
                         )
                         // Команду не сбрасываем: участников одной команды обычно вносят подряд.
                         firstName = ""
                         secondName = ""
+                        startTimeInput = ""
                         focusRequester.requestFocus()
                     } else {
                         val parsedStartTime = if (startTimeInput.isNotEmpty()) {

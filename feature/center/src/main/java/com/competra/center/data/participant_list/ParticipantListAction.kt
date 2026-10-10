@@ -1,5 +1,6 @@
 package com.competra.center.data.participant_list
 
+import com.competra.center.data.draw.LateEntryPlacement
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.ui.BaseAction
 
@@ -34,7 +35,11 @@ sealed class ParticipantListAction : BaseAction {
         val firstName: String,
         val secondName: String,
         /** Подпись команды для протокола; пусто — без команды. */
-        val commandName: String = ""
+        val commandName: String = "",
+        /** Куда поставить участника, если жеребьёвка уже проведена (дозаявка). */
+        val placement: LateEntryPlacement = LateEntryPlacement.FREE_SLOT,
+        /** Стартовое время для [LateEntryPlacement.MANUAL]. */
+        val manualStartTime: Long? = null
     ) : ParticipantListAction()
 
     /**
