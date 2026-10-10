@@ -50,7 +50,7 @@
 - **Android**:
   - `domain/.../orienteering/DrawSettings.kt` — `DrawMode`, `DrawSettings`; поле `OrienteeringCompetition.drawSettings`.
   - Room: колонки `drawMode`, `drawCorridors`, `drawGap` (миграция `MIGRATION_56_57`). `OrienteeringCompetitionLocalRepositoryImpl.updateCompetition` не даёт затереть флаг и режим жеребьёвки моделью без них (редактор соревнования, старые ответы сервера).
-  - Из ответа сервера `isDrawConducted = drawMode != null`, поэтому флаг жеребьёвки больше не сбрасывается при синхронизации.
+  - Из ответа сервера `isDrawConducted = drawMode != null`, поэтому флаг жеребьёвки больше не сбрасывается при синхронизации. Поэтому же `OrienteeringEventControlViewModel` берёт только этот флаг: прежний запасной признак «у кого-то есть стартовый номер» убран — номер даётся уже при добавлении участника, и «Выдача чипов» / «Стартовая решётка» открывались до жеребьёвки.
   - `DrawViewModel` сохраняет режим через `OrienteeringCompetitionInteractor.setDrawConducted(competitionId, DrawSettings)`.
   - `feature/center/.../data/draw/LateEntry.kt` — `LateEntrySlotFinder` (чистая логика, тесты `LateEntrySlotFinderTest`), `LateEntryPlacement`, `LATE_ENTRY_PREPARATION_MS`.
   - `ParticipantListViewModel` — расчёт времени, номера и чипа при `CreateNewParticipant`, предпросмотр `ParticipantListState.lateEntry`. `ParticipantListScreen` — чипы выбора в `CreateParticipantDialogContent`.

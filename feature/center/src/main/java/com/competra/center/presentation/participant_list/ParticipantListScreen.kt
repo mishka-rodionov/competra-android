@@ -716,6 +716,9 @@ fun DeleteParticipantDialog(
     )
 }
 
+/** Высота зоны плавающих кнопок внизу экрана: сама кнопка (56dp) + отступы вокруг неё. */
+private val FAB_AREA_HEIGHT = 88.dp
+
 @Composable
 fun ParticipantList(
     participants: List<OrienteeringParticipant>,
@@ -730,7 +733,13 @@ fun ParticipantList(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(Dimens.SIZE_BASE.dp),
+        // Снизу — запас под плавающие кнопки «Сохранить»/«+», иначе они перекрывают последнего участника.
+        contentPadding = PaddingValues(
+            start = Dimens.SIZE_BASE.dp,
+            top = Dimens.SIZE_BASE.dp,
+            end = Dimens.SIZE_BASE.dp,
+            bottom = FAB_AREA_HEIGHT
+        ),
         verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_HALF.dp)
     ) {
         itemsIndexed(participants) { index, participant ->

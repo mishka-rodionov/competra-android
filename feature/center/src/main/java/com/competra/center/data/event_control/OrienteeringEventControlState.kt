@@ -16,13 +16,12 @@ import com.competra.ui.BaseState
  * @property isTimerRunning Флаг, запущен ли таймер отсчета.
  * @property isCompetitionRunning Флаг, запущено ли соревнование (foreground service активен).
  * @property allChipsDistributed Флаг, выданы ли чипы всем участникам.
- * @property isDrawConducted Флаг, проведена ли жеребьёвка. Вычисляется из данных участников как fallback,
- *   поскольку [OrienteeringCompetition.isDrawConducted] может быть сброшен при синхронизации с сервером.
+ * @property isDrawConducted Флаг, проведена ли жеребьёвка (копия [OrienteeringCompetition.isDrawConducted]).
  * @property isShowStartConfirmDialog Флаг отображения диалога подтверждения старта.
  * @property isShowStopConfirmDialog Флаг отображения диалога подтверждения завершения.
  * @property isShowCloseRegistrationDialog Флаг отображения диалога подтверждения завершения регистрации.
  * @property pendingLinkRequests Заявки спортсменов на привязку результатов, ожидающие решения; null — не загружено
- *   (офлайн, соревнование ещё не на сервере или нет прав) — тогда раздел не показывается.
+ *   (офлайн, соревнование ещё не на сервере или нет прав) — тогда, как и при 0, раздел не показывается.
  */
 data class OrienteeringEventControlState(
     val participantGroups: List<ParticipantGroup> = emptyList(),

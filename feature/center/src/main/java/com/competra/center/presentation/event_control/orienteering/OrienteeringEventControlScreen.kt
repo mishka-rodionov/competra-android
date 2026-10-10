@@ -192,10 +192,10 @@ private fun OrienteeringEventControlScreenContent(
             }
 
             // 6. Заявки на привязку результатов — спортсмены, внесённые вручную, просят привязать
-            // результаты к своим профилям. Раздел есть, только если соревнование уже на сервере.
-            state.pendingLinkRequests?.let { pending ->
+            // результаты к своим профилям. Раздел показываем, только если есть поданные заявки.
+            state.pendingLinkRequests?.takeIf { it > 0 }?.let { pending ->
                 NavigationRow(
-                    text = if (pending > 0) "Заявки на привязку результатов ($pending)" else "Заявки на привязку результатов",
+                    text = "Заявки на привязку результатов ($pending)",
                     onClick = { onAction(OrientEventControlAction.OpenLinkRequests) }
                 )
             }

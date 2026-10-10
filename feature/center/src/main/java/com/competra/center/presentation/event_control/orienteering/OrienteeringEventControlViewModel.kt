@@ -73,12 +73,10 @@ class OrienteeringEventControlViewModel(
                 val isRunning = competition.competition.status == CompetitionStatus.IN_PROGRESS
                 val allParticipantsFinished = isRunning &&
                         orienteeringCompetitionInteractor.areAllParticipantsFinished(id)
-                // Считаем жеребьёвку проведённой если competition.isDrawConducted == true
-                // ИЛИ хотя бы один участник уже имеет стартовый номер (fallback при сбросе флага сервером).
-                val isDrawConducted = competition.isDrawConducted ||
-                    details.groupsWithParticipants.any { group ->
-                        group.participants.any { it.startNumber.isNotEmpty() }
-                    }
+                // Стартовый номер участник получает уже при добавлении, поэтому по участникам
+                // жеребьёвку не определить — опираемся только на флаг. Он не сбрасывается при
+                // синхронизации: локально сохраняется, а с сервера восстанавливается по drawMode.
+                val isDrawConducted = competition.isDrawConducted
                 applyCompetitionState(
                     title = competition.competition.title,
                     competition = competition,
