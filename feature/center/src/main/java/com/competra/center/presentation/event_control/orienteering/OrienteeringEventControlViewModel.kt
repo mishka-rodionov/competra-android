@@ -14,6 +14,7 @@ import com.competra.data.navigation.getArguments
 import com.competra.domain.exception.NetworkException
 import com.competra.domain.models.NetworkErrorEvent
 import com.competra.domain.models.orienteering.CompetitionStatus
+import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.repository.LoadingRepository
@@ -69,7 +70,10 @@ class OrienteeringEventControlViewModel(
                 val allChipsDistributed = details.groupsWithParticipants.all { group ->
                     group.participants.all { it.isChipGiven }
                 }
-                val competition = details.competition
+                val competition = restoreLostStartTime(
+                    competition = details.competition,
+                    participants = details.groupsWithParticipants.flatMap { it.participants }
+                )
                 val isRunning = competition.competition.status == CompetitionStatus.IN_PROGRESS
                 val allParticipantsFinished = isRunning &&
                         orienteeringCompetitionInteractor.areAllParticipantsFinished(id)
@@ -504,6 +508,35 @@ class OrienteeringEventControlViewModel(
             if (!p.startTime.isValidStartTimestamp()) p
             else p.copy(startTime = firstStartTime + (p.startTime - baseStartTime))
         }
+    }
+
+    /**
+     * Восстанавливает время старта идущего соревнования, если оно потеряно: раньше сервер его не
+     * хранил, и синхронизация (или переустановка приложения) оставляла `startTime = null` —
+     * секундомер после перезапуска процесса начинал отсчёт с нуля.
+     *
+     * Время выводится из стартового протокола: при старте времена участников пересчитываются так,
+     * что первая минута идёт через один стартовый интервал после старта (см. [rebaseStartTimes]).
+     * Восстановленное время сохраняется локально и уходит на сервер. При старте по стартовой
+     * станции общего времени старта нет — там ничего не восстанавливается.
+     */
+    private suspend fun restoreLostStartTime(
+        competition: OrienteeringCompetition,
+        participants: List<OrienteeringParticipant>
+    ): OrienteeringCompetition {
+        if (competition.startTime != null) return competition
+        if (competition.competition.status != CompetitionStatus.IN_PROGRESS) return competition
+        if (competition.startTimeMode == StartTimeMode.BY_START_STATION) return competition
+        if (startTimeRepository.startTimeMs.value > 0L) return competition
+        val firstStartTime = participants
+            .map { it.startTime }
+            .filter { it.isValidStartTimestamp() }
+            .minOrNull() ?: return competition
+        val intervalMs = (competition.startIntervalSeconds ?: 60) * 1000L
+        val restored = competition.copy(startTime = firstStartTime - intervalMs)
+        orienteeringCompetitionInteractor.publishCompetitionToServer(restored)
+            .onFailure { handleFailure(it) }
+        return restored
     }
 
     /**

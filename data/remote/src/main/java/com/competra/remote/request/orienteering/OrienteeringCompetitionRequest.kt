@@ -12,6 +12,9 @@ import com.competra.remote.request.competition.CompetitionRequest
  * @property punchingSystem Система отметки
  * @property startTimeMode Режим начала соревнования
  * @property countdownTimer Время отсчета перед стартом (в минутах)
+ * @property startTime Фактическое время старта соревнования (timestamp, мс). null у ещё не
+ * стартовавшего соревнования; сервер хранит его, чтобы секундомер старта переживал
+ * переустановку приложения и перезапуск процесса.
  */
 data class OrienteeringCompetitionRequest(
     @SerializedName("competitionId")
@@ -31,6 +34,9 @@ data class OrienteeringCompetitionRequest(
 
     @SerializedName("countdownTimer")
     val countdownTimer: Int? = null,
+
+    @SerializedName("startTime")
+    val startTime: Long? = null,
 
     @SerializedName("startIntervalSeconds")
     val startIntervalSeconds: Int? = null,

@@ -13,3 +13,12 @@ val CompetitionStatus.isParticipantDeletionLocked: Boolean
     get() = this == CompetitionStatus.IN_PROGRESS ||
         this == CompetitionStatus.FINISHED ||
         this == CompetitionStatus.ARCHIVED
+
+/**
+ * true, если соревнование уже стартовало (идёт, завершено или в архиве) — у него есть фактическое
+ * время старта, от которого считается секундомер и стартовые минуты участников.
+ */
+val CompetitionStatus.isStarted: Boolean
+    get() = this == CompetitionStatus.IN_PROGRESS ||
+        this == CompetitionStatus.FINISHED ||
+        this == CompetitionStatus.ARCHIVED

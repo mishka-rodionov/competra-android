@@ -23,6 +23,7 @@ fun OrienteeringCompetition.toRequest(): OrienteeringCompetitionRequest {
         punchingSystem = punchingSystem.name,
         startTimeMode = startTimeMode.name,
         countdownTimer = countdownTimer,
+        startTime = startTime,
         startIntervalSeconds = startIntervalSeconds,
         controlTimeMinutes = controlTimeMinutes,
         overtimePolicy = overtimePolicy.name,

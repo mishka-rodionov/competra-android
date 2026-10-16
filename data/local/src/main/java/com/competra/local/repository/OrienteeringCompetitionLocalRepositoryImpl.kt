@@ -1,6 +1,7 @@
 package com.competra.local.repository
 
 import com.competra.domain.models.orienteering.OrienteeringCompetition
+import com.competra.domain.models.orienteering.isStarted
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
@@ -103,7 +104,15 @@ class OrienteeringCompetitionLocalRepositoryImpl(
             // приносят модель без неё — сохраняем уже записанные флаг и режим жеребьёвки.
             val withDraw = orienteeringCompetition.copy(
                 isDrawConducted = orienteeringCompetition.isDrawConducted || existing?.isDrawConducted == true,
-                drawSettings = orienteeringCompetition.drawSettings ?: existing?.drawSettings
+                drawSettings = orienteeringCompetition.drawSettings ?: existing?.drawSettings,
+                // Ответ сервера без времени старта (старый бэкенд его не хранил) не должен затирать
+                // локальное время уже стартовавшего соревнования — иначе после перезапуска процесса
+                // секундомер старта начнёт отсчёт с нуля. Локальные правки (markUnsynced) — как есть:
+                // отмена предстартового таймера сбрасывает startTime намеренно.
+                startTime = orienteeringCompetition.startTime
+                    ?: existing?.startTime?.takeIf {
+                        !markUnsynced && orienteeringCompetition.competition.status.isStarted
+                    }
             )
             val merged = if (markUnsynced) {
                 val preservedServerUpdatedAt =
