@@ -148,7 +148,9 @@ fun StartGridContent(
                     text = {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = formatTime(slot.startTime),
+                                text = state.zeroTimeMs
+                                    ?.let { formatStartMinute(slot.startTime - it) }
+                                    ?: formatTime(slot.startTime),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
@@ -174,7 +176,6 @@ fun StartGridContent(
                 Column(modifier = Modifier.fillMaxSize()) {
                     SlotHeader(
                         slot = slot,
-                        zeroTimeMs = state.zeroTimeMs,
                         currentTimeMs = currentTimeMs,
                         isCompetitionRunning = state.isCompetitionRunning
                     )
@@ -203,13 +204,11 @@ fun StartGridContent(
 }
 
 /**
- * Шапка страницы стартовой минуты: время, минута старта от «нуля», число участников
- * и обратный отсчёт.
+ * Шапка страницы стартовой минуты: время, число участников и обратный отсчёт.
  */
 @Composable
 private fun SlotHeader(
     slot: StartSlot,
-    zeroTimeMs: Long?,
     currentTimeMs: Long,
     isCompetitionRunning: Boolean
 ) {
@@ -246,14 +245,6 @@ private fun SlotHeader(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                if (zeroTimeMs != null) {
-                    Text(
-                        text = "Минута ${formatStartMinute(slot.startTime - zeroTimeMs)}",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
                 Text(
                     text = participantsCountText(slot.participants.size),
                     style = MaterialTheme.typography.bodySmall,
