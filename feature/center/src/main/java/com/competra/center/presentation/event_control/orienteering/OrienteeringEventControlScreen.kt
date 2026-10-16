@@ -175,8 +175,9 @@ private fun OrienteeringEventControlScreenContent(
                 )
             }
 
-            // 4. Выдача чипов — после жеребьёвки, до запуска
-            if (!state.isFinished && !state.isCompetitionRunning && isDrawConducted) {
+            // 4. Выдача чипов — после жеребьёвки и до завершения: во время соревнования нужна
+            // для дозаявленных участников и замены чипа.
+            if (!state.isFinished && isDrawConducted) {
                 NavigationRow(
                     text = "Выдача чипов",
                     onClick = { onAction(OrientEventControlAction.OpenGetOrienteeringChip) }

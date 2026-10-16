@@ -78,12 +78,32 @@ class GetOrienteeringChipViewModel(
         updateState { copy(participants = updatedParticipants) }
     }
 
+    /**
+     * Сохраняет только номер чипа и отметку выдачи. Экран открывается и во время соревнования,
+     * когда участники параллельно меняются (считывание чипов, синхронизация с сервером), поэтому
+     * правки накладываются на свежие данные из БД, а не на снимок, загруженный при открытии экрана.
+     */
     private fun saveChanges() {
+        val id = competitionId ?: return
         updateState { copy(isSaving = true) }
         viewModelScope.launch {
-            val allParticipants = stateValue.participants
-            orienteeringCompetitionInteractor.updateParticipants(allParticipants)
-            orienteeringCompetitionInteractor.syncParticipantsAfterDraw(allParticipants)
+            val edited = stateValue.participants.associateBy { it.id }
+            val changed = orienteeringCompetitionInteractor.getCompetitionWithDetails(id).getOrNull()
+                ?.groupsWithParticipants
+                ?.flatMap { it.participants }
+                ?.mapNotNull { fresh ->
+                    val edit = edited[fresh.id] ?: return@mapNotNull null
+                    if (fresh.chipNumber == edit.chipNumber && fresh.isChipGiven == edit.isChipGiven) {
+                        null
+                    } else {
+                        fresh.copy(chipNumber = edit.chipNumber, isChipGiven = edit.isChipGiven)
+                    }
+                }
+                .orEmpty()
+            if (changed.isNotEmpty()) {
+                orienteeringCompetitionInteractor.updateParticipants(changed)
+                orienteeringCompetitionInteractor.syncParticipantsAfterDraw(changed)
+            }
             updateState { copy(isSaving = false) }
             navigation.back()
         }
