@@ -174,6 +174,7 @@ fun StartGridContent(
                 Column(modifier = Modifier.fillMaxSize()) {
                     SlotHeader(
                         slot = slot,
+                        zeroTimeMs = state.zeroTimeMs,
                         currentTimeMs = currentTimeMs,
                         isCompetitionRunning = state.isCompetitionRunning
                     )
@@ -202,11 +203,13 @@ fun StartGridContent(
 }
 
 /**
- * Шапка страницы стартовой минуты: время, число участников и обратный отсчёт.
+ * Шапка страницы стартовой минуты: время, минута старта от «нуля», число участников
+ * и обратный отсчёт.
  */
 @Composable
 private fun SlotHeader(
     slot: StartSlot,
+    zeroTimeMs: Long?,
     currentTimeMs: Long,
     isCompetitionRunning: Boolean
 ) {
@@ -243,6 +246,14 @@ private fun SlotHeader(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                if (zeroTimeMs != null) {
+                    Text(
+                        text = "Минута ${formatStartMinute(slot.startTime - zeroTimeMs)}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Text(
                     text = participantsCountText(slot.participants.size),
                     style = MaterialTheme.typography.bodySmall,
@@ -417,6 +428,19 @@ private fun formatTime(startTimeMs: Long): String {
     val m = calendar.get(Calendar.MINUTE)
     val s = calendar.get(Calendar.SECOND)
     return if (s > 0) "%02d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(h, m)
+}
+
+/**
+ * Форматирует смещение стартовой минуты от «нуля» в Ч:ММ (например, 0:01, 1:15),
+ * или Ч:ММ:СС при интервале не кратном минуте. Отрицательное смещение — со знаком минус.
+ */
+private fun formatStartMinute(offsetMs: Long): String {
+    val sign = if (offsetMs < 0) "-" else ""
+    val totalSec = (kotlin.math.abs(offsetMs) + 500L) / 1000L
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return if (s > 0) "$sign%d:%02d:%02d".format(h, m, s) else "$sign%d:%02d".format(h, m)
 }
 
 /** Склонение «N участник/участника/участников». */

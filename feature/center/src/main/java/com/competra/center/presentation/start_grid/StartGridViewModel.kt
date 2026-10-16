@@ -76,9 +76,15 @@ class StartGridViewModel(
                     }
 
                 val isRunning = details.competition.competition.status == CompetitionStatus.IN_PROGRESS
+                // «Нулевое» время — та же база, что у секундомера (стартовые времена участников
+                // пересчитываются от неё при старте соревнования). Если её нет — первая минута.
+                val zeroTimeMs = startTimeRepository.startTimeMs.value.takeIf { it > 0L }
+                    ?: details.competition.startTime?.takeIf { it.isValidStartTimestamp() }
+                    ?: slots.firstOrNull()?.startTime
                 updateState {
                     copy(
                         slots = slots,
+                        zeroTimeMs = zeroTimeMs,
                         competition = details.competition,
                         isCompetitionRunning = isRunning,
                         currentSlotIndex = computeCurrentSlotIndex(slots, System.currentTimeMillis())
