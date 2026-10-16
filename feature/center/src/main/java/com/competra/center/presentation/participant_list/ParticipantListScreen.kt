@@ -777,9 +777,9 @@ fun ParticipantCard(
     val startTimeText = if (hasValidStart) formatStartTime(participant.startTime) else "—"
     val hasStarted = hasValidStart && isCompetitionRunning && participant.startTime <= currentTimeMs
     val secondsLeft = if (hasValidStart && isCompetitionRunning && !hasStarted)
-        ((participant.startTime - currentTimeMs + 999) / 1000).toInt().coerceIn(0, 5)
+        ((participant.startTime - currentTimeMs + 999) / 1000).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     else -1
-    val isCountingDown = secondsLeft in 0..5
+    val isCountingDown = secondsLeft in 1..5
 
     val cardColor = when {
         hasStarted -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f)
