@@ -3,10 +3,10 @@
   "configurations": [
     {
       "name": "competra-web-dev",
-      "runtimeExecutable": "/Users/rodionov/web_projects/competra-web/gradlew",
+      "runtimeExecutable": "/Users/rodionov/projects/competra/archive/competra-web/gradlew",
       "runtimeArgs": [
         "-p",
-        "/Users/rodionov/web_projects/competra-web",
+        "/Users/rodionov/projects/competra/archive/competra-web",
         "-Pkotlin.daemon.jvmargs=-Xmx4g",
         ":web:wasmJsBrowserDevelopmentRun"
       ],
@@ -17,7 +17,7 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
         "--dir",
-        "/Users/rodionov/web_projects/competra-web-ts",
+        "/Users/rodionov/projects/competra/competra-web-ts",
         "dev",
         "--port",
         "3000",

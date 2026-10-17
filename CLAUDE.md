@@ -123,21 +123,10 @@ The app uses NFC to read/write participant chips for orienteering competitions. 
 
 ## Межпроектные связи
 
-Этот проект — часть экосистемы из четырёх репозиториев:
+Этот репозиторий — часть рабочего пространства `~/projects/competra/` вместе с веб-клиентом (`../competra-web-ts`), бэкендом eSport (`../competra-server/eSport`) и редактором карт (`../mapper`). Состав экосистемы, контракт API, цепочка IOF XML и общие правила («спроси про web», «спроси про бэкенд», фичевая документация) — в `../CLAUDE.md`, он подгружается автоматически.
 
-| Проект | Путь | Роль |
-|---|---|---|
-| **eSport** (backend) | `/Users/rodionov/backend_projects/eSport` | Ktor-сервер, источник всего API |
-| **competra-web-ts** | `/Users/rodionov/web_projects/competra-web-ts` | Веб-версия приложения (React + TypeScript + Vite), деплоится на `competra.ru`. Заменил собой прежний Kotlin/Wasm веб-клиент (`competra-web`, теперь архивный) |
-| **mapper** | `/Users/rodionov/android_projects/mapper` | Qt/C++ редактор карт, создаёт дистанции в формате IOF XML |
-
-### Правила для Claude
-
-**При изменении функционала** (новый экран, новый API-вызов, новая бизнес-логика) — **спроси пользователя**: нужно ли то же самое сделать в `competra-web-ts`? Обе платформы покрывают одну доменную область (соревнования, дистанции, результаты, профиль), и фичи часто должны быть на обеих.
-
-**При изменении модели данных или API-вызова** — **спроси**: не сломает ли это бэкенд (eSport)? Контракт: все ответы — `CommonModel<T>` с `status == 1`, конфликты — HTTP 409 (server-wins).
+### Android-специфичное
 
 **NFC-фичи** (`:core:nfchelper`, чтение/запись чипов участников) — уникальны для Android, в Web аналога нет, спрашивать не нужно.
 
-### Цепочка IOF XML
-Mapper экспортирует дистанции → пользователь загружает файл через `DistanceRepository.importFromXml` (`:data:remote`) → eSport парсит через `IOFXmlParser.kt`. Если меняется логика загрузки, уточни, не нужно ли обновить парсер в eSport или аналогичный upload в `competra-web-ts` (`src/api/distanceRepository.ts`).
+**Загрузка IOF XML** идёт через `DistanceRepository.importFromXml` (`:data:remote`). Если меняется логика загрузки, уточни, не нужно ли обновить парсер в eSport (`IOFXmlParser.kt`) или аналогичный upload в `../competra-web-ts/src/api/distanceRepository.ts`.
