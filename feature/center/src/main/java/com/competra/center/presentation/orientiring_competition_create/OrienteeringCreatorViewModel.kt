@@ -15,7 +15,10 @@ import com.competra.domain.exception.NetworkException
 import com.competra.domain.models.Coordinates
 import com.competra.domain.models.CropRect
 import com.competra.domain.models.NetworkErrorEvent
+import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.orienteering.IofCourseXmlParser
 import com.competra.domain.models.orienteering.OrienteeringCompetition
+import com.competra.domain.models.orienteering.StandardGroups
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OvertimePolicy
 import com.competra.domain.models.orienteering.PunchingSystem
@@ -64,6 +67,26 @@ class OrienteeringCreatorViewModel(
     init {
         viewModelScope.launch {
             user = userRepository.retrieveUser().getOrNull()
+            prefillFromProfile()
+        }
+    }
+
+    /**
+     * Новое соревнование: подставляет организатора, телефон и email из профиля, не перетирая
+     * уже введённое. У существующего соревнования эти поля приходят из [initialize].
+     */
+    private fun prefillFromProfile() {
+        val profile = user ?: return
+        if (stateValue.competitionId != null) return
+        val fullName = listOfNotNull(profile.lastName, profile.firstName, profile.middleName)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+        updateState {
+            copy(
+                organizerName = organizerName.ifBlank { fullName },
+                contactPhone = contactPhone.ifBlank { profile.phoneNumber.orEmpty() },
+                contactEmail = contactEmail.ifBlank { profile.email }
+            )
         }
     }
 
@@ -188,18 +211,29 @@ class OrienteeringCreatorViewModel(
 
             is OrienteeringCreatorAction.UpdateRegistrationStartDate -> {
                 val combined = DateTimeFormat.updateTimeInTimestamp(action.date, stateValue.registrationStartTimeStr, competitionZone()) ?: action.date
-                updateState { copy(registrationStart = combined, errors = errors.copy(isEmptyRegistrationStart = false)) }
+                updateState {
+                    copy(
+                        registrationStart = combined,
+                        errors = errors.copy(isEmptyRegistrationStart = false, isRegistrationStartAfterCompetition = false)
+                    )
+                }
             }
 
             is OrienteeringCreatorAction.UpdateRegistrationStartTime -> {
                 val combined = DateTimeFormat.updateTimeInTimestamp(stateValue.registrationStart, action.time, competitionZone())
-                updateState { copy(registrationStartTimeStr = action.time, registrationStart = combined ?: stateValue.registrationStart) }
+                updateState {
+                    copy(
+                        registrationStartTimeStr = action.time,
+                        registrationStart = combined ?: stateValue.registrationStart,
+                        errors = errors.copy(isRegistrationStartAfterCompetition = false)
+                    )
+                }
             }
 
             is OrienteeringCreatorAction.UpdateRegistrationStartOnCreate -> updateState {
                 copy(
                     registrationStartOnCreate = action.enabled,
-                    errors = errors.copy(isEmptyRegistrationStart = false)
+                    errors = errors.copy(isEmptyRegistrationStart = false, isRegistrationStartAfterCompetition = false)
                 )
             }
 
@@ -297,6 +331,174 @@ class OrienteeringCreatorViewModel(
             }
 
             OrienteeringCreatorAction.FillWithTestData -> fillWithTestData()
+
+            is OrienteeringCreatorAction.DeleteDistance -> deleteDistance(action.index)
+
+            is OrienteeringCreatorAction.DeleteGroup -> deleteGroup(action.index)
+
+            is OrienteeringCreatorAction.ImportCoursesXml -> importCoursesXml(action.uri)
+
+            OrienteeringCreatorAction.ShowStandardGroupsDialog -> updateState {
+                copy(isShowStandardGroupsDialog = true)
+            }
+
+            OrienteeringCreatorAction.HideStandardGroupsDialog -> updateState {
+                copy(isShowStandardGroupsDialog = false)
+            }
+
+            is OrienteeringCreatorAction.AddStandardGroups ->
+                addStandardGroups(action.titles, action.defaultDistanceId)
+
+            OrienteeringCreatorAction.MessageShown -> updateState { copy(message = null) }
+        }
+    }
+
+    /**
+     * Удаляет дистанцию из мастера. Дистанцию, на которую ссылаются группы, не удаляем —
+     * иначе группы остались бы без дистанции; организатор сначала меняет или удаляет группы.
+     */
+    private fun deleteDistance(index: Int) {
+        val distance = stateValue.distances.getOrNull(index) ?: return
+        val usedBy = stateValue.participantGroups.filter { it.distanceId == distance.id }
+        if (usedBy.isNotEmpty()) {
+            updateState {
+                copy(message = "Дистанция используется в группах ${usedBy.joinToString { it.title }} — " +
+                    "сначала смените им дистанцию или удалите их")
+            }
+            return
+        }
+        viewModelScope.launch {
+            orienteeringCompetitionInteractor.deleteDistance(distance, silent = true)
+                .onSuccess { updateState { copy(distances = distances.filterNot { it.id == distance.id }) } }
+                .onFailure { handleFailure(it) }
+        }
+    }
+
+    /** Удаляет группу из мастера. Группу с зарегистрированными участниками не удаляем. */
+    private fun deleteGroup(index: Int) {
+        val group = stateValue.participantGroups.getOrNull(index) ?: return
+        viewModelScope.launch {
+            val participantsCount = orienteeringCompetitionInteractor
+                .getCompetitionWithDetails(group.competitionId).getOrNull()
+                ?.groupsWithParticipants
+                ?.firstOrNull { it.group.groupId == group.groupId }
+                ?.participants?.count { !it.isDeleted } ?: 0
+            if (participantsCount > 0) {
+                updateState {
+                    copy(message = "В группе ${group.title} уже есть участники ($participantsCount) — её нельзя удалить")
+                }
+                return@launch
+            }
+            orienteeringCompetitionInteractor.deleteParticipantGroup(group, silent = true)
+                .onSuccess {
+                    updateState { copy(participantGroups = participantGroups.filterNot { it.groupId == group.groupId }) }
+                }
+                .onFailure { handleFailure(it) }
+        }
+    }
+
+    /**
+     * Импортирует дистанции из IOF XML (Mapper). Файл разбирается локально ([IofCourseXmlParser]):
+     * соревнования ещё нет на сервере, дистанции уйдут туда вместе с ним в конце мастера.
+     * Дистанция с тем же названием обновляется, а не дублируется — можно поправить дистанции
+     * в Mapper и импортировать файл повторно.
+     */
+    private fun importCoursesXml(uri: android.net.Uri) {
+        val competitionId = stateValue.competitionId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            loadingRepository.emit(true)
+            val parsed = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    IofCourseXmlParser.parse(
+                        input = input,
+                        competitionId = competitionId,
+                        useStartStation = stateValue.startTimeMode == StartTimeMode.BY_START_STATION
+                    )
+                } ?: emptyList()
+            }
+            val courses = parsed.getOrElse { error ->
+                Log.e("OrienteeringCreatorVM", "IOF XML parse failed", error)
+                loadingRepository.emit(false)
+                updateState { copy(message = "Не удалось прочитать файл — нужен IOF XML 3.0 с дистанциями из Mapper") }
+                return@launch
+            }
+            if (courses.isEmpty()) {
+                loadingRepository.emit(false)
+                updateState { copy(message = "В файле не найдено ни одной дистанции (Course)") }
+                return@launch
+            }
+
+            var added = 0
+            var updated = 0
+            courses.forEach { course ->
+                val existing = course.name?.let { name -> stateValue.distances.firstOrNull { it.name == name } }
+                if (existing == null) {
+                    orienteeringCompetitionInteractor.saveDistance(course, silent = true)
+                        .onSuccess { added++ }
+                } else {
+                    orienteeringCompetitionInteractor.updateDistance(
+                        course.copy(
+                            id = existing.id,
+                            remoteId = existing.remoteId,
+                            serverUpdatedAt = existing.serverUpdatedAt,
+                            description = existing.description,
+                            // Без стартового КП в XML (старт не по станции) сохраняем введённый вручную.
+                            startControlPoint = course.startControlPoint ?: existing.startControlPoint
+                        ),
+                        silent = true
+                    ).onSuccess { updated++ }
+                }
+            }
+            val fresh = orienteeringCompetitionInteractor.getDistances(competitionId)
+                .getOrDefault(stateValue.distances)
+                .filterNot { it.isDeleted }
+            loadingRepository.emit(false)
+            analytics.trackEvent(AnalyticsEvent.CreateCompetitionCoursesImported(courses.size))
+            updateState {
+                copy(
+                    distances = fresh,
+                    message = listOfNotNull(
+                        "добавлено: $added".takeIf { added > 0 },
+                        "обновлено: $updated".takeIf { updated > 0 }
+                    ).joinToString(prefix = "Дистанции из XML — ")
+                )
+            }
+        }
+    }
+
+    /**
+     * Добавляет выбранные стандартные группы. Пол и возраст берутся из названия
+     * ([StandardGroups.parseTitle]), дистанция — по совпадению названий, иначе [defaultDistanceId].
+     * Группы с уже существующими названиями пропускаются.
+     */
+    private fun addStandardGroups(titles: List<String>, defaultDistanceId: Long) {
+        val competitionId = stateValue.competitionId ?: return
+        val existingTitles = stateValue.participantGroups.map { it.title.trim().lowercase() }.toSet()
+        val newGroups = titles
+            .filterNot { it.lowercase() in existingTitles }
+            .map { title ->
+                val info = StandardGroups.parseTitle(title)
+                ParticipantGroup(
+                    groupId = 0L,
+                    competitionId = competitionId,
+                    title = title,
+                    gender = info?.gender,
+                    minAge = info?.minAge,
+                    maxAge = info?.maxAge,
+                    distanceId = StandardGroups.matchDistance(title, stateValue.distances)?.id ?: defaultDistanceId
+                )
+            }
+        updateState { copy(isShowStandardGroupsDialog = false) }
+        if (newGroups.isEmpty()) return
+        viewModelScope.launch {
+            orienteeringCompetitionInteractor.localSaveParticipantGroups(newGroups, silent = true)
+            analytics.trackEvent(AnalyticsEvent.CreateCompetitionStandardGroupsAdded(newGroups.size))
+            // Перечитываем из БД, чтобы получить реальные groupId (иначе finishCreation вставит группы повторно).
+            orienteeringCompetitionInteractor.getCompetitionWithDetails(competitionId).getOrNull()
+                ?.groupsWithParticipants
+                ?.map { it.group }
+                ?.filterNot { it.isDeleted }
+                ?.let { fresh -> updateState { copy(participantGroups = fresh) } }
         }
     }
 
@@ -412,6 +614,7 @@ class OrienteeringCreatorViewModel(
                     feeCurrency = comp.competition.feeCurrency ?: "RUB",
                     regulationUrl = comp.competition.regulationUrl ?: "",
                     mapUrl = comp.competition.mapUrl ?: "",
+                    organizerName = comp.competition.organizerName.orEmpty(),
                     contactPhone = comp.competition.contactPhone?.ifEmpty { user?.phoneNumber ?: "" } ?: user?.phoneNumber ?: "",
                     contactEmail = comp.competition.contactEmail?.ifEmpty { user?.email ?: "" } ?: user?.email ?: "",
                     website = comp.competition.website ?: "",
@@ -444,13 +647,14 @@ class OrienteeringCreatorViewModel(
 
             // Загрузка дистанций из локальной БД (уже актуальных после синхронизации)
             orienteeringCompetitionInteractor.getDistances(competitionId).onSuccess { list ->
-                updateState { copy(distances = list) }
+                // Помеченные на удаление ждут выгрузки DELETE — в мастере их уже нет.
+                updateState { copy(distances = list.filterNot { it.isDeleted }) }
             }
 
             // Загрузка групп из локальной БД (уже актуальных после синхронизации)
             orienteeringCompetitionInteractor.getCompetitionWithDetails(competitionId).onSuccess { details ->
                 updateState {
-                    copy(participantGroups = details.groupsWithParticipants.map { it.group })
+                    copy(participantGroups = details.groupsWithParticipants.map { it.group }.filterNot { it.isDeleted })
                 }
             }
         }
@@ -505,6 +709,11 @@ class OrienteeringCreatorViewModel(
             updateState {
                 copy(errors = errors.copy(isEmptyRegistrationStart = startEmpty))
             }
+            return
+        }
+        val registrationStart = stateValue.registrationStart
+        if (!stateValue.registrationStartOnCreate && registrationStart != null && registrationStart > stateValue.startDate) {
+            updateState { copy(errors = errors.copy(isRegistrationStartAfterCompetition = true)) }
             return
         }
 
@@ -814,6 +1023,8 @@ class OrienteeringCreatorViewModel(
     fun updateMapUrl(url: String) = updateState { copy(mapUrl = url) }
     fun updateContactPhone(phone: String) = updateState { copy(contactPhone = phone, errors = errors.copy(isEmptyContactPhone = false)) }
     fun updateContactEmail(email: String) = updateState { copy(contactEmail = email) }
+    fun updateOrganizerName(name: String) = updateState { copy(organizerName = name) }
+    fun updateFeeCurrency(currency: String) = updateState { copy(feeCurrency = currency) }
     fun updateWebsite(site: String) = updateState { copy(website = site) }
 
     private companion object {

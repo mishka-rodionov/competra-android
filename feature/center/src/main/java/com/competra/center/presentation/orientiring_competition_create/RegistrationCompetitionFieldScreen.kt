@@ -56,6 +56,7 @@ fun RegistrationCompetitionFieldScreen(
         onUpdateFeeEnabled = viewModel::updateFeeEnabled,
         onUpdateFeeAmount = viewModel::updateFeeAmount,
         onUpdateRegulationUrl = viewModel::updateRegulationUrl,
+        onUpdateFeeCurrency = viewModel::updateFeeCurrency,
         onAction = viewModel::onAction
     )
 }
@@ -73,6 +74,7 @@ private fun RegistrationCompetitionFieldContent(
     onUpdateFeeEnabled: (Boolean) -> Unit,
     onUpdateFeeAmount: (String) -> Unit,
     onUpdateRegulationUrl: (String) -> Unit,
+    onUpdateFeeCurrency: (String) -> Unit = {},
     onAction: (OrienteeringCreatorAction) -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -146,6 +148,14 @@ private fun RegistrationCompetitionFieldContent(
                             }
                         )
                     }
+                }
+                if (state.errors.isRegistrationStartAfterCompetition) {
+                    Text(
+                        text = "Регистрация должна открыться не позже старта соревнования",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(start = Dimens.SIZE_HALF.dp, top = 4.dp)
+                    )
                 }
                 if (state.errors.isEmptyRegistrationStart) {
                     Text(
@@ -233,13 +243,11 @@ private fun RegistrationCompetitionFieldContent(
                     onValueChanged = onUpdateFeeAmount
                 )
                 Spacer(modifier = Modifier.width(Dimens.SIZE_HALF.dp))
-                DSTextInput(
+                CurrencyPicker(
                     modifier = Modifier.weight(0.5f),
-                    text = state.feeCurrency,
-                    label = { Text("Валюта") },
-                    supportingText = { Text("RUB, USD, EUR…") },
+                    selected = state.feeCurrency,
                     enabled = state.isFeeEnabled, // Активно только если включен свитч
-                    onValueChanged = { /* viewModel.updateCurrency(it) */ }
+                    onSelect = onUpdateFeeCurrency
                 )
             }
 
@@ -327,7 +335,7 @@ private fun RegistrationDatePicker(
     DSTextInput(
         modifier = Modifier
             .fillMaxWidth()
-            .onFocusChanged { if (it.isFocused) datePickerDialog.show() },
+            .onFocusChanged { if (it.isFocused) datePickerDialog.showAt(displayDate, zoneId) },
         label = { Text("Дата") },
         text = DateTimeFormat.transformLongToDisplayDate(displayDate, zoneId),
         readOnly = true,
@@ -366,7 +374,7 @@ private fun RegistrationTimePicker(
         isError = isError,
         trailingIcon = {
             Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_build_24px),
+                imageVector = ImageVector.vectorResource(R.drawable.ic_schedule_24px),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.primary
@@ -409,5 +417,41 @@ private fun RegistrationCompetitionFieldPreview() {
             onUpdateRegulationUrl = {},
             onAction = {}
         )
+    }
+}
+
+/** Валюты взноса — тот же список, что в вебе (`competra-web-ts/src/features/management/dictionaries.ts`). */
+internal val FEE_CURRENCIES = listOf("RUB", "BYN", "KZT", "USD", "EUR")
+
+/** Выбор валюты взноса из [FEE_CURRENCIES] вместо свободного ввода. */
+@Composable
+private fun CurrencyPicker(
+    selected: String,
+    enabled: Boolean,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        OutlinedButton(
+            onClick = { isExpanded = true },
+            enabled = enabled,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+        ) {
+            Text(selected)
+        }
+        DropdownMenu(expanded = isExpanded, onDismissRequest = { isExpanded = false }) {
+            FEE_CURRENCIES.forEach { currency ->
+                DropdownMenuItem(
+                    text = { Text(currency) },
+                    onClick = {
+                        onSelect(currency)
+                        isExpanded = false
+                    }
+                )
+            }
+        }
     }
 }

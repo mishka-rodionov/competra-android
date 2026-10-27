@@ -9,14 +9,16 @@ data class OrienteeringCreatorErrors(
     val isMaxTimeError: Boolean = false,
     val isEmptyRegistrationStart: Boolean = false,
     val isEmptyRegistrationEnd: Boolean = false,
-    val isEmptyContactPhone: Boolean = false
+    val isEmptyContactPhone: Boolean = false,
+    /** Регистрация открывается позже старта соревнования. */
+    val isRegistrationStartAfterCompetition: Boolean = false
 ) {
 
     fun checkErrors() : Boolean {
         return !isEmptyAddress && !isEmptyGroup && !isGroupTitleError && !isGroupDistanceError
             && !isCountOfControlsError && !isMaxTimeError
             && !isEmptyRegistrationStart && !isEmptyRegistrationEnd
-            && !isEmptyContactPhone
+            && !isEmptyContactPhone && !isRegistrationStartAfterCompetition
     }
 
 }

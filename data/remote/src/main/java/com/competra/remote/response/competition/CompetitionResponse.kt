@@ -70,5 +70,8 @@ data class CompetitionResponse(
     @SerializedName("updatedAt")
     val updatedAt: Long = 0L,
     @SerializedName("organizingClubId")
-    val organizingClubId: String? = null
+    val organizingClubId: String? = null,
+    /** Организатор (ФИО). */
+    @SerializedName("organizerName")
+    val organizerName: String? = null
 )

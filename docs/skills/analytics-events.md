@@ -24,12 +24,14 @@
 | `auth_login_failed` | Авторизация не удалась | `AuthCodeViewModel.kt` |
 | `nfc_chip_read_attempted` | Зафиксирована попытка чтения чипа | `OrientReadCardViewModel.kt` |
 | `create_competition_step_completed` | Пользователь закончил один из шагов мастера | `OrienteeringCreatorViewModel.kt` |
+| `create_competition_courses_imported` | В мастере импортированы дистанции из IOF XML (`courses_count`) | `OrienteeringCreatorViewModel.kt`, web `CreateCompetitionPage.tsx` |
+| `create_competition_standard_groups_added` | В мастере добавлены стандартные группы (`groups_count`) | `OrienteeringCreatorViewModel.kt`, web `CreateCompetitionPage.tsx` |
 | `create_competition_finished` | Мастер создания прошёл до конца (`format`: forward / marking / by_choice_score / by_choice_min_controls; `team_scoring`: none / groups / both) | `OrienteeringCreatorViewModel.kt` |
 | `team_standings_opened` | Открыт командный зачёт в результатах (`competition_id`) | `OrienteeringCompetitionResultsViewModel.kt`, `EventResultsViewModel.kt` |
-| `participant_drawn` | Прошла жеребьёвка | `DrawViewModel.kt` |
-| `participant_dns_marked` | Участник отмечен «Не стартовал» | `ParticipantListViewModel.kt` |
 | `participant_added` | Организатор добавил участника в диалоге «Новый участник» (`method`: manual / history — из подсказки по прошлым соревнованиям) | `ParticipantListViewModel.kt` |
 | `participants_bulk_added` | Организатор добавил в группу сразу несколько людей из прошлых соревнований (`participants_count`) | `ParticipantListViewModel.kt` |
+| `participant_drawn` | Прошла жеребьёвка | `DrawViewModel.kt` |
+| `participant_dns_marked` | Участник отмечен «Не стартовал» | `ParticipantListViewModel.kt` |
 
 ### Анти-паттерны
 

@@ -219,6 +219,15 @@ private fun CommonCompetitionFieldContent(
                     TimePicker(state = state, userAction = onAction)
                 }
             }
+            if (state.startDate < System.currentTimeMillis()) {
+                Text(
+                    text = "Время старта уже прошло — регистрация будет сразу закрыта. " +
+                        "Проверьте дату, если соревнование ещё впереди",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
             TimeZonePicker(
                 selectedZoneId = state.timeZoneId,
@@ -310,7 +319,11 @@ private fun CommonCompetitionFieldContent(
                 Column {
                     Text(text = "Координаты старта", style = MaterialTheme.typography.labelMedium)
                     Text(
-                        text = "lat: ${"%.5f".format(state.coordinates.latitude)}, lon: ${"%.5f".format(state.coordinates.longitude)}",
+                        text = if (state.hasCoordinates) {
+                            "lat: ${"%.5f".format(state.coordinates.latitude)}, lon: ${"%.5f".format(state.coordinates.longitude)}"
+                        } else {
+                            "Не выбрано — нажмите на значок карты"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

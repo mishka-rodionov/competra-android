@@ -450,3 +450,13 @@ val MIGRATION_56_57 = object : Migration(56, 57) {
         db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN drawGap INTEGER")
     }
 }
+
+/**
+ * Миграция с версии 57 на 58.
+ * Организатор (ФИО) соревнования — текстом, как на сервере (встроено через @Embedded Competition).
+ */
+val MIGRATION_57_58 = object : Migration(57, 58) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN organizerName TEXT")
+    }
+}

@@ -97,6 +97,7 @@ fun OrganizatorCompetitionFieldScreen(
         onUpdateContactEmail = viewModel::updateContactEmail,
         onUpdateWebsite = viewModel::updateWebsite,
         onUpdateOrganizingClubId = viewModel::updateOrganizingClubId,
+        onUpdateOrganizerName = viewModel::updateOrganizerName,
         onAction = viewModel::onAction
     )
 }
@@ -115,6 +116,7 @@ private fun OrganizatorCompetitionFieldContent(
     onUpdateContactEmail: (String) -> Unit,
     onUpdateWebsite: (String) -> Unit,
     onUpdateOrganizingClubId: (String?) -> Unit = {},
+    onUpdateOrganizerName: (String) -> Unit = {},
     onAction: (OrienteeringCreatorAction) -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
@@ -142,6 +144,18 @@ private fun OrganizatorCompetitionFieldContent(
                 text = "Шаг 3: Контакты и медиа",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+
+            DSTextInput(
+                modifier = Modifier.fillMaxWidth(),
+                text = state.organizerName,
+                label = { Text("Организатор (ФИО)") },
+                supportingText = {
+                    Text("По умолчанию — ваше имя из профиля. Можно указать другого человека, он не обязан быть в Competra")
+                },
+                onValueChanged = onUpdateOrganizerName
             )
 
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))

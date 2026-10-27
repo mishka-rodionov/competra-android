@@ -82,5 +82,7 @@ data class Competition(
     val createdAt: Long = System.currentTimeMillis(),
     val syncError: String? = null,
     val serverUpdatedAt: Long? = null,
-    val organizingClubId: String? = null
+    val organizingClubId: String? = null,
+    /** Организатор (ФИО) для страницы соревнования; не обязательно пользователь системы. */
+    val organizerName: String? = null
 )

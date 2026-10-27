@@ -135,6 +135,18 @@ sealed class AnalyticsEvent(
         mapOf("step" to step.name.lowercase()),
     )
 
+    /** В мастере создания импортированы дистанции из IOF XML (Mapper). */
+    class CreateCompetitionCoursesImported(coursesCount: Int) : AnalyticsEvent(
+        "create_competition_courses_imported",
+        mapOf("courses_count" to coursesCount),
+    )
+
+    /** В мастере создания добавлены группы из стандартного набора. */
+    class CreateCompetitionStandardGroupsAdded(groupsCount: Int) : AnalyticsEvent(
+        "create_competition_standard_groups_added",
+        mapOf("groups_count" to groupsCount),
+    )
+
     /**
      * Мастер создания соревнования прошёл до конца.
      * [format] — forward / marking / by_choice_score / by_choice_min_controls;

@@ -54,7 +54,8 @@ import java.time.ZoneId
 data class OrienteeringCreatorState(
     val competitionId: String? = null,
     val title: String = "",
-    val startDate: Long = System.currentTimeMillis(),
+    /** По умолчанию — завтра в 10:00 (совпадает со [startTimeStr]), а не «сейчас» в произвольное время. */
+    val startDate: Long = defaultStartDate(),
     val startTimeStr: String = "10:00",
     /** IANA-идентификатор часового пояса соревнования. По умолчанию — зона устройства. */
     val timeZoneId: String = ZoneId.systemDefault().id,
@@ -89,6 +90,8 @@ data class OrienteeringCreatorState(
     val regulationUrl: String = "",
 
     val mapUrl: String = "",
+    /** Организатор (ФИО) для страницы соревнования; по умолчанию — имя из профиля. */
+    val organizerName: String = "",
     val contactPhone: String = "",
     val contactEmail: String = "",
     val website: String = "",
@@ -126,8 +129,21 @@ data class OrienteeringCreatorState(
     /** Опциональный клуб-организатор. Задать может FOUNDER/ADMIN клуба из [myClubs]. */
     val organizingClubId: String? = null,
     /** Клубы текущего пользователя с ролью FOUNDER/ADMIN — кандидаты для выбора клуба-организатора. */
-    val myClubs: List<Club> = emptyList()
+    val myClubs: List<Club> = emptyList(),
+
+    /** Показан диалог добавления стандартных групп. */
+    val isShowStandardGroupsDialog: Boolean = false,
+    /**
+     * Одноразовое сообщение для снекбара (итог импорта XML, запрет удаления и т.п.);
+     * экран показывает его и сбрасывает через [OrienteeringCreatorAction.MessageShown].
+     */
+    val message: String? = null
 ) : BaseState {
+
+    /** Координаты старта выбраны (на карте или пришли с сервера); 0,0 — значение «не задано». */
+    val hasCoordinates: Boolean
+        get() = isCoordinatesSetByUser || coordinates.latitude != 0.0 || coordinates.longitude != 0.0
+
     
     fun toOrienteeringCompetition(userId: String?): OrienteeringCompetition {
         return OrienteeringCompetition(
@@ -140,7 +156,8 @@ data class OrienteeringCreatorState(
                 description = description,
                 address = address,
                 mainOrganizerId = userId,
-                coordinates = coordinates,
+                // Невыбранная точка 0,0 — это Гвинейский залив, а не «нет координат»: шлём null, как веб.
+                coordinates = coordinates.takeIf { hasCoordinates },
                 status = CompetitionStatus.DRAFT,
                 registrationStart = registrationStart,
                 registrationEnd = registrationEnd,
@@ -157,7 +174,8 @@ data class OrienteeringCreatorState(
                 resultsStatus = ResultsStatus.NOT_PUBLISHED,
                 timeZoneId = timeZoneId,
                 isTest = isTest,
-                organizingClubId = organizingClubId
+                organizingClubId = organizingClubId,
+                organizerName = organizerName.trim().ifEmpty { null }
             ),
             direction = competitionDirection,
             punchingSystem = punchingSystem,
@@ -171,3 +189,8 @@ data class OrienteeringCreatorState(
         )
     }
 }
+
+/** Завтра в 10:00 по часовому поясу устройства — значение даты старта в новой форме. */
+private fun defaultStartDate(): Long =
+    java.time.LocalDate.now().plusDays(1).atTime(10, 0)
+        .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()

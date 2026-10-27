@@ -66,5 +66,8 @@ data class CompetitionRequest(
     @SerializedName("serverUpdatedAt")
     val serverUpdatedAt: Long? = null,
     @SerializedName("organizingClubId")
-    val organizingClubId: String? = null
+    val organizingClubId: String? = null,
+    /** Организатор (ФИО). Сервер перезаписывает поле при каждом upsert — передаём всегда. */
+    @SerializedName("organizerName")
+    val organizerName: String? = null
 )

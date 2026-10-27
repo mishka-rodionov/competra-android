@@ -5,7 +5,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -14,6 +17,7 @@ import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
 import com.competra.domain.models.Gender
 import com.competra.domain.models.ParticipantGroup
+import com.competra.resources.R
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -47,6 +51,17 @@ fun CreateParticipantGroupScreen(
             state = state
         )
     }
+
+    if (state.isShowStandardGroupsDialog) {
+        StandardGroupsDialog(
+            distances = state.distances,
+            existingTitles = state.participantGroups.map { it.title },
+            onDismiss = { viewModel.onAction(OrienteeringCreatorAction.HideStandardGroupsDialog) },
+            onConfirm = { titles, distanceId ->
+                viewModel.onAction(OrienteeringCreatorAction.AddStandardGroups(titles, distanceId))
+            }
+        )
+    }
 }
 
 /**
@@ -60,7 +75,10 @@ private fun CreateParticipantGroupContent(
     onNext: () -> Unit,
     onAction: (OrienteeringCreatorAction) -> Unit
 ) {
+    val snackbarHostState = rememberWizardSnackbar(state.message) { onAction(OrienteeringCreatorAction.MessageShown) }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationButtons(
                 onBack = onBack,
@@ -97,12 +115,31 @@ private fun CreateParticipantGroupContent(
                             onAction(OrienteeringCreatorAction.EditGroupDialog(index))
                         }
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(text = group.title, fontWeight = FontWeight.Bold)
-                            if (group.minAge != null || group.maxAge != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = group.title, fontWeight = FontWeight.Bold)
+                                if (group.minAge != null || group.maxAge != null) {
+                                    Text(
+                                        text = "Возраст: ${group.minAge ?: 0} - ${group.maxAge ?: "∞"}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                val distanceName = state.distances.firstOrNull { it.id == group.distanceId }?.name
                                 Text(
-                                    text = "Возраст: ${group.minAge ?: 0} - ${group.maxAge ?: "∞"}",
+                                    text = "Дистанция: ${distanceName ?: "—"}",
                                     style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            IconButton(onClick = { onAction(OrienteeringCreatorAction.DeleteGroup(index)) }) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.delete),
+                                    contentDescription = "Delete group",
+                                    tint = MaterialTheme.colorScheme.error
                                 )
                             }
                         }
@@ -111,6 +148,16 @@ private fun CreateParticipantGroupContent(
             }
 
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+
+            OutlinedButton(
+                onClick = { onAction(OrienteeringCreatorAction.ShowStandardGroupsDialog) },
+                enabled = state.distances.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Добавить стандартные группы")
+            }
+
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
             Button(
                 onClick = { onAction(OrienteeringCreatorAction.ShowGroupCreateDialog) },

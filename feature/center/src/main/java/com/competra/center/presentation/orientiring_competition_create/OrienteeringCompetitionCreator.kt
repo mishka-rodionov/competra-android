@@ -56,7 +56,11 @@ fun DatePicker(state: OrienteeringCreatorState, userAction: (OrienteeringCreator
     DSTextInput(
         modifier = Modifier
             .fillMaxWidth()
-            .onFocusChanged { if (it.isFocused) datePickerDialog.show() },
+            .onFocusChanged {
+                if (it.isFocused) {
+                    datePickerDialog.showAt(state.startDate, zoneId)
+                }
+            },
         label = { Text(text = stringResource(R.string.label_date)) },
         text = DateTimeFormat.transformLongToDisplayDate(state.startDate, zoneId),
         readOnly = true,
@@ -88,7 +92,7 @@ fun TimePicker(state: OrienteeringCreatorState, userAction: (OrienteeringCreator
         readOnly = true,
         trailingIcon = {
             Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_build_24px), // Используем как заглушку для времени
+                imageVector = ImageVector.vectorResource(R.drawable.ic_schedule_24px),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.primary
@@ -111,4 +115,14 @@ fun TimePicker(state: OrienteeringCreatorState, userAction: (OrienteeringCreator
             }
         )
     }
+}
+
+/**
+ * Открывает диалог на дате [millis] в поясе [zoneId] (сегодня, если дата не задана) —
+ * а не на дате создания диалога.
+ */
+internal fun DatePickerDialog.showAt(millis: Long?, zoneId: ZoneId) {
+    val date = millis?.let { java.time.Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() } ?: LocalDate.now(zoneId)
+    updateDate(date.year, date.monthValue - 1, date.dayOfMonth)
+    show()
 }

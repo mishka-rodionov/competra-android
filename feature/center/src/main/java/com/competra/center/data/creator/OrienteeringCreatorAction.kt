@@ -88,4 +88,19 @@ sealed class OrienteeringCreatorAction : BaseAction {
     data class CreateDistance(val distance: Distance, val index: Int) : OrienteeringCreatorAction()
     data class EditDistanceDialog(val index: Int) : OrienteeringCreatorAction()
     data class DeleteDistance(val index: Int) : OrienteeringCreatorAction()
+
+    /** Импорт дистанций из IOF XML (Mapper) — файл разбирается локально. */
+    data class ImportCoursesXml(val uri: Uri) : OrienteeringCreatorAction()
+
+    // Стандартные группы
+    data object ShowStandardGroupsDialog : OrienteeringCreatorAction()
+    data object HideStandardGroupsDialog : OrienteeringCreatorAction()
+    /**
+     * Добавить выбранные стандартные группы. Дистанция подбирается по совпадению названий
+     * (см. [com.competra.domain.models.orienteering.StandardGroups.matchDistance]), иначе — [defaultDistanceId].
+     */
+    data class AddStandardGroups(val titles: List<String>, val defaultDistanceId: Long) : OrienteeringCreatorAction()
+
+    /** Сообщение из [OrienteeringCreatorState.message] показано. */
+    data object MessageShown : OrienteeringCreatorAction()
 }

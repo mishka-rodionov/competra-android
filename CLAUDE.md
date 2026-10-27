@@ -129,4 +129,4 @@ The app uses NFC to read/write participant chips for orienteering competitions. 
 
 **NFC-фичи** (`:core:nfchelper`, чтение/запись чипов участников) — уникальны для Android, в Web аналога нет, спрашивать не нужно.
 
-**Загрузка IOF XML** идёт через `DistanceRepository.importFromXml` (`:data:remote`). Если меняется логика загрузки, уточни, не нужно ли обновить парсер в eSport (`IOFXmlParser.kt`) или аналогичный upload в `../competra-web-ts/src/api/distanceRepository.ts`.
+**Импорт IOF XML** в мастере создания разбирается локально — `IofCourseXmlParser` (`:domain`, `models/orienteering/`), порт серверного `IOFXmlParser.kt` из eSport; серверный эндпоинт `import/courses` Android не использует. Меняешь правила разбора — синхронно поправь парсер в eSport (веб грузит файл туда).

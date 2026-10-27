@@ -1,5 +1,7 @@
 package com.competra.center.presentation.orientiring_competition_create
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -73,7 +75,13 @@ private fun CreateDistanceContent(
         (isFinishCpRequired && d.finishControlPoint == null) || (isStartCpRequired && d.startControlPoint == null)
     }
 
+    val xmlPicker = rememberLauncherForActivityResult(GetContent()) { uri ->
+        uri?.let { onAction(OrienteeringCreatorAction.ImportCoursesXml(it)) }
+    }
+    val snackbarHostState = rememberWizardSnackbar(state.message) { onAction(OrienteeringCreatorAction.MessageShown) }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Column {
                 if (incompleteDistances.isNotEmpty()) {
@@ -145,6 +153,13 @@ private fun CreateDistanceContent(
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                 }
+                                IconButton(onClick = { onAction(OrienteeringCreatorAction.DeleteDistance(index)) }) {
+                                    Icon(
+                                        imageVector = ImageVector.vectorResource(R.drawable.delete),
+                                        contentDescription = "Delete distance",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
                     }
@@ -152,6 +167,18 @@ private fun CreateDistanceContent(
             }
 
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+
+            OutlinedButton(
+                // GetContent не фильтрует по расширению: у .xml бывает и text/xml, и application/xml,
+                // и application/octet-stream — разбор сам скажет, если файл не тот.
+                onClick = { xmlPicker.launch("*/*") },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Импорт из Mapper (IOF XML)")
+            }
+            FieldDescription("Дистанции с КП и координатами из файла Mapper. Повторный импорт обновит дистанции с теми же названиями")
+
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
             Button(
                 onClick = { onAction(OrienteeringCreatorAction.ShowDistanceCreateDialog) },
@@ -216,4 +243,21 @@ private fun CreateDistanceFilledPreview() {
             onAction = {}
         )
     }
+}
+
+/**
+ * Снекбар для одноразовых сообщений мастера ([OrienteeringCreatorState.message]):
+ * показывает сообщение и вызывает [onShown], чтобы ViewModel его сбросила.
+ */
+@Composable
+internal fun rememberWizardSnackbar(message: String?, onShown: () -> Unit): SnackbarHostState {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val currentOnShown by rememberUpdatedState(onShown)
+    LaunchedEffect(message) {
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            currentOnShown()
+        }
+    }
+    return snackbarHostState
 }

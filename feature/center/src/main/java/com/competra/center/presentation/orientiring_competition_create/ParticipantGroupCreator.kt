@@ -1,5 +1,7 @@
 package com.competra.center.presentation.orientiring_competition_create
 
+import com.competra.domain.models.orienteering.GroupTitleInfo
+import com.competra.domain.models.orienteering.StandardGroups
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -53,6 +55,9 @@ fun ParticipantGroupEditor(
     var maxAge by remember { mutableStateOf(initialGroup?.maxAge?.toString() ?: "") }
     var maxParticipants by remember { mutableStateOf(initialGroup?.maxParticipants?.toString() ?: "") }
     var selectedGender by remember { mutableStateOf(initialGroup?.gender) }
+    // Последние пол/возраст, подставленные по названию: поле, которое организатор поменял сам,
+    // при дальнейшем вводе названия не перетираем.
+    var autoFilled by remember { mutableStateOf<GroupTitleInfo?>(null) }
     // Штраф очками за опоздание есть только в score-О («по выбору» по баллам).
     val isScoreO = ranksByScore(state.competitionDirection, state.byChoiceMode)
     // Пусто = наследовать КВ соревнования. Дефолт для BY_CHOICE не подставляем: иначе
@@ -110,7 +115,17 @@ fun ParticipantGroupEditor(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { minAgeFocus.requestFocus() }),
                     text = groupTitle,
-                    onValueChanged = { groupTitle = it }
+                    onValueChanged = { newTitle ->
+                        groupTitle = newTitle
+                        if (initialGroup == null) {
+                            val info = StandardGroups.parseTitle(newTitle)
+                            val prev = autoFilled
+                            if (minAge == (prev?.minAge?.toString() ?: "")) minAge = info?.minAge?.toString() ?: ""
+                            if (maxAge == (prev?.maxAge?.toString() ?: "")) maxAge = info?.maxAge?.toString() ?: ""
+                            if (selectedGender == prev?.gender) selectedGender = info?.gender
+                            autoFilled = info
+                        }
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))

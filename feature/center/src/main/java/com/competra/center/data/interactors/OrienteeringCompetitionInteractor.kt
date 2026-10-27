@@ -883,6 +883,37 @@ class OrienteeringCompetitionInteractor(
         return localRepository.updateDistance(distance).also { if (!silent) touch() }
     }
 
+    /**
+     * Удаляет дистанцию. Ни разу не выгруженная на сервер удаляется локально сразу; выгруженная
+     * помечается на удаление (soft-delete) — SyncCenterWorker отправит DELETE и удалит запись.
+     *
+     * @param distance дистанция для удаления.
+     * @param silent true — не запускать синхронизацию (шаги мастера создания).
+     */
+    suspend fun deleteDistance(distance: Distance, silent: Boolean = false): Result<Unit> = runCatching {
+        if (distance.remoteId == null) {
+            localRepository.purgeDistanceLocally(distance.id)
+        } else {
+            localRepository.updateDistance(distance.copy(isDeleted = true)).getOrThrow()
+            if (!silent) touch()
+        }
+    }
+
+    /**
+     * Удаляет группу участников по тем же правилам, что и [deleteDistance].
+     *
+     * @param group группа для удаления.
+     * @param silent true — не запускать синхронизацию.
+     */
+    suspend fun deleteParticipantGroup(group: ParticipantGroup, silent: Boolean = false): Result<Unit> = runCatching {
+        if (group.remoteId == null) {
+            localRepository.purgeGroupLocally(group.groupId)
+        } else {
+            localRepository.updateParticipantGroup(group.copy(isDeleted = true)).getOrThrow()
+            if (!silent) touch()
+        }
+    }
+
     suspend fun getDistanceById(distanceId: Long): Result<Distance?> {
         return localRepository.getDistanceById(distanceId)
     }
