@@ -11,7 +11,7 @@ import com.google.gson.annotations.SerializedName
  * @property gender Пол участников.
  * @property minAge Минимальный возраст.
  * @property maxAge Максимальный возраст.
- * @property distanceId ID связанной дистанции.
+ * @property distanceId ID связанной дистанции; null — ещё не назначена.
  * @property maxParticipants Лимит участников для группы.
  * @property timeLimitMinutes Лимит времени для формата "по выбору" (BY_CHOICE), в минутах.
  * @property scorePenaltyPerMinute Штраф в очках за минуту опоздания сверх лимита (BY_CHOICE).
@@ -31,7 +31,7 @@ data class ParticipantGroupResponse(
     @SerializedName("maxAge")
     val maxAge: Int?,
     @SerializedName("distanceId")
-    val distanceId: Long,
+    val distanceId: Long?,
     @SerializedName("maxParticipants")
     val maxParticipants: Int?,
     @SerializedName("timeLimitMinutes")

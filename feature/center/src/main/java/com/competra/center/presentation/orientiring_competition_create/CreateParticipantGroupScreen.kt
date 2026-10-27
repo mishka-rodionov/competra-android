@@ -12,11 +12,14 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.competra.center.presentation.common.GroupsWithoutDistanceBanner
+import com.competra.center.presentation.common.NoDistanceBadge
 import com.competra.designsystem.theme.Dimens
 import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
 import com.competra.domain.models.Gender
 import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.orienteering.withoutDistance
 import com.competra.resources.R
 import org.koin.androidx.compose.koinViewModel
 
@@ -129,11 +132,15 @@ private fun CreateParticipantGroupContent(
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
-                                val distanceName = state.distances.firstOrNull { it.id == group.distanceId }?.name
-                                Text(
-                                    text = "Дистанция: ${distanceName ?: "—"}",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                                val distance = state.distances.firstOrNull { it.id == group.distanceId }
+                                if (distance != null) {
+                                    Text(
+                                        text = "Дистанция: ${distance.name ?: "без названия"}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                } else {
+                                    NoDistanceBadge(modifier = Modifier.padding(top = 2.dp))
+                                }
                             }
                             IconButton(onClick = { onAction(OrienteeringCreatorAction.DeleteGroup(index)) }) {
                                 Icon(
@@ -149,9 +156,12 @@ private fun CreateParticipantGroupContent(
 
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
 
+            GroupsWithoutDistanceBanner(titles = state.participantGroups.withoutDistance(state.distances).map { it.title })
+
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
             OutlinedButton(
                 onClick = { onAction(OrienteeringCreatorAction.ShowStandardGroupsDialog) },
-                enabled = state.distances.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Добавить стандартные группы")

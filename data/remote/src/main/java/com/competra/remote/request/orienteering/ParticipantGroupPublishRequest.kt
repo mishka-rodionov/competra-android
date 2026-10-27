@@ -9,7 +9,8 @@ data class ParticipantGroupPublishRequest(
     @SerializedName("gender") val gender: String?,
     @SerializedName("minAge") val minAge: Int?,
     @SerializedName("maxAge") val maxAge: Int?,
-    @SerializedName("distanceId") val distanceId: Long,
+    /** null — дистанция ещё не назначена. */
+    @SerializedName("distanceId") val distanceId: Long?,
     @SerializedName("maxParticipants") val maxParticipants: Int?,
     @SerializedName("timeLimitMinutes") val timeLimitMinutes: Int? = null,
     @SerializedName("scorePenaltyPerMinute") val scorePenaltyPerMinute: Int? = null,

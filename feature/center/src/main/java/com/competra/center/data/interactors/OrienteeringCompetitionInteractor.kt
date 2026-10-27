@@ -3,6 +3,7 @@ package com.competra.center.data.interactors
 import android.util.Log
 import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.domain.models.orienteering.ByChoiceMode
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.ParticipantGroup
@@ -761,7 +762,9 @@ class OrienteeringCompetitionInteractor(
         val fixedGroups = serverGroups.map { group ->
             group.copy(
                 competitionId = competitionId,
-                distanceId = remoteToLocalDistanceId[group.distanceId] ?: group.distanceId
+                // Неизвестный id (дистанцию удалили) — «не назначена»: иначе серверный id мог бы
+                // совпасть с локальным PK чужой дистанции.
+                distanceId = remoteToLocalDistanceId[group.distanceId] ?: NO_DISTANCE_ID
             )
         }
         localRepository.mergeParticipantGroupsFromServer(competitionId, fixedGroups)

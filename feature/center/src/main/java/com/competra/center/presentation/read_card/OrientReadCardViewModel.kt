@@ -28,6 +28,7 @@ import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.orienteering.expectedSequence
 import com.competra.domain.models.orienteering.startPoint
 import com.competra.domain.models.orienteering.punchesAfterStart
+import com.competra.domain.models.orienteering.withoutDistance
 import com.competra.domain.repository.ResultConflictRepository
 import com.competra.nfchelper.SportiduinoHelper
 import com.competra.center.data.read_card.OrientReadCardAction
@@ -190,6 +191,7 @@ class OrientReadCardViewModel(
                     // реального применения, чтобы гарантировать порядок.
                     state.first { it.competitionDirection == direction && it.byChoiceMode == byChoiceMode }
                 }
+                loadGroupsWithoutDistance(id)
             }
             sportiduinoHelper.subscribeToReadCard { chipData ->
                 handleChipData(chipData)
@@ -214,6 +216,16 @@ class OrientReadCardViewModel(
                             chipNumber = chipData.chipNumber
                         ).onSuccess { participant ->
                             analytics.trackEvent(AnalyticsEvent.NfcChipReadSuccess)
+                            if (getDistance(participant.groupId) == null) {
+                                updateState {
+                                    copy(
+                                        scanNotice = "Группе ${participant.groupName} (${participant.lastName} " +
+                                            "${participant.firstName}) не назначена дистанция — результат не посчитан. " +
+                                            "Назначьте дистанцию и прочитайте чип ещё раз"
+                                    )
+                                }
+                                return@onSuccess
+                            }
                             val notice = if (chipData.splits.isEmpty()) {
                                 "На чипе №${chipData.chipNumber} (${participant.lastName} ${participant.firstName}) нет отметок"
                             } else {
@@ -239,6 +251,18 @@ class OrientReadCardViewModel(
                 updateState { copy(scanNotice = "Приложена мастер-карта станции, а не чип участника") }
             }
         }
+    }
+
+    /** Группы с участниками, но без дистанции — см. [OrientReadCardState.groupsWithoutDistance]. */
+    private suspend fun loadGroupsWithoutDistance(competitionId: String) {
+        val details = orienteeringCompetitionInteractor.getCompetitionWithDetails(competitionId).getOrNull() ?: return
+        val distances = orienteeringCompetitionInteractor.getDistances(competitionId).getOrNull().orEmpty()
+        val titles = details.groupsWithParticipants
+            .filter { it.participants.isNotEmpty() }
+            .map { it.group }
+            .withoutDistance(distances)
+            .map { it.title }
+        updateState { copy(groupsWithoutDistance = titles) }
     }
 
     /** КП дистанции по порядку плюс финишный пункт (с координатами финиша, если известны). */

@@ -145,8 +145,13 @@ fun DrawParticipantsScreen(viewModel: DrawViewModel = koinViewModel()) {
                             .padding(bottom = Dimens.SIZE_BASE.dp),
                         icon = ImageVector.vectorResource(R.drawable.map_24dp),
                         title = "По дистанциям",
-                        description = "Участники с одинаковой дистанцией не стартуют вместе",
+                        description = if (state.groupsWithoutDistance.isEmpty()) {
+                            "Участники с одинаковой дистанцией не стартуют вместе"
+                        } else {
+                            "Недоступно: не назначена дистанция у групп ${state.groupsWithoutDistance.joinToString()}"
+                        },
                         accentColor = MaterialTheme.colorScheme.tertiary,
+                        enabled = state.groupsWithoutDistance.isEmpty(),
                         onClick = { distanceDialogVisible = true }
                     )
                 }
@@ -308,7 +313,8 @@ private fun DrawModeCard(
     description: String,
     accentColor: Color,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     val cornerRadius = Dimens.SIZE_BASE.dp
     Card(
@@ -341,14 +347,15 @@ private fun DrawModeCard(
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
-                maxLines = 3,
+                maxLines = if (enabled) 3 else 5,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.weight(1f))
             Button(
                 onClick = onClick,
+                enabled = enabled,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(Dimens.SIZE_HALF.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = accentColor),

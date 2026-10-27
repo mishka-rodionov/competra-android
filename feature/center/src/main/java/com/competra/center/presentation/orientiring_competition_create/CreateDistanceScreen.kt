@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.competra.designsystem.theme.Dimens
@@ -96,7 +97,8 @@ private fun CreateDistanceContent(
                 NavigationButtons(
                     onBack = onBack,
                     onNext = onNext,
-                    nextEnabled = state.distances.isNotEmpty() && incompleteDistances.isEmpty()
+                    // Дистанции можно не добавлять: регистрация в группы откроется и без них.
+                    nextEnabled = incompleteDistances.isEmpty()
                 )
             }
         }
@@ -119,9 +121,11 @@ private fun CreateDistanceContent(
             if (state.distances.isEmpty()) {
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "Добавьте хотя бы одну дистанцию",
+                        text = "Дистанций пока нет. Если они ещё не спланированы, шаг можно пропустить: " +
+                            "регистрация в группы откроется и без них, а дистанции назначите позже.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
                     )
                 }
             } else {

@@ -12,6 +12,7 @@ import com.competra.domain.models.orienteering.DrawMode
 import com.competra.domain.models.orienteering.DrawSettings
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.PunchingSystem
+import com.competra.domain.models.orienteering.withoutDistance
 import com.competra.domain.repository.LoadingRepository
 import com.competra.ui.BaseAction
 import com.competra.ui.viewmodel.BaseViewModel
@@ -33,6 +34,10 @@ class DrawViewModel(
 ) : BaseViewModel<DrawState>(DrawState()) {
 
     val competitionId: String? = navigation.getArguments<String>(EventsConstants.EVENT_ID.name)
+
+    init {
+        loadGroupsWithoutDistance()
+    }
 
     override fun onAction(action: BaseAction) {
         when (action) {
@@ -127,6 +132,9 @@ class DrawViewModel(
      */
     private fun startDistanceDrawOperation(corridors: Int, gap: Int) {
         val compId = competitionId ?: return
+        // Кнопка на экране уже неактивна — защищаемся и здесь: без дистанции участники группы
+        // попали бы в общий «коридор» по groupId, и разведение стартов по дистанциям потеряло бы смысл.
+        if (stateValue.groupsWithoutDistance.isNotEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             loadingRepository.emit(true)
             try {
@@ -166,6 +174,21 @@ class DrawViewModel(
             } finally {
                 loadingRepository.emit(false)
             }
+        }
+    }
+
+    /** Группы, в которых есть участники, но не назначена дистанция, — см. [DrawState.groupsWithoutDistance]. */
+    private fun loadGroupsWithoutDistance() {
+        val compId = competitionId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val details = interactor.getCompetitionWithDetails(compId).getOrNull() ?: return@launch
+            val distances = interactor.getDistances(compId).getOrNull().orEmpty()
+            val titles = details.groupsWithParticipants
+                .filter { it.participants.isNotEmpty() }
+                .map { it.group }
+                .withoutDistance(distances)
+                .map { it.title }
+            updateState { copy(groupsWithoutDistance = titles) }
         }
     }
 

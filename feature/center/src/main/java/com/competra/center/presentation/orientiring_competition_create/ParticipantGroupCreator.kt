@@ -1,6 +1,7 @@
 package com.competra.center.presentation.orientiring_competition_create
 
 import com.competra.domain.models.orienteering.GroupTitleInfo
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.models.orienteering.StandardGroups
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -77,7 +78,9 @@ fun ParticipantGroupEditor(
     }
 
     // Выбранная дистанция для группы
-    var selectedDistanceId by remember { mutableLongStateOf(initialGroup?.distanceId ?: state.distances.firstOrNull()?.id ?: 0L) }
+    var selectedDistanceId by remember {
+        mutableLongStateOf(initialGroup?.distanceId ?: state.distances.firstOrNull()?.id ?: NO_DISTANCE_ID)
+    }
 
     // Реквизиторы фокуса
     val titleFocus = remember { FocusRequester() }
@@ -140,9 +143,9 @@ fun ParticipantGroupEditor(
                 
                 if (state.distances.isEmpty()) {
                     Text(
-                        text = "Дистанции не найдены. Создайте их на предыдущем шаге.",
+                        text = "Дистанций пока нет — группа будет без дистанции. Назначьте её, когда добавите дистанции.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 } else {
@@ -151,6 +154,12 @@ fun ParticipantGroupEditor(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
+                        item {
+                            NoDistanceSelectCard(
+                                isSelected = state.distances.none { it.id == selectedDistanceId },
+                                onSelect = { selectedDistanceId = NO_DISTANCE_ID }
+                            )
+                        }
                         items(state.distances) { distance ->
                             DistanceSelectCard(
                                 distance = distance,
@@ -278,7 +287,7 @@ fun ParticipantGroupEditor(
                 Button(
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
-                    enabled = groupTitle.isNotBlank() && selectedDistanceId != 0L,
+                    enabled = groupTitle.isNotBlank(),
                     onClick = {
                         userAction.invoke(
                             OrienteeringCreatorAction.CreateParticipantGroup(
@@ -316,6 +325,39 @@ fun ParticipantGroupEditor(
             userAction.invoke(OrienteeringCreatorAction.HideGroupCreateDialog)
         },
     )
+}
+
+/** Карточка «дистанция не назначена» — группа открыта для регистрации до планирования дистанций. */
+@Composable
+private fun NoDistanceSelectCard(isSelected: Boolean, onSelect: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .width(160.dp)
+            .selectable(selected = isSelected, onClick = onSelect),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Не назначена",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                RadioButton(selected = isSelected, onClick = onSelect, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = "Назначите позже", style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }
 
 /**

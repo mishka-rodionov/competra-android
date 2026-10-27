@@ -1,6 +1,7 @@
 package com.competra.remote.request.mappers
 
 import com.competra.domain.models.orienteering.Distance
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.ControlPoint
@@ -54,7 +55,7 @@ fun ParticipantGroup.toRequest(): ParticipantGroupRequest {
         gender = gender?.name,
         minAge = minAge,
         maxAge = maxAge,
-        distanceId = distanceId,
+        distanceId = distanceId.takeIf { it != NO_DISTANCE_ID },
         maxParticipants = maxParticipants,
         timeLimitMinutes = timeLimitMinutes,
         scorePenaltyPerMinute = scorePenaltyPerMinute,

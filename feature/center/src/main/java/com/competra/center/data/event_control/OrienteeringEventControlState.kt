@@ -20,6 +20,7 @@ import com.competra.ui.BaseState
  * @property isShowStartConfirmDialog Флаг отображения диалога подтверждения старта.
  * @property isShowStopConfirmDialog Флаг отображения диалога подтверждения завершения.
  * @property isShowCloseRegistrationDialog Флаг отображения диалога подтверждения завершения регистрации.
+ * @property groupsWithoutDistance Названия групп, которым не назначена дистанция, — напоминание назначить их до старта.
  * @property pendingLinkRequests Заявки спортсменов на привязку результатов, ожидающие решения; null — не загружено
  *   (офлайн, соревнование ещё не на сервере или нет прав) — тогда, как и при 0, раздел не показывается.
  */
@@ -39,7 +40,8 @@ data class OrienteeringEventControlState(
     val isShowStartConfirmDialog: Boolean = false,
     val isShowStopConfirmDialog: Boolean = false,
     val isShowCloseRegistrationDialog: Boolean = false,
-    val pendingLinkRequests: Int? = null
+    val pendingLinkRequests: Int? = null,
+    val groupsWithoutDistance: List<String> = emptyList()
 ) : BaseState {
 
     /**

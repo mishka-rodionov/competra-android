@@ -17,6 +17,7 @@ import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.StartTimeMode
+import com.competra.domain.models.orienteering.withoutDistance
 import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.NetworkErrorRepository
 import com.competra.domain.repository.participant_link.ParticipantLinkRepository
@@ -81,6 +82,12 @@ class OrienteeringEventControlViewModel(
                 // жеребьёвку не определить — опираемся только на флаг. Он не сбрасывается при
                 // синхронизации: локально сохраняется, а с сервера восстанавливается по drawMode.
                 val isDrawConducted = competition.isDrawConducted
+                val distances = orienteeringCompetitionInteractor.getDistances(id).getOrNull().orEmpty()
+                val groupsWithoutDistance = details.groupsWithParticipants
+                    .map { it.group }
+                    .withoutDistance(distances)
+                    .map { it.title }
+                updateState { copy(groupsWithoutDistance = groupsWithoutDistance) }
                 applyCompetitionState(
                     title = competition.competition.title,
                     competition = competition,

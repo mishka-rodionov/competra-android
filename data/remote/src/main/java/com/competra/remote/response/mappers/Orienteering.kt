@@ -5,6 +5,7 @@ import com.competra.domain.models.cyclic_event.groupGenderRestriction
 import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.DistanceMap
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.models.orienteering.coordinatesOrNull
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringDirection
@@ -66,7 +67,7 @@ fun ParticipantGroupResponse.toDomain() : ParticipantGroup {
         gender = gender?.let { raw -> groupGenderRestriction(raw) ?: Gender.entries.firstOrNull { it.name == raw } },
         minAge = minAge,
         maxAge = maxAge,
-        distanceId = distanceId,
+        distanceId = distanceId ?: NO_DISTANCE_ID,
         maxParticipants = maxParticipants,
         timeLimitMinutes = timeLimitMinutes,
         scorePenaltyPerMinute = scorePenaltyPerMinute,

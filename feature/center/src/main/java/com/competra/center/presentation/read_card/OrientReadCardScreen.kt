@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.competra.center.data.read_card.OrientReadCardAction
+import com.competra.center.presentation.common.GroupsWithoutDistanceBanner
 import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.ResultStatus
@@ -59,6 +60,11 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
         color = MaterialTheme.colorScheme.background
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            GroupsWithoutDistanceBanner(
+                titles = state.groupsWithoutDistance,
+                message = "Чипы участников этих групп не будут посчитаны, пока дистанция не назначена.",
+                modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp, vertical = 8.dp)
+            )
             state.scanNotice?.let { notice ->
                 ScanNoticeBanner(
                     notice = notice,

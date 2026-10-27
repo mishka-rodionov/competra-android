@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.orienteering.Distance
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.models.orienteering.StandardGroups
 
 /**
@@ -35,9 +36,9 @@ import com.competra.domain.models.orienteering.StandardGroups
  * и дистанцию по умолчанию. Пол и возраст каждой группы выводятся из названия, дистанция —
  * по совпадению названий с дистанциями (как обычно называет их Mapper), иначе — выбранная.
  *
- * @param distances дистанции соревнования (непустой список).
+ * @param distances дистанции соревнования; пустой список — группы создаются без дистанции.
  * @param existingTitles названия уже созданных групп — их нельзя отметить повторно.
- * @param onConfirm выбранные названия и id дистанции по умолчанию.
+ * @param onConfirm выбранные названия и id дистанции по умолчанию ([NO_DISTANCE_ID] — не назначена).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -50,7 +51,7 @@ internal fun StandardGroupsDialog(
     val existing = remember(existingTitles) { existingTitles.map { it.trim().lowercase() }.toSet() }
     val available = remember(existing) { StandardGroups.TITLES.filterNot { it.lowercase() in existing } }
     var selected by remember { mutableStateOf(setOf<String>()) }
-    var defaultDistance by remember { mutableStateOf(distances.first()) }
+    var defaultDistance by remember { mutableStateOf(distances.firstOrNull()) }
     var isDistanceMenuExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -76,6 +77,10 @@ internal fun StandardGroupsDialog(
                 FieldDescription("Пол и возраст заполнятся по названию: Ж14 — до 14 лет, М35 — 35 лет и старше, М21 — без ограничения")
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+                if (distances.isEmpty()) {
+                    FieldDescription("Дистанций пока нет — группы будут без дистанции")
+                    return@Column
+                }
                 Text(
                     text = "Дистанция по умолчанию",
                     style = MaterialTheme.typography.labelLarge,
@@ -83,9 +88,16 @@ internal fun StandardGroupsDialog(
                 )
                 Box {
                     OutlinedButton(onClick = { isDistanceMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(defaultDistance.name ?: "Без названия")
+                        Text(defaultDistance?.let { it.name ?: "Без названия" } ?: "Не назначена")
                     }
                     DropdownMenu(expanded = isDistanceMenuExpanded, onDismissRequest = { isDistanceMenuExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Не назначена") },
+                            onClick = {
+                                defaultDistance = null
+                                isDistanceMenuExpanded = false
+                            }
+                        )
                         distances.forEach { distance ->
                             DropdownMenuItem(
                                 text = { Text(distance.name ?: "Без названия") },
@@ -103,7 +115,7 @@ internal fun StandardGroupsDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(StandardGroups.TITLES.filter { it in selected }, defaultDistance.id) },
+                onClick = { onConfirm(StandardGroups.TITLES.filter { it in selected }, defaultDistance?.id ?: NO_DISTANCE_ID) },
                 enabled = selected.isNotEmpty()
             ) {
                 Text("Добавить (${selected.size})")

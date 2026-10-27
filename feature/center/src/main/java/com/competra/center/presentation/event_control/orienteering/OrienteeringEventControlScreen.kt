@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.window.core.layout.WindowSizeClass
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import com.competra.center.presentation.common.GroupsWithoutDistanceBanner
 import com.competra.designsystem.components.DSBottomDialog
 import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.components.clickRipple
@@ -109,6 +110,15 @@ private fun OrienteeringEventControlScreenContent(
             )
 
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+
+            if (!state.isFinished && state.groupsWithoutDistance.isNotEmpty()) {
+                GroupsWithoutDistanceBanner(
+                    titles = state.groupsWithoutDistance,
+                    message = "До старта назначьте дистанции в редактировании соревнования (шаг «Группы») " +
+                        "или в вебе — без них не провести жеребьёвку по дистанциям и не посчитать результаты по чипам."
+                )
+                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+            }
 
             // 4 NFC-кнопки управления чипом — без изменений
             SectionHeader(title = "Панель управления")

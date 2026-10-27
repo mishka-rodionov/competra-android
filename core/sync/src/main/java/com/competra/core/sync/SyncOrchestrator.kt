@@ -2,6 +2,7 @@ package com.competra.core.sync
 
 import android.util.Log
 import com.competra.domain.exception.ConflictException
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionRemoteRepository
 import kotlinx.coroutines.sync.Mutex
@@ -269,9 +270,11 @@ class SyncOrchestrator(
         val unsynced = localRepository.getUnsyncedGroups()
         if (unsynced.isEmpty()) return false
 
+        // Группа без дистанции (регистрация до планирования дистанций) готова сразу; с дистанцией —
+        // когда та уже на сервере, иначе её remote id ещё не известен.
         val ready = unsynced.filter { group ->
             isCompetitionSynced(group.competitionId) &&
-                getDistanceRemoteId(group.distanceId) != null
+                (group.distanceId == NO_DISTANCE_ID || getDistanceRemoteId(group.distanceId) != null)
         }
         if (ready.isEmpty()) return false
 

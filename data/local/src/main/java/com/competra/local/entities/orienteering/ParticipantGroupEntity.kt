@@ -47,7 +47,7 @@ data class ParticipantGroupEntity(
     val gender: Gender?,                   // MALE, FEMALE, MIXED, null – не задано
     val minAge: Int? = null,
     val maxAge: Int? = null,
-    val distanceId: Long,                  // ссылка на дистанцию
+    val distanceId: Long,                  // ссылка на дистанцию; NO_DISTANCE_ID (0) — ещё не назначена
     val maxParticipants: Int? = null,      // лимит для группы
     val timeLimitMinutes: Int? = null,         // лимит времени для формата "по выбору" (BY_CHOICE)
     val scorePenaltyPerMinute: Int? = null,    // штраф в очках за минуту опоздания сверх лимита

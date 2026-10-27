@@ -3,6 +3,7 @@ package com.competra.remote.repository.orienteering
 import android.util.Log
 import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.ParticipantGroup
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
@@ -49,7 +50,7 @@ data class OrienteeringCompetitionRemoteRepositoryImpl(
                     gender = group.gender?.name,
                     minAge = group.minAge,
                     maxAge = group.maxAge,
-                    distanceId = group.distanceId,
+                    distanceId = group.distanceId.takeIf { it != NO_DISTANCE_ID },
                     maxParticipants = group.maxParticipants,
                     timeLimitMinutes = group.timeLimitMinutes,
                     scorePenaltyPerMinute = group.scorePenaltyPerMinute,
