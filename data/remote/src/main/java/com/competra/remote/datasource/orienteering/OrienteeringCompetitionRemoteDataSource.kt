@@ -12,6 +12,7 @@ import com.competra.remote.response.orienteering.OrienteeringCompetitionResponse
 import com.competra.remote.response.orienteering.OrienteeringParticipantResponse
 import com.competra.remote.response.orienteering.OrienteeringResultResponse
 import com.competra.remote.response.orienteering.ParticipantGroupResponse
+import com.competra.remote.response.orienteering.ParticipantHistoryResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -60,6 +61,10 @@ interface OrienteeringCompetitionRemoteDataSource {
 
     @GET("event/orienteering/participants/competition")
     suspend fun getParticipantsByCompetition(@Query("competitionId") competitionId: String): Result<CommonModel<List<OrienteeringParticipantResponse>>>
+
+    /** Участия во всех соревнованиях текущего пользователя-организатора, кроме тестовых. */
+    @GET("event/orienteering/participants/history")
+    suspend fun getParticipantHistory(@Query("excludeCompetitionId") excludeCompetitionId: String): Result<CommonModel<List<ParticipantHistoryResponse>>>
 
     @GET("event/orienteering/results/competition")
     suspend fun getResultsByCompetition(@Query("competitionId") competitionId: String): Result<CommonModel<List<OrienteeringResultResponse>>>

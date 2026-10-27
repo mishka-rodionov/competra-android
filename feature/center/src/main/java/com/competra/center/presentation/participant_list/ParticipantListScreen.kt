@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -56,6 +57,16 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import java.util.Calendar
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import com.competra.domain.models.orienteering.KnownParticipant
+import com.competra.domain.models.orienteering.ParticipantHistory
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Экран отображения и управления списком участников соревнований,
@@ -89,6 +100,13 @@ fun ParticipantListScreen(
             lateEntry = state.lateEntry,
             protocolTeams = remember(state.participantGroupWithParticipants) {
                 protocolCommandNames(state.participantGroupWithParticipants.flatMap { it.participants }.map { it.commandName })
+            },
+            // Кто уже в протоколе, не подсказываем — диалог открыт, пока вносят участников подряд.
+            participantHistory = remember(state.participantHistory, state.participantGroupWithParticipants) {
+                ParticipantHistory.excludeProtocol(
+                    state.participantHistory,
+                    state.participantGroupWithParticipants.flatMap { it.participants }
+                )
             }
         )
     }
@@ -402,7 +420,9 @@ fun CreateParticipantDialog(
     /** Варианты стартового времени дозаявки после жеребьёвки (null — жеребьёвки не было). */
     lateEntry: LateEntryPreview? = null,
     /** Подписи команд из протокола соревнования — для подсказок ([protocolCommandNames]). */
-    protocolTeams: List<String> = emptyList()
+    protocolTeams: List<String> = emptyList(),
+    /** Люди из прошлых соревнований организатора, которых ещё нет в протоколе. */
+    participantHistory: List<KnownParticipant> = emptyList()
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     DSBottomDialog(
@@ -414,7 +434,8 @@ fun CreateParticipantDialog(
                 groupName = groupName,
                 editingParticipant = editingParticipant,
                 lateEntry = lateEntry,
-                protocolTeams = protocolTeams
+                protocolTeams = protocolTeams,
+                participantHistory = participantHistory
             )
         },
         onDismiss = { userAction.invoke(ParticipantListAction.HideCreateParticipantDialog) },
@@ -429,7 +450,8 @@ fun CreateParticipantDialogContent(
     groupName: String,
     editingParticipant: OrienteeringParticipant?,
     lateEntry: LateEntryPreview? = null,
-    protocolTeams: List<String> = emptyList()
+    protocolTeams: List<String> = emptyList(),
+    participantHistory: List<KnownParticipant> = emptyList()
 ) {
     var placement by remember { mutableStateOf(LateEntryPlacement.FREE_SLOT) }
     var firstName by remember(editingParticipant) { mutableStateOf(editingParticipant?.firstName ?: "") }
@@ -443,6 +465,23 @@ fun CreateParticipantDialogContent(
         )
     }
     var startTimeError by remember { mutableStateOf(false) }
+    // Подсказка, из которой заполнены поля; сбрасывается, если имя потом поправили вручную.
+    var pickedFromHistory by remember { mutableStateOf<KnownParticipant?>(null) }
+    val isPickedNameIntact = pickedFromHistory?.let { it.firstName == firstName && it.lastName == secondName } == true
+
+    // Массовый выбор из прошлых соревнований — полноэкранный диалог поверх формы одного участника.
+    var isBulkMode by remember { mutableStateOf(false) }
+    if (isBulkMode) {
+        HistoryBulkSelectDialog(
+            groupName = groupName,
+            history = participantHistory,
+            lateEntry = lateEntry,
+            onBack = { isBulkMode = false },
+            onAdd = { selected, bulkPlacement ->
+                userAction.invoke(ParticipantListAction.AddParticipantsFromHistory(group, selected, bulkPlacement))
+            }
+        )
+    }
 
     val focusRequester = remember { FocusRequester() }
 
@@ -455,11 +494,35 @@ fun CreateParticipantDialogContent(
             .padding(Dimens.SIZE_BASE.dp)
             .fillMaxWidth()
     ) {
-        Text(
-            text = if (editingParticipant == null) "Новый участник" else "Редактирование",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (editingParticipant == null) "Новый участник" else "Редактирование",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            // Сброс всех полей разом — например, если выбрали не ту подсказку.
+            if (editingParticipant == null) {
+                TextButton(
+                    enabled = secondName.isNotEmpty() || firstName.isNotEmpty() ||
+                        commandName.isNotEmpty() || startTimeInput.isNotEmpty(),
+                    onClick = {
+                        secondName = ""
+                        firstName = ""
+                        commandName = ""
+                        startTimeInput = ""
+                        startTimeError = false
+                        pickedFromHistory = null
+                        focusRequester.requestFocus()
+                    }
+                ) {
+                    Text("Очистить")
+                }
+            }
+        }
 
         Text(
             text = "Группа: $groupName",
@@ -468,15 +531,24 @@ fun CreateParticipantDialogContent(
             modifier = Modifier.padding(vertical = Dimens.SIZE_HALF.dp)
         )
 
+        if (editingParticipant == null && participantHistory.isNotEmpty()) {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { isBulkMode = true }
+            ) {
+                Text("Выбрать из прошлых соревнований")
+            }
+        }
+
         Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
 
         DSTextInput(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester),
-            label = { Text(text = "Имя") },
-            text = firstName,
-            onValueChanged = { firstName = it },
+            label = { Text(text = "Фамилия") },
+            text = secondName,
+            onValueChanged = { secondName = it },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
         )
 
@@ -484,11 +556,30 @@ fun CreateParticipantDialogContent(
 
         DSTextInput(
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(text = "Фамилия") },
-            text = secondName,
-            onValueChanged = { secondName = it },
+            label = { Text(text = "Имя") },
+            text = firstName,
+            onValueChanged = { firstName = it },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
         )
+
+        // Подсказки из прошлых соревнований организатора: ищем по началу фамилии и имени сразу
+        // в обоих полях; тап заполняет фамилию, имя и команду.
+        if (editingParticipant == null && !isPickedNameIntact) {
+            val historySuggestions = remember(participantHistory, firstName, secondName) {
+                ParticipantHistory.search(participantHistory, "$secondName $firstName")
+            }
+            if (historySuggestions.isNotEmpty()) {
+                ParticipantHistorySuggestions(
+                    suggestions = historySuggestions,
+                    onPick = { known ->
+                        firstName = known.firstName
+                        secondName = known.lastName
+                        commandName = known.commandName.take(COMMAND_NAME_MAX_LENGTH)
+                        pickedFromHistory = known
+                    }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
@@ -609,12 +700,14 @@ fun CreateParticipantDialogContent(
                                 secondName = secondName,
                                 commandName = commandName,
                                 placement = placement,
-                                manualStartTime = manualStartTime
+                                manualStartTime = manualStartTime,
+                                fromHistory = isPickedNameIntact
                             )
                         )
                         // Команду не сбрасываем: участников одной команды обычно вносят подряд.
                         firstName = ""
                         secondName = ""
+                        pickedFromHistory = null
                         startTimeInput = ""
                         focusRequester.requestFocus()
                     } else {
@@ -650,6 +743,236 @@ fun CreateParticipantDialogContent(
         Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
     }
 }
+
+/**
+ * Список подсказок из истории участников организатора под полями имени.
+ *
+ * @param suggestions Найденные люди.
+ * @param onPick Выбор подсказки.
+ */
+@Composable
+private fun ParticipantHistorySuggestions(
+    suggestions: List<KnownParticipant>,
+    onPick: (KnownParticipant) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = Dimens.SIZE_QUARTER.dp),
+        shape = RoundedCornerShape(Dimens.SIZE_HALF.dp),
+        tonalElevation = 2.dp
+    ) {
+        Column {
+            Text(
+                text = "Участвовали раньше",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(
+                    start = Dimens.SIZE_BASE.dp,
+                    end = Dimens.SIZE_BASE.dp,
+                    top = Dimens.SIZE_HALF.dp
+                )
+            )
+            suggestions.forEach { known ->
+                ListItem(
+                    modifier = Modifier.clickable { onPick(known) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    headlineContent = { Text("${known.lastName} ${known.firstName}") },
+                    supportingContent = {
+                        Text(
+                            text = historySupportingText(known),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Массовый выбор людей из прошлых соревнований организатора на весь экран: поиск, галочки и
+ * «Добавить в группу …». Все отмеченные добавляются в группу, для которой открыт диалог.
+ * Свайпом не закрывается — только «Назад» (и системной кнопкой «назад»).
+ *
+ * @param groupName Название группы.
+ * @param history Люди из истории, которых ещё нет в протоколе.
+ * @param lateEntry Варианты времени дозаявки после жеребьёвки (null — жеребьёвки не было).
+ * @param onBack Вернуться к форме одного участника.
+ * @param onAdd Добавить отмеченных (в порядке истории) с выбранным способом дозаявки.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HistoryBulkSelectDialog(
+    groupName: String,
+    history: List<KnownParticipant>,
+    lateEntry: LateEntryPreview?,
+    onBack: () -> Unit,
+    onAdd: (List<KnownParticipant>, LateEntryPlacement) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    // Ключи, а не объекты: история перестраивается, когда приходит серверная часть.
+    var selectedKeys by remember { mutableStateOf(emptySet<String>()) }
+    var placement by remember { mutableStateOf(LateEntryPlacement.FREE_SLOT) }
+    // Сначала те, кто в прошлый раз бежал в этой же группе.
+    val ordered = remember(history, groupName) { ParticipantHistory.prioritizeGroup(history, groupName) }
+    val filtered = remember(ordered, query) { ParticipantHistory.filter(ordered, query) }
+    val selected = remember(history, selectedKeys) {
+        history.filter { ParticipantHistory.keyOf(it) in selectedKeys }
+    }
+
+    Dialog(
+        onDismissRequest = onBack,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .systemBarsPadding()
+                    .imePadding()
+                    .padding(Dimens.SIZE_BASE.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Из прошлых соревнований",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onBack) {
+                        Text("Назад")
+                    }
+                }
+
+                Text(
+                    text = "Добавление участников в группу: $groupName",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(vertical = Dimens.SIZE_HALF.dp)
+                )
+
+                DSTextInput(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(text = "Поиск по фамилии или имени") },
+                    text = query,
+                    onValueChanged = { query = it },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+                )
+
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+                if (filtered.isEmpty()) {
+                    Text(
+                        text = "Никого не найдено",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = Dimens.SIZE_BASE.dp)
+                    )
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(filtered, key = { ParticipantHistory.keyOf(it) }) { known ->
+                            val key = ParticipantHistory.keyOf(known)
+                            val isChecked = key in selectedKeys
+                            val toggle = {
+                                selectedKeys = if (isChecked) selectedKeys - key else selectedKeys + key
+                            }
+                            ListItem(
+                                modifier = Modifier.clickable { toggle() },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                leadingContent = {
+                                    Checkbox(checked = isChecked, onCheckedChange = { toggle() })
+                                },
+                                headlineContent = { Text("${known.lastName} ${known.firstName}") },
+                                supportingContent = {
+                                    Text(
+                                        text = historySupportingText(known),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Дозаявка после жеребьёвки: всех отмеченных ставим одинаково, по очереди.
+                if (lateEntry != null) {
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                    Text(
+                        text = "Стартовое время",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)) {
+                        FilterChip(
+                            selected = placement == LateEntryPlacement.FREE_SLOT,
+                            onClick = { placement = LateEntryPlacement.FREE_SLOT },
+                            label = { Text("Свободные минуты") }
+                        )
+                        FilterChip(
+                            selected = placement == LateEntryPlacement.END,
+                            onClick = { placement = LateEntryPlacement.END },
+                            label = { Text("В конец протокола") }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+                // Отмеченные могут быть скрыты поиском — сколько их, видно здесь.
+                Text(
+                    text = if (selected.isEmpty()) "Отметьте участников" else "Отмечено: ${selected.size}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+                Button(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+                    enabled = selected.isNotEmpty(),
+                    onClick = { onAdd(selected, placement) }
+                ) {
+                    Text(
+                        text = "Добавить в группу $groupName",
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Вторая строка подсказки: «Команда · Группа · 12.10.2026». */
+private fun historySupportingText(known: KnownParticipant): String =
+    listOfNotNull(
+        known.commandName.takeIf { it.isNotBlank() },
+        known.lastGroupName.takeIf { it.isNotBlank() },
+        formatHistoryDate(known.lastCompetitionDate)
+    ).joinToString(" · ")
+
+/** Дата прошлого соревнования для подсказки: «12.10.2026». */
+private fun formatHistoryDate(timestamp: Long): String =
+    SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date(timestamp))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

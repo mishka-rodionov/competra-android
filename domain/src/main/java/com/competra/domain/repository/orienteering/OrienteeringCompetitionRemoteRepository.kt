@@ -5,6 +5,7 @@ import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
+import com.competra.domain.models.orienteering.PastParticipation
 
 interface OrienteeringCompetitionRemoteRepository {
 
@@ -47,6 +48,12 @@ interface OrienteeringCompetitionRemoteRepository {
     suspend fun saveParticipants(participants: List<OrienteeringParticipant>): Result<List<OrienteeringParticipant>>
 
     suspend fun getParticipantsForCompetition(competitionId: String): Result<List<OrienteeringParticipant>>
+
+    /**
+     * Участия во всех соревнованиях текущего пользователя-организатора на сервере, кроме
+     * [excludeCompetitionId] и тестовых. Источник подсказок [com.competra.domain.models.orienteering.ParticipantHistory].
+     */
+    suspend fun getParticipantHistory(excludeCompetitionId: String): Result<List<PastParticipation>>
 
     suspend fun saveResult(result: OrienteeringResult): Result<OrienteeringResult>
 

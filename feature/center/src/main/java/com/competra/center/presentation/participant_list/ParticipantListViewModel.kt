@@ -17,6 +17,8 @@ import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
 import com.competra.domain.models.cyclic_event.normalizeCommandName
 import com.competra.domain.models.orienteering.OrienteeringParticipant
+import com.competra.domain.models.orienteering.ParticipantGroupParticipants
+import com.competra.domain.models.orienteering.ParticipantHistory
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.repository.LoadingRepository
@@ -47,70 +49,38 @@ class ParticipantListViewModel(
             is ParticipantListAction.ShowCreateParticipantDialog -> {
                 updateState { copy(group = action.group, editingParticipant = null, isShowParticipantCreateDialog = true) }
                 refreshLateEntry()
+                loadParticipantHistory()
             }
             is ParticipantListAction.ShowEditParticipantDialog -> {
                 updateState { copy(group = action.group, editingParticipant = action.participant, isShowParticipantCreateDialog = true) }
             }
             is ParticipantListAction.CreateNewParticipant -> {
-                val groupData = stateValue.participantGroupWithParticipants.getOrNull(action.group) ?: return
-                val group = groupData.group
-                val intervalMs = ((stateValue.competition?.startIntervalSeconds) ?: 60) * 1000L
-                val isDrawConducted = stateValue.competition?.isDrawConducted == true
-                val isByStartStation = stateValue.competition?.startTimeMode == StartTimeMode.BY_START_STATION
-
-                val (nextStartNumber, startTime) = if (isByStartStation) {
-                    // Жеребьёвки нет, общего времени старта тоже нет — реальное время участник
-                    // получит только по факту отметки на стартовой станции (см. OrientReadCardViewModel).
-                    val existingParticipants = groupData.participants
-                    val nextNum = (existingParticipants.mapNotNull { it.startNumber.toIntOrNull() }.maxOrNull() ?: 0) + 1
-                    nextNum to 0L
-                } else if (isDrawConducted) {
-                    // Дозаявка: номер — следующий сквозной, время — по выбору организатора
-                    // (свободная минута по правилам жеребьёвки, конец протокола или вручную).
-                    val allParticipants = stateValue.participantGroupWithParticipants.flatMap { it.participants }
-                    val maxNumber = allParticipants.mapNotNull { it.startNumber.toIntOrNull() }.maxOrNull() ?: 0
-                    val finder = lateEntrySlotFinder()
-                    val st = when (action.placement) {
-                        LateEntryPlacement.FREE_SLOT -> finder?.freeSlot(group.groupId)
-                        LateEntryPlacement.END -> finder?.endOfProtocol()
-                        LateEntryPlacement.MANUAL -> action.manualStartTime
-                    } ?: 0L
-                    (maxNumber + 1) to st
-                } else {
-                    val existingParticipants = groupData.participants
-                    val nextNum = (existingParticipants.mapNotNull { it.startNumber.toIntOrNull() }.maxOrNull() ?: 0) + 1
-                    val baseTime = stateValue.competition?.startTime ?: 0L
-                    val st = if (baseTime > 0L) baseTime + (nextNum - 1) * intervalMs else 0L
-                    nextNum to st
-                }
-
-                val participant = OrienteeringParticipant(
-                    id = UUID.randomUUID().toString(),
-                    userId = "",
+                val participant = buildNewParticipant(
+                    groups = stateValue.participantGroupWithParticipants,
+                    groupIndex = action.group,
                     firstName = action.firstName,
                     lastName = action.secondName,
-                    groupId = group.groupId,
-                    groupName = group.title,
-                    competitionId = group.competitionId,
-                    commandName = normalizeCommandName(action.commandName).orEmpty(),
-                    startNumber = nextStartNumber.toString(),
-                    startTime = startTime,
-                    // После жеребьёвки у Sportiduino номер чипа равен стартовому номеру — иначе
-                    // дозаявленного не найти при считывании чипа.
-                    chipNumber = if (isDrawConducted && !isByStartStation &&
-                        stateValue.competition?.punchingSystem == PunchingSystem.SPORTIDUINO
-                    ) nextStartNumber.toString() else "",
-                    comment = "",
-                    isChipGiven = false
-                )
+                    commandName = action.commandName,
+                    placement = action.placement,
+                    manualStartTime = action.manualStartTime
+                ) ?: return
                 viewModelScope.launch(Dispatchers.IO) {
                     loadingRepository.emit(true)
                     val savedParticipant = competitionInteractor.saveParticipant(participant)
                     if (savedParticipant != null) {
+                        analytics.trackEvent(
+                            AnalyticsEvent.ParticipantAdded(
+                                if (action.fromHistory) AnalyticsEvent.ParticipantAddMethod.HISTORY
+                                else AnalyticsEvent.ParticipantAddMethod.MANUAL
+                            )
+                        )
                         getCompetitionDetails()
                     }
                     loadingRepository.emit(false)
                 }
+            }
+            is ParticipantListAction.AddParticipantsFromHistory -> {
+                addParticipantsFromHistory(action)
             }
             is ParticipantListAction.UpdateParticipant -> {
                 onAction(ParticipantListAction.HideCreateParticipantDialog)
@@ -255,6 +225,131 @@ class ParticipantListViewModel(
     }
 
     /**
+     * Собирает нового участника группы [groupIndex] со стартовым номером и временем по правилам
+     * соревнования. Номер и время считаются по протоколу [groups] — при массовом добавлении туда
+     * уже входят участники, добавленные перед этим.
+     *
+     * @return null, если группы с таким индексом нет.
+     */
+    private fun buildNewParticipant(
+        groups: List<ParticipantGroupParticipants>,
+        groupIndex: Int,
+        firstName: String,
+        lastName: String,
+        commandName: String,
+        placement: LateEntryPlacement,
+        manualStartTime: Long?
+    ): OrienteeringParticipant? {
+        val groupData = groups.getOrNull(groupIndex) ?: return null
+        val group = groupData.group
+        val intervalMs = ((stateValue.competition?.startIntervalSeconds) ?: 60) * 1000L
+        val isDrawConducted = stateValue.competition?.isDrawConducted == true
+        val isByStartStation = stateValue.competition?.startTimeMode == StartTimeMode.BY_START_STATION
+
+        val (nextStartNumber, startTime) = if (isByStartStation) {
+            // Жеребьёвки нет, общего времени старта тоже нет — реальное время участник
+            // получит только по факту отметки на стартовой станции (см. OrientReadCardViewModel).
+            val existingParticipants = groupData.participants
+            val nextNum = (existingParticipants.mapNotNull { it.startNumber.toIntOrNull() }.maxOrNull() ?: 0) + 1
+            nextNum to 0L
+        } else if (isDrawConducted) {
+            // Дозаявка: номер — следующий сквозной, время — по выбору организатора
+            // (свободная минута по правилам жеребьёвки, конец протокола или вручную).
+            val allParticipants = groups.flatMap { it.participants }
+            val maxNumber = allParticipants.mapNotNull { it.startNumber.toIntOrNull() }.maxOrNull() ?: 0
+            val finder = lateEntrySlotFinder(groups)
+            val st = when (placement) {
+                LateEntryPlacement.FREE_SLOT -> finder?.freeSlot(group.groupId)
+                LateEntryPlacement.END -> finder?.endOfProtocol()
+                LateEntryPlacement.MANUAL -> manualStartTime
+            } ?: 0L
+            (maxNumber + 1) to st
+        } else {
+            val existingParticipants = groupData.participants
+            val nextNum = (existingParticipants.mapNotNull { it.startNumber.toIntOrNull() }.maxOrNull() ?: 0) + 1
+            val baseTime = stateValue.competition?.startTime ?: 0L
+            val st = if (baseTime > 0L) baseTime + (nextNum - 1) * intervalMs else 0L
+            nextNum to st
+        }
+
+        return OrienteeringParticipant(
+            id = UUID.randomUUID().toString(),
+            userId = "",
+            firstName = firstName,
+            lastName = lastName,
+            groupId = group.groupId,
+            groupName = group.title,
+            competitionId = group.competitionId,
+            commandName = normalizeCommandName(commandName).orEmpty(),
+            startNumber = nextStartNumber.toString(),
+            startTime = startTime,
+            // После жеребьёвки у Sportiduino номер чипа равен стартовому номеру — иначе
+            // дозаявленного не найти при считывании чипа.
+            chipNumber = if (isDrawConducted && !isByStartStation &&
+                stateValue.competition?.punchingSystem == PunchingSystem.SPORTIDUINO
+            ) nextStartNumber.toString() else "",
+            comment = "",
+            isChipGiven = false
+        )
+    }
+
+    /**
+     * Добавляет в группу всех выбранных людей из истории по очереди: каждый следующий получает
+     * номер и время с учётом уже добавленных. После добавления диалог закрывается.
+     */
+    private fun addParticipantsFromHistory(action: ParticipantListAction.AddParticipantsFromHistory) {
+        if (action.participants.isEmpty()) return
+        var groups = stateValue.participantGroupWithParticipants
+        val newParticipants = action.participants.mapNotNull { known ->
+            buildNewParticipant(
+                groups = groups,
+                groupIndex = action.group,
+                firstName = known.firstName,
+                lastName = known.lastName,
+                commandName = known.commandName,
+                placement = action.placement,
+                manualStartTime = null
+            )?.also { participant ->
+                groups = groups.mapIndexed { index, groupData ->
+                    if (index == action.group) groupData.copy(participants = groupData.participants + participant)
+                    else groupData
+                }
+            }
+        }
+        if (newParticipants.isEmpty()) return
+        updateState { copy(isShowParticipantCreateDialog = false, editingParticipant = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            loadingRepository.emit(true)
+            val savedCount = newParticipants.count { competitionInteractor.saveParticipant(it) != null }
+            if (savedCount > 0) {
+                analytics.trackEvent(AnalyticsEvent.ParticipantsBulkAdded(savedCount))
+            }
+            if (savedCount < newParticipants.size) {
+                updateState { copy(errorMessage = "Не удалось добавить ${newParticipants.size - savedCount} из ${newParticipants.size} участников") }
+            }
+            getCompetitionDetails()
+            loadingRepository.emit(false)
+        }
+    }
+
+    /**
+     * Загружает людей из прошлых соревнований организатора для подсказок в диалоге добавления.
+     * Сначала локальная история — подсказки есть сразу и без сети; затем к ней добавляется
+     * серверная: там соревнования, состав которых на это устройство не загружался.
+     * Читается при каждом открытии диалога: история могла пополниться.
+     */
+    private fun loadParticipantHistory() {
+        val compId = competitionId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val local = repository.getParticipantHistory(compId).getOrDefault(emptyList())
+            updateState { copy(participantHistory = ParticipantHistory.aggregate(local)) }
+            competitionInteractor.getServerParticipantHistory(compId).onSuccess { server ->
+                updateState { copy(participantHistory = ParticipantHistory.aggregate(ParticipantHistory.merge(local, server))) }
+            }
+        }
+    }
+
+    /**
      * Загружает данные соревнования и участников.
      */
     fun getCompetitionDetails() {
@@ -291,10 +386,11 @@ class ParticipantListViewModel(
      * Подбор стартовой минуты для дозаявки; null — жеребьёвки не было или при старте по стартовой
      * станции (там время берётся из отметки).
      */
-    private fun lateEntrySlotFinder(): LateEntrySlotFinder? {
+    private fun lateEntrySlotFinder(
+        groups: List<ParticipantGroupParticipants> = stateValue.participantGroupWithParticipants
+    ): LateEntrySlotFinder? {
         val competition = stateValue.competition ?: return null
         if (!competition.isDrawConducted || competition.startTimeMode == StartTimeMode.BY_START_STATION) return null
-        val groups = stateValue.participantGroupWithParticipants
         return LateEntrySlotFinder(
             starts = groups.flatMap { it.participants }
                 .filter { it.startTime.isValidStartTimestamp() }

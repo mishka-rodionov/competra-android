@@ -8,6 +8,7 @@ import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringCompetitionDetails
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
+import com.competra.domain.models.orienteering.PastParticipation
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
 import com.competra.domain.sync.planServerMerge
 import com.competra.local.dao.OrienteeringCompetitionDao
@@ -260,6 +261,23 @@ class OrienteeringCompetitionLocalRepositoryImpl(
     override suspend fun getParticipantsIncludingDeleted(competitionId: String): Result<List<OrienteeringParticipant>> {
         return runCatching {
             participantDao.getAllParticipantsIncludingDeleted(competitionId).map { it.toDomain() }
+        }
+    }
+
+    override suspend fun getParticipantHistory(excludeCompetitionId: String): Result<List<PastParticipation>> {
+        return runCatching {
+            participantDao.getParticipantHistory(excludeCompetitionId).map {
+                PastParticipation(
+                    id = it.id,
+                    competitionId = it.competitionId,
+                    userId = it.userId,
+                    firstName = it.firstName,
+                    lastName = it.lastName,
+                    groupName = it.groupName,
+                    commandName = it.commandName,
+                    competitionDate = it.competitionDate
+                )
+            }
         }
     }
 

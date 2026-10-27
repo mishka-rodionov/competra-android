@@ -1,6 +1,7 @@
 package com.competra.center.data.participant_list
 
 import com.competra.center.data.draw.LateEntryPlacement
+import com.competra.domain.models.orienteering.KnownParticipant
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.ui.BaseAction
 
@@ -39,7 +40,21 @@ sealed class ParticipantListAction : BaseAction {
         /** Куда поставить участника, если жеребьёвка уже проведена (дозаявка). */
         val placement: LateEntryPlacement = LateEntryPlacement.FREE_SLOT,
         /** Стартовое время для [LateEntryPlacement.MANUAL]. */
-        val manualStartTime: Long? = null
+        val manualStartTime: Long? = null,
+        /** Участник выбран из подсказок по прошлым соревнованиям (для аналитики). */
+        val fromHistory: Boolean = false
+    ) : ParticipantListAction()
+
+    /**
+     * Добавить в группу сразу несколько людей из прошлых соревнований организатора.
+     * @param group Индекс группы в списке.
+     * @param participants Выбранные люди; команда берётся из их последнего участия.
+     * @param placement Куда ставить, если жеребьёвка уже проведена ([LateEntryPlacement.MANUAL] не поддерживается).
+     */
+    data class AddParticipantsFromHistory(
+        val group: Int,
+        val participants: List<KnownParticipant>,
+        val placement: LateEntryPlacement = LateEntryPlacement.FREE_SLOT
     ) : ParticipantListAction()
 
     /**

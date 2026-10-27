@@ -6,6 +6,7 @@ import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
 import com.competra.domain.models.orienteering.OrienteeringCompetitionDetails
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
+import com.competra.domain.models.orienteering.PastParticipation
 import com.competra.domain.models.orienteering.Distance
 
 /**
@@ -56,6 +57,12 @@ interface OrienteeringCompetitionLocalRepository {
      * Используется при слиянии с серверным снимком, чтобы не «воскрешать» удалённых.
      */
     suspend fun getParticipantsIncludingDeleted(competitionId: String): Result<List<OrienteeringParticipant>>
+
+    /**
+     * Участия во всех локальных соревнованиях организатора, кроме [excludeCompetitionId],
+     * удалённых и тестовых. Источник подсказок [com.competra.domain.models.orienteering.ParticipantHistory].
+     */
+    suspend fun getParticipantHistory(excludeCompetitionId: String): Result<List<PastParticipation>>
     suspend fun updateParticipants(participants: List<OrienteeringParticipant>, markUnsynced: Boolean = true) : Result<Any>
 
     /** Физически удаляет участника из локальной БД (без выгрузки на сервер). */

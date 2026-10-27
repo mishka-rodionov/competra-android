@@ -28,6 +28,8 @@
 | `team_standings_opened` | Открыт командный зачёт в результатах (`competition_id`) | `OrienteeringCompetitionResultsViewModel.kt`, `EventResultsViewModel.kt` |
 | `participant_drawn` | Прошла жеребьёвка | `DrawViewModel.kt` |
 | `participant_dns_marked` | Участник отмечен «Не стартовал» | `ParticipantListViewModel.kt` |
+| `participant_added` | Организатор добавил участника в диалоге «Новый участник» (`method`: manual / history — из подсказки по прошлым соревнованиям) | `ParticipantListViewModel.kt` |
+| `participants_bulk_added` | Организатор добавил в группу сразу несколько людей из прошлых соревнований (`participants_count`) | `ParticipantListViewModel.kt` |
 
 ### Анти-паттерны
 

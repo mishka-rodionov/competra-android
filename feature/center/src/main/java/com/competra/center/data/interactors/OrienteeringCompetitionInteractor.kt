@@ -24,6 +24,7 @@ import com.competra.domain.models.orienteering.effectiveControlTimeMinutes
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionRemoteRepository
 import com.competra.domain.sync.planServerMerge
+import com.competra.domain.models.orienteering.PastParticipation
 import com.competra.domain.sync.SyncTrigger
 
 /**
@@ -765,6 +766,13 @@ class OrienteeringCompetitionInteractor(
         }
         localRepository.mergeParticipantGroupsFromServer(competitionId, fixedGroups)
     }
+
+    /**
+     * История участников организатора с сервера — все его соревнования, кроме [excludeCompetitionId]
+     * и тестовых, в том числе не загруженные на это устройство. В локальную БД не пишется.
+     */
+    suspend fun getServerParticipantHistory(excludeCompetitionId: String): Result<List<PastParticipation>> =
+        remoteRepository.getParticipantHistory(excludeCompetitionId)
 
     /**
      * Загружает участников с сервера и синхронизирует их в локальную БД.

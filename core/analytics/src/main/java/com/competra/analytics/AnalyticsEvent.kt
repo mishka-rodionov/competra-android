@@ -202,11 +202,16 @@ sealed class AnalyticsEvent(
         },
     )
 
-    enum class ParticipantAddMethod { MANUAL, NFC, IMPORT }
+    /** Способ добавления участника; HISTORY — выбран из подсказок по прошлым соревнованиям организатора. */
+    enum class ParticipantAddMethod { MANUAL, HISTORY, NFC, IMPORT }
 
     /** Добавлен участник в соревнование. */
     class ParticipantAdded(method: ParticipantAddMethod) :
         AnalyticsEvent("participant_added", mapOf("method" to method.name.lowercase()))
+
+    /** Организатор добавил в группу сразу несколько людей из прошлых соревнований. */
+    class ParticipantsBulkAdded(participantsCount: Int) :
+        AnalyticsEvent("participants_bulk_added", mapOf("participants_count" to participantsCount))
 
     /** Организатор отметил участника как «Не стартовал» (DNS) — после старта вместо удаления. */
     class ParticipantDnsMarked(competitionId: String) :

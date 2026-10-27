@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.competra.local.entities.orienteering.OrienteeringParticipantEntity
+import com.competra.local.entities.orienteering.ParticipantHistoryRow
 
 @Dao
 interface OrienteeringParticipantDao {
@@ -38,6 +39,21 @@ interface OrienteeringParticipantDao {
      */
     @Query("SELECT * FROM orienteering_participants WHERE competitionId = :competitionId")
     suspend fun getAllParticipantsIncludingDeleted(competitionId: String): List<OrienteeringParticipantEntity>
+
+    /**
+     * Участия во всех соревнованиях, кроме [excludeCompetitionId]: без помеченных на удаление
+     * участников и соревнований и без тестовых соревнований (там сгенерированные участники).
+     */
+    @Query(
+        """
+        SELECT p.id, p.competitionId, p.userId, p.firstName, p.lastName, p.groupName, p.commandName, c.startDate AS competitionDate
+        FROM orienteering_participants p
+        INNER JOIN orienteering_competitions c ON c.competitionId = p.competitionId
+        WHERE p.competitionId != :excludeCompetitionId
+          AND p.isDeleted = 0 AND c.isDeleted = 0 AND c.isTest = 0
+        """
+    )
+    suspend fun getParticipantHistory(excludeCompetitionId: String): List<ParticipantHistoryRow>
 
     @Query("SELECT * FROM orienteering_participants WHERE competitionId = :competitionId AND chipNumber = :chipNumber AND isDeleted = 0")
     suspend fun getParticipantByChipNumber(competitionId: String, chipNumber: Int): OrienteeringParticipantEntity

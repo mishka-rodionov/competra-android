@@ -6,6 +6,7 @@ import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
+import com.competra.domain.models.orienteering.PastParticipation
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionRemoteRepository
 import com.competra.remote.datasource.orienteering.OrienteeringCompetitionRemoteDataSource
 import com.competra.remote.request.mappers.toRequest
@@ -153,6 +154,27 @@ data class OrienteeringCompetitionRemoteRepositoryImpl(
             }
             .onFailure {
                 Log.d("LOG_TAG", "getParticipantsForCompetition: ${it.message}")
+            }
+    }
+
+    override suspend fun getParticipantHistory(excludeCompetitionId: String): Result<List<PastParticipation>> {
+        return orienteeringCompetitionRemoteDataSource.getParticipantHistory(excludeCompetitionId)
+            .mapCatching { response ->
+                response.result!!.mapNotNull { p ->
+                    PastParticipation(
+                        id = p.id ?: return@mapNotNull null,
+                        competitionId = p.competitionId.orEmpty(),
+                        userId = p.userId.orEmpty(),
+                        firstName = p.firstName.orEmpty(),
+                        lastName = p.lastName.orEmpty(),
+                        groupName = p.groupName.orEmpty(),
+                        commandName = p.commandName.orEmpty(),
+                        competitionDate = p.competitionDate ?: 0L
+                    )
+                }
+            }
+            .onFailure {
+                Log.d("LOG_TAG", "getParticipantHistory: ${it.message}")
             }
     }
 

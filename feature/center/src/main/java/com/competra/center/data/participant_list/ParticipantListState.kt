@@ -2,6 +2,7 @@ package com.competra.center.data.participant_list
 
 import com.competra.center.data.draw.LateEntryPlacement
 import com.competra.domain.models.ResultStatus
+import com.competra.domain.models.orienteering.KnownParticipant
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.ParticipantGroupParticipants
@@ -20,6 +21,8 @@ import com.competra.ui.BaseState
  * @property errorMessage Сообщение об ошибке последнего действия (null — ошибки нет).
  * @property lateEntry Варианты стартового времени для дозаявки после жеребьёвки
  *   (null — жеребьёвки не было, время назначается как обычно).
+ * @property participantHistory Люди из прошлых соревнований организатора — подсказки при ручном
+ *   добавлении (кто уже в протоколе, отсеивается на экране).
  */
 data class ParticipantListState(
     val participantGroupWithParticipants: List<ParticipantGroupParticipants> = emptyList(),
@@ -30,7 +33,8 @@ data class ParticipantListState(
     val deletingParticipant: OrienteeringParticipant? = null,
     val resultStatuses: Map<String, ResultStatus> = emptyMap(),
     val errorMessage: String? = null,
-    val lateEntry: LateEntryPreview? = null
+    val lateEntry: LateEntryPreview? = null,
+    val participantHistory: List<KnownParticipant> = emptyList()
 ): BaseState
 
 /**
