@@ -54,6 +54,8 @@ data class CompetitionDetailResponse(
     @SerializedName("overtimePolicy") val overtimePolicy: String? = null,
     @SerializedName("participantGroups") val participantGroups: List<ParticipantGroupDetailResponse>,
     @SerializedName("isUserRegistered") val isUserRegistered: Boolean = false,
+    /** Пользователь из Bearer-токена — организатор соревнования (любая роль). */
+    @SerializedName("viewerIsOrganizer") val viewerIsOrganizer: Boolean = false,
     @SerializedName("imageUrl") val imageUrl: String? = null,
     @SerializedName("coverCropX") val coverCropX: Double? = null,
     @SerializedName("coverCropY") val coverCropY: Double? = null,

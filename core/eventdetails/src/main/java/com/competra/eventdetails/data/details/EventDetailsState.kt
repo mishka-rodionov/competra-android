@@ -38,10 +38,15 @@ data class EventDetailsState(
     val groupEligibility: Map<String, GroupEligibility> = emptyMap()
 ) : BaseState {
 
-    /** Показывать зрителю кнопку «Онлайн-треки»: соревнование идёт или треки уже есть. */
+    /**
+     * Показывать зрителю кнопку «Онлайн-треки»: соревнование идёт или треки уже есть (архив после
+     * финиша). Трек можно включить за сутки до старта, но до старта треки видит только организатор —
+     * проверить, что трекинг работает; остальным кнопка появляется со стартом.
+     */
     val isLiveTracksButtonVisible: Boolean
         get() = eventDetails?.eventType == EventType.CyclicEvent.Orienteering &&
-            (eventDetails.status == EventStatus.STARTED || hasLiveTracks)
+            (eventDetails.status == EventStatus.STARTED ||
+                (hasLiveTracks && (eventDetails.hasStarted || eventDetails.viewerIsOrganizer)))
 }
 
 /** Кнопка онлайн-трека бегуна на деталях события. */

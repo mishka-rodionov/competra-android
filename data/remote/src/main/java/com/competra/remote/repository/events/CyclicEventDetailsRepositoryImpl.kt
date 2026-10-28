@@ -78,6 +78,8 @@ class CyclicEventDetailsRepositoryImpl(
                         eventType = mapEventType(dto.kindOfSport),
                         resultsStatus = mapResultsStatus(dto.resultsStatus),
                         isUserRegistered = dto.isUserRegistered,
+                        hasStarted = dto.status in STARTED_STATUSES,
+                        viewerIsOrganizer = dto.viewerIsOrganizer,
                         imageUrl = dto.imageUrl,
                         imageCropRect = toCropRect(dto.coverCropX, dto.coverCropY, dto.coverCropWidth, dto.coverCropHeight)
                     )
@@ -168,6 +170,11 @@ class CyclicEventDetailsRepositoryImpl(
             comment = comment ?: "",
             isChipGiven = isChipGiven
         )
+    }
+
+    private companion object {
+        /** Серверные статусы «соревнование уже стартовало» — как `STARTED_STATUSES` в eSport. */
+        val STARTED_STATUSES = setOf("IN_PROGRESS", "FINISHED", "ARCHIVED")
     }
 
     private fun mapStatus(status: String): EventStatus = when (status) {

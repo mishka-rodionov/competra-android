@@ -37,6 +37,13 @@ data class CyclicEventDetails(
     val eventType: EventType,
     val resultsStatus: ResultsStatus = ResultsStatus.NOT_PUBLISHED,
     val isUserRegistered: Boolean = false,
+    /**
+     * Соревнование уже стартовало: серверный статус IN_PROGRESS/FINISHED/ARCHIVED. Отдельно от
+     * [status], потому что ARCHIVED в [EventStatus] не различается и попадает в CREATED.
+     */
+    val hasStarted: Boolean = false,
+    /** Текущий пользователь — организатор соревнования (любая роль); считает сервер по токену. */
+    val viewerIsOrganizer: Boolean = false,
     val imageUrl: String? = null,
     val imageCropRect: CropRect? = null
 )
