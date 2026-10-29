@@ -28,6 +28,7 @@ import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.orienteering.expectedSequence
 import com.competra.domain.models.orienteering.startPoint
 import com.competra.domain.models.orienteering.punchesAfterStart
+import com.competra.domain.models.orienteering.unsyncedStationControlPoints
 import com.competra.domain.models.orienteering.withoutDistance
 import com.competra.domain.repository.ResultConflictRepository
 import com.competra.nfchelper.SportiduinoHelper
@@ -207,6 +208,10 @@ class OrientReadCardViewModel(
             is ReadChipData.MasterChipData -> AnalyticsEvent.NfcCardType.MASTER
         }
         analytics.trackEvent(AnalyticsEvent.NfcChipReadAttempted(cardType))
+        val unsyncedCps = (chipData as? ReadChipData.RawResult)
+            ?.let { unsyncedStationControlPoints(it.splits, readAt = System.currentTimeMillis()) }
+            .orEmpty()
+        updateState { copy(unsyncedStationCps = unsyncedCps) }
         when (chipData) {
             is ReadChipData.RawResult -> {
                 competitionId?.let {

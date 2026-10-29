@@ -13,7 +13,7 @@
     <ID>CyclomaticComplexMethod:OrienteeringCompetitionResultsViewModel.kt$OrienteeringCompetitionResultsViewModel$private fun buildPdfBytes(title: String, groups: List&lt;GroupWithParticipantsAndResults&gt;): ByteArray</ID>
     <ID>CyclomaticComplexMethod:OrienteeringCreatorViewModel.kt$OrienteeringCreatorViewModel$fun initialize(competitionId: String?)</ID>
     <ID>CyclomaticComplexMethod:OrienteeringCreatorViewModel.kt$OrienteeringCreatorViewModel$override fun onAction(action: BaseAction)</ID>
-    <ID>CyclomaticComplexMethod:OrienteeringEventControlScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun OrienteeringEventControlScreenContent( state: OrienteeringEventControlState, isExpanded: Boolean, onAction: (OrientEventControlAction) -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:OrienteeringEventControlScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun OrienteeringEventControlScreenContent( state: OrienteeringEventControlState, onAction: (OrientEventControlAction) -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:OrienteeringEventControlViewModel.kt$OrienteeringEventControlViewModel$override fun onAction(action: BaseAction)</ID>
     <ID>CyclomaticComplexMethod:ParticipantGroupCreator.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ParticipantGroupEditor( userAction: (OrienteeringCreatorAction) -&gt; Unit, state: OrienteeringCreatorState, )</ID>
     <ID>CyclomaticComplexMethod:ParticipantListScreen.kt$@Composable fun CreateParticipantDialogContent( userAction: (BaseAction) -&gt; Unit, group: Int, groupName: String, editingParticipant: OrienteeringParticipant? )</ID>
@@ -106,19 +106,19 @@
     <ID>FunctionNaming:OrienteeringCompetitionResultsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun EditResultBottomSheet( participantWithResult: ParticipantWithResult, sheetState: SheetState, onDismiss: () -&gt; Unit, onSave: (startTime: Long?, finishTime: Long?) -&gt; Unit )</ID>
     <ID>FunctionNaming:OrienteeringCompetitionResultsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ImportResultsPreviewBottomSheet( competitionTitle: String, diff: ImportResultsDiff, sheetState: SheetState, isImporting: Boolean, onDismiss: () -&gt; Unit, onConfirm: (List&lt;ImportResultRow&gt;) -&gt; Unit, )</ID>
     <ID>FunctionNaming:OrienteeringCompetitionResultsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun OrienteeringCompetitionResultsScreen( viewModel: OrienteeringCompetitionResultsViewModel = koinViewModel() )</ID>
-    <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable fun OrienteeringEventControlContent( isExpanded: Boolean, userAction: (OrientEventControlAction) -&gt; Unit )</ID>
+    <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable fun OrienteeringEventControlContent(userAction: (OrientEventControlAction) -&gt; Unit)</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable fun OrienteeringEventControlScreen( viewModel: OrienteeringEventControlViewModel = koinViewModel(), windowSizeClass: WindowSizeClass )</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun AllParticipantsFinishedBanner()</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun CompetitionStartedBanner()</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun ControlActionButton(text: String, icon: Int, onClick: () -&gt; Unit)</ID>
-    <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun ControlGridItem( modifier: Modifier, text: String, color: Color, icon: Int, onClick: () -&gt; Unit )</ID>
+    <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun ScanChipButton(onClick: () -&gt; Unit)</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun CountdownBanner(countdownMillis: Long, onCancel: () -&gt; Unit)</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun NavigationRow(text: String, onClick: () -&gt; Unit)</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun SectionHeader(title: String)</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun StartConfirmContent(onConfirm: () -&gt; Unit, onCancel: () -&gt; Unit)</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun StopConfirmContent(onConfirm: () -&gt; Unit, onCancel: () -&gt; Unit)</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Composable private fun StopwatchBanner(elapsedMillis: Long)</ID>
-    <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun OrienteeringEventControlScreenContent( state: OrienteeringEventControlState, isExpanded: Boolean, onAction: (OrientEventControlAction) -&gt; Unit )</ID>
+    <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun OrienteeringEventControlScreenContent( state: OrienteeringEventControlState, onAction: (OrientEventControlAction) -&gt; Unit )</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Preview(name = "Compact", showBackground = true) @Composable fun OrienteeringEventControlScreenPreviewCompact()</ID>
     <ID>FunctionNaming:OrienteeringEventControlScreen.kt$@Preview(showBackground = true) @Composable fun OrienteeringEventControlScreenPreview()</ID>
     <ID>FunctionNaming:ParticipantGroupCreator.kt$@Composable private fun DistanceSelectCard( distance: Distance, isSelected: Boolean, onSelect: () -&gt; Unit )</ID>
@@ -184,7 +184,7 @@
     <ID>LongMethod:OrienteeringCompetitionResultsViewModel.kt$OrienteeringCompetitionResultsViewModel$private fun buildPdfBytes(title: String, groups: List&lt;GroupWithParticipantsAndResults&gt;): ByteArray</ID>
     <ID>LongMethod:OrienteeringCreatorViewModel.kt$OrienteeringCreatorViewModel$fun initialize(competitionId: String?)</ID>
     <ID>LongMethod:OrienteeringCreatorViewModel.kt$OrienteeringCreatorViewModel$override fun onAction(action: BaseAction)</ID>
-    <ID>LongMethod:OrienteeringEventControlScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun OrienteeringEventControlScreenContent( state: OrienteeringEventControlState, isExpanded: Boolean, onAction: (OrientEventControlAction) -&gt; Unit )</ID>
+    <ID>LongMethod:OrienteeringEventControlScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun OrienteeringEventControlScreenContent( state: OrienteeringEventControlState, onAction: (OrientEventControlAction) -&gt; Unit )</ID>
     <ID>LongMethod:OrienteeringEventControlViewModel.kt$OrienteeringEventControlViewModel$override fun onAction(action: BaseAction)</ID>
     <ID>LongMethod:ParticipantGroupCreator.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ParticipantGroupEditor( userAction: (OrienteeringCreatorAction) -&gt; Unit, state: OrienteeringCreatorState, )</ID>
     <ID>LongMethod:ParticipantListScreen.kt$@Composable fun CreateParticipantDialogContent( userAction: (BaseAction) -&gt; Unit, group: Int, groupName: String, editingParticipant: OrienteeringParticipant? )</ID>

@@ -1,4 +1,4 @@
-package com.competra.center.presentation.write_chip
+package com.competra.center.presentation.station_tools
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,158 +15,120 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.competra.center.data.write_chip.WriteChipAction
-import com.competra.center.data.write_chip.WriteChipOperationResult
-import com.competra.center.data.write_chip.WriteChipState
-import com.competra.center.data.write_chip.WriteChipTab
+import com.competra.center.data.station_tools.StationToolsAction
+import com.competra.center.data.station_tools.StationToolsResult
+import com.competra.center.data.station_tools.StationToolsState
+import com.competra.center.data.station_tools.StationToolsTab
 import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.theme.Dimens
 import com.competra.resources.R
-import org.koin.compose.viewmodel.koinViewModel
+
+private val SuccessContainer = Color(0xFF4CAF50).copy(alpha = 0.15f)
+private val SuccessContent = Color(0xFF2E7D32)
 
 /**
- * Экран записи/очистки чипов участников и настройки станций мастер-картами.
- *
- * @param initialTab вкладка, открываемая первой; `null` — вкладка по умолчанию.
+ * Строка статуса NFC на вкладках записи: ожидание чипа (в том числе серия пакетного режима
+ * со счётчиком), итог последней операции или подсказка о только что считанном чипе.
  */
 @Composable
-fun WriteChipScreen(
-    initialTab: WriteChipTab? = null,
-    viewModel: WriteChipViewModel = koinViewModel()
-) {
-    val state by viewModel.state.collectAsState()
-    LaunchedEffect(initialTab) {
-        initialTab?.let { viewModel.onAction(WriteChipAction.ApplyInitialTab(it)) }
-    }
-    // Режим записи живёт, только пока экран на виду: при уходе с него (назад, другая вкладка
-    // нижней навигации) NFC возвращается в режим чтения.
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onAction(WriteChipAction.ScreenHidden) }
-    }
-    WriteChipContent(state = state, onAction = viewModel::onAction)
-}
-
-@Composable
-private fun WriteChipContent(
-    state: WriteChipState,
-    onAction: (WriteChipAction) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = state.selectedTab.ordinal) {
-            Tab(
-                selected = state.selectedTab == WriteChipTab.CLEAR,
-                onClick = { onAction(WriteChipAction.SelectTab(WriteChipTab.CLEAR)) },
-                text = { Text("Очистить") }
-            )
-            Tab(
-                selected = state.selectedTab == WriteChipTab.WRITE_NUMBER,
-                onClick = { onAction(WriteChipAction.SelectTab(WriteChipTab.WRITE_NUMBER)) },
-                text = { Text("Записать номер") }
-            )
-            Tab(
-                selected = state.selectedTab == WriteChipTab.STATION,
-                onClick = { onAction(WriteChipAction.SelectTab(WriteChipTab.STATION)) },
-                text = { Text("Станции") }
-            )
-        }
-
-        NfcStatusCard(
-            isWaiting = state.isWaitingForChip,
-            result = state.lastResult,
-            modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp, vertical = 8.dp)
-        )
-
-        when (state.selectedTab) {
-            WriteChipTab.CLEAR -> ClearChipTab(
-                isWaiting = state.isWaitingForChip,
-                onClear = { onAction(WriteChipAction.StartClearChip) }
-            )
-            WriteChipTab.WRITE_NUMBER -> WriteNumberTab(
-                state = state,
-                onAction = onAction
-            )
-            WriteChipTab.STATION -> StationTab(
-                state = state,
-                onAction = onAction
-            )
-        }
-    }
-}
-
-@Composable
-private fun NfcStatusCard(
-    isWaiting: Boolean,
-    result: WriteChipOperationResult?,
+internal fun NfcStatusCard(
+    state: StationToolsState,
     modifier: Modifier = Modifier
 ) {
-    if (!isWaiting && result == null) return
+    val result = state.lastResult
+    if (!state.isWaitingForChip && result == null) return
 
-    val (containerColor, contentColor, icon, text) = when {
-        isWaiting -> listOf(
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.onPrimaryContainer,
-            null,
-            "Приложите чип к устройству"
-        )
-        result is WriteChipOperationResult.Success -> listOf(
-            Color(0xFF4CAF50).copy(alpha = 0.15f),
-            Color(0xFF2E7D32),
-            R.drawable.ic_check_24px,
-            result.message
-        )
-        else -> listOf(
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.onErrorContainer,
-            R.drawable.close_24px,
-            (result as? WriteChipOperationResult.Error)?.message ?: "Ошибка"
-        )
+    val containerColor: Color
+    val contentColor: Color
+    val title: String
+    var details: List<String> = emptyList()
+    var icon: Int? = null
+    when {
+        state.isWaitingForChip -> {
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            title = when {
+                state.selectedTab == StationToolsTab.WRITE_NUMBER ->
+                    "Приложите чип — будет записан №${state.chipNumberInput}"
+                state.isBatchRunning -> "Очистка подряд: прикладывайте чипы по одному"
+                else -> "Приложите чип к устройству"
+            }
+            if (state.isBatchRunning) {
+                details = listOfNotNull("Обработано: ${state.batchProcessedCount}", result?.message)
+            }
+        }
+        result is StationToolsResult.Success -> {
+            containerColor = SuccessContainer
+            contentColor = SuccessContent
+            icon = R.drawable.ic_check_24px
+            title = result.message
+            if (state.batchProcessedCount > 0) details = listOf("Обработано подряд: ${state.batchProcessedCount}")
+        }
+        result is StationToolsResult.Info -> {
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            icon = R.drawable.ic_info_24px
+            title = result.message
+        }
+        else -> {
+            containerColor = MaterialTheme.colorScheme.errorContainer
+            contentColor = MaterialTheme.colorScheme.onErrorContainer
+            icon = R.drawable.close_24px
+            title = result?.message ?: "Ошибка"
+        }
     }
 
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor as Color)
+        colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
         Row(
             modifier = Modifier.padding(Dimens.SIZE_BASE.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (isWaiting) {
+            if (state.isWaitingForChip) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.dp,
-                    color = contentColor as Color
+                    color = contentColor
                 )
             } else if (icon != null) {
                 Icon(
-                    imageVector = ImageVector.vectorResource(icon as Int),
+                    imageVector = ImageVector.vectorResource(icon),
                     contentDescription = null,
-                    tint = contentColor as Color,
+                    tint = contentColor,
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Text(
-                text = text as String,
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor as Color,
-                fontWeight = FontWeight.Medium
-            )
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor,
+                    fontWeight = FontWeight.Medium
+                )
+                details.forEach {
+                    Text(text = it, style = MaterialTheme.typography.bodySmall, color = contentColor)
+                }
+            }
         }
     }
 }
 
+/** Вкладка «Очистить»: разовая очистка или очистка подряд. */
 @Composable
-private fun ClearChipTab(
-    isWaiting: Boolean,
-    onClear: () -> Unit
+internal fun ClearChipTab(
+    state: StationToolsState,
+    onAction: (StationToolsAction) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(Dimens.SIZE_BASE.dp),
+            .padding(Dimens.SIZE_BASE.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_BASE.dp)
     ) {
         Card(
@@ -188,24 +150,28 @@ private fun ClearChipTab(
             }
         }
 
-        Button(
-            onClick = onClear,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            enabled = !isWaiting,
-            shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-        ) {
-            Text("Очистить чип", fontWeight = FontWeight.Bold)
-        }
+        BatchSwitchRow(
+            title = "Очищать подряд",
+            subtitle = "Каждый приложенный чип очищается, пока не нажмёте «Остановить»",
+            checked = state.isBatchMode,
+            onCheckedChange = { onAction(StationToolsAction.BatchModeToggled(it)) }
+        )
+
+        StartStopButton(
+            isWaiting = state.isWaitingForChip,
+            startText = if (state.isBatchMode) "Начать очистку" else "Очистить чип",
+            startEnabled = true,
+            onStart = { onAction(StationToolsAction.StartClearChip) },
+            onStop = { onAction(StationToolsAction.StopWaiting) }
+        )
     }
 }
 
+/** Вкладка «Номер»: запись номера на чип, подряд — с автоувеличением номера. */
 @Composable
-private fun WriteNumberTab(
-    state: WriteChipState,
-    onAction: (WriteChipAction) -> Unit
+internal fun WriteNumberTab(
+    state: StationToolsState,
+    onAction: (StationToolsAction) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -217,7 +183,8 @@ private fun WriteNumberTab(
         DSTextInput(
             modifier = Modifier.fillMaxWidth(),
             text = state.chipNumberInput,
-            onValueChanged = { onAction(WriteChipAction.ChipNumberChanged(it)) },
+            onValueChanged = { onAction(StationToolsAction.ChipNumberChanged(it)) },
+            enabled = !state.isWaitingForChip,
             label = { Text("Номер участника (1–65535)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
         )
@@ -237,27 +204,86 @@ private fun WriteNumberTab(
             }
             Switch(
                 checked = state.fastPunch,
-                onCheckedChange = { onAction(WriteChipAction.FastPunchToggled(it)) }
+                enabled = !state.isWaitingForChip,
+                onCheckedChange = { onAction(StationToolsAction.FastPunchToggled(it)) }
             )
         }
 
-        Button(
-            onClick = { onAction(WriteChipAction.StartWriteNumber) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            enabled = !state.isWaitingForChip && state.chipNumberInput.isNotEmpty(),
-            shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
-        ) {
-            Text("Записать на чип", fontWeight = FontWeight.Bold)
-        }
+        BatchSwitchRow(
+            title = "Записывать подряд",
+            subtitle = "После каждого чипа номер увеличивается на 1",
+            checked = state.isBatchMode,
+            onCheckedChange = { onAction(StationToolsAction.BatchModeToggled(it)) }
+        )
+
+        StartStopButton(
+            isWaiting = state.isWaitingForChip,
+            startText = if (state.isBatchMode) "Начать запись" else "Записать на чип",
+            startEnabled = state.chipNumberInput.isNotEmpty(),
+            onStart = { onAction(StationToolsAction.StartWriteNumber) },
+            onStop = { onAction(StationToolsAction.StopWaiting) }
+        )
     }
 }
 
 @Composable
-private fun StationTab(
-    state: WriteChipState,
-    onAction: (WriteChipAction) -> Unit
+private fun BatchSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(Dimens.SIZE_BASE.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/** Главная кнопка вкладки записи: «старт», а пока ждём чип — «Остановить». */
+@Composable
+private fun StartStopButton(
+    isWaiting: Boolean,
+    startText: String,
+    startEnabled: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit
+) {
+    val modifier = Modifier
+        .fillMaxWidth()
+        .height(56.dp)
+    if (isWaiting) {
+        OutlinedButton(onClick = onStop, modifier = modifier, shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)) {
+            Text("Остановить", fontWeight = FontWeight.Bold)
+        }
+    } else {
+        Button(
+            onClick = onStart,
+            modifier = modifier,
+            enabled = startEnabled,
+            shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
+        ) {
+            Text(startText, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+/** Вкладка «Станция»: запись мастер-карт для настройки станций Sportiduino. */
+@Composable
+internal fun StationTab(
+    state: StationToolsState,
+    onAction: (StationToolsAction) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -275,7 +301,7 @@ private fun StationTab(
                 StationButton(
                     text = "Синхронизировать время",
                     enabled = !state.isWaitingForChip,
-                    onClick = { onAction(WriteChipAction.StartSetStationTime) }
+                    onClick = { onAction(StationToolsAction.StartSetStationTime) }
                 )
             }
         }
@@ -285,7 +311,7 @@ private fun StationTab(
                 DSTextInput(
                     modifier = Modifier.fillMaxWidth(),
                     text = state.stationNumberInput,
-                    onValueChanged = { onAction(WriteChipAction.StationNumberChanged(it)) },
+                    onValueChanged = { onAction(StationToolsAction.StationNumberChanged(it)) },
                     label = { Text("Номер станции (1–255)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
@@ -293,7 +319,7 @@ private fun StationTab(
                 StationButton(
                     text = "Установить номер",
                     enabled = !state.isWaitingForChip && state.stationNumberInput.isNotEmpty(),
-                    onClick = { onAction(WriteChipAction.StartSetStationNumber) }
+                    onClick = { onAction(StationToolsAction.StartSetStationNumber) }
                 )
             }
         }
@@ -309,7 +335,7 @@ private fun StationTab(
                 StationButton(
                     text = "Записать конфигурацию",
                     enabled = !state.isWaitingForChip,
-                    onClick = { onAction(WriteChipAction.StartSetStationConfig) }
+                    onClick = { onAction(StationToolsAction.StartSetStationConfig) }
                 )
             }
         }
@@ -318,13 +344,13 @@ private fun StationTab(
             StationCard(title = "Режим сна") {
                 SleepTimePicker(
                     wakeUpMs = state.wakeUpDateTimeMs,
-                    onTimeChanged = { onAction(WriteChipAction.WakeUpTimeChanged(it)) }
+                    onTimeChanged = { onAction(StationToolsAction.WakeUpTimeChanged(it)) }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 StationButton(
                     text = "Отправить в сон",
                     enabled = !state.isWaitingForChip,
-                    onClick = { onAction(WriteChipAction.StartSleep) }
+                    onClick = { onAction(StationToolsAction.StartSleep) }
                 )
             }
         }
@@ -340,7 +366,7 @@ private fun StationTab(
                 StationButton(
                     text = "Получить состояние",
                     enabled = !state.isWaitingForChip,
-                    onClick = { onAction(WriteChipAction.StartGetState) }
+                    onClick = { onAction(StationToolsAction.StartGetState) }
                 )
             }
         }
@@ -349,13 +375,13 @@ private fun StationTab(
             StationCard(title = "Сменить пароль") {
                 PasswordInputRow(
                     password = state.newPassword,
-                    onChanged = { p0, p1, p2 -> onAction(WriteChipAction.NewPasswordChanged(p0, p1, p2)) }
+                    onChanged = { p0, p1, p2 -> onAction(StationToolsAction.NewPasswordChanged(p0, p1, p2)) }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 StationButton(
                     text = "Записать пароль",
                     enabled = !state.isWaitingForChip,
-                    onClick = { onAction(WriteChipAction.StartSetPassword) }
+                    onClick = { onAction(StationToolsAction.StartSetPassword) }
                 )
             }
         }

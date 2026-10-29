@@ -19,3 +19,23 @@ data class SplitTime(
  */
 fun punchesAfterStart(splits: List<SplitTime>, startTime: Long): List<SplitTime> =
     splits.filter { it.timestamp >= startTime }
+
+/** Допуск на расхождение часов станции и телефона при поиске отметок «из будущего», мс. */
+const val STATION_CLOCK_TOLERANCE_MS = 60_000L
+
+/**
+ * Номера КП, у отметок которых время позже момента чтения чипа больше чем на [toleranceMs]:
+ * часы станции не синхронизированы. Sportiduino хранит на чипе только младшие 3 байта времени
+ * отметки, а старший байт берётся из времени очистки чипа. Поэтому сброшенные или отстающие часы
+ * станции дают отметку на дни или месяцы вперёд, и её время, сплиты и результат бессмысленны.
+ * Отстающие часы, давшие время между очисткой и чтением, так не распознать.
+ *
+ * @param readAt момент чтения чипа (мс).
+ * @return номера КП в порядке первых отметок на чипе, без повторов; пусто — подозрительных нет.
+ */
+fun unsyncedStationControlPoints(
+    splits: List<SplitTime>,
+    readAt: Long,
+    toleranceMs: Long = STATION_CLOCK_TOLERANCE_MS,
+): List<Int> =
+    splits.filter { it.timestamp > readAt + toleranceMs }.map { it.controlPoint }.distinct()

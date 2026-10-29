@@ -40,6 +40,7 @@ import com.competra.utils.DateTimeFormat
 import com.competra.utils.orienteering.toPace
 import com.competra.utils.orienteering.toRaceTime
 import com.competra.utils.orienteering.toSplitTime
+import com.competra.nfchelper.nfccard.Config
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -68,6 +69,21 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
             state.scanNotice?.let { notice ->
                 ScanNoticeBanner(
                     notice = notice,
+                    modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp, vertical = 8.dp)
+                )
+            }
+            if (state.unsyncedStationCps.isNotEmpty()) {
+                ScanNoticeBanner(
+                    notice = "Время станции не синхронизировано: " +
+                        state.unsyncedStationCps.joinToString { cp ->
+                            when (cp) {
+                                Config.START_STATION -> "старт"
+                                Config.FINISH_STATION -> "финиш"
+                                else -> "КП $cp"
+                            }
+                        } +
+                        ". Время отметок, сплиты и результат по ним неверны — синхронизируйте время " +
+                        "станции («Центр» → «Станции и чипы» → «Станция») и проверьте результат.",
                     modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp, vertical = 8.dp)
                 )
             }

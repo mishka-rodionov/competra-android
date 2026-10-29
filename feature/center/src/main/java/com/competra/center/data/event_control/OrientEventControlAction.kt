@@ -13,11 +13,6 @@ sealed class OrientEventControlAction: BaseAction {
     data object OpenStartGrid: OrientEventControlAction()
     data object OpenResults: OrientEventControlAction()
     data object OpenGetOrienteeringChip: OrientEventControlAction()
-    data object OpenWriteChip: OrientEventControlAction()
-    /** Очистка чипа — тот же экран, что в «Станции и чипы», на вкладке «Очистить». */
-    data object OpenClearChip: OrientEventControlAction()
-    /** Проверка чипа без поиска участника — экран «Считать / Проверить» из «Станции и чипы». */
-    data object OpenChipInspect: OrientEventControlAction()
     /** Заявки спортсменов на привязку вручную внесённых результатов к их профилям. */
     data object OpenLinkRequests: OrientEventControlAction()
 

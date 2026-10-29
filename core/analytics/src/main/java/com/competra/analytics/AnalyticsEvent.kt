@@ -224,7 +224,8 @@ sealed class AnalyticsEvent(
     data object NfcChipAssigned : AnalyticsEvent("nfc_chip_assigned")
 
     /**
-     * Чип считан на экране «Считать / Проверить» (инструменты «Станции и чипы», вне соревнования).
+     * Чип считан на экране «Станции и чипы» (вне соревнования) — на вкладке «Считать» или
+     * приложен без подготовленной записи на других вкладках.
      *
      * @param isClean для чипа участника — нет ни одной отметки; для мастер-карты — `null`.
      */
@@ -234,6 +235,19 @@ sealed class AnalyticsEvent(
             put("card_type", cardType.name.lowercase())
             if (isClean != null) put("is_clean", isClean)
         },
+    )
+
+    /** Операция записи чипа участника на экране «Станции и чипы». */
+    enum class NfcChipWriteOperation { CLEAR, WRITE_NUMBER }
+
+    /**
+     * Чип участника успешно очищен или на него записан номер (экран «Станции и чипы»).
+     *
+     * @param batch запись в пакетном режиме («подряд»).
+     */
+    class NfcChipWritten(operation: NfcChipWriteOperation, batch: Boolean) : AnalyticsEvent(
+        "nfc_chip_written",
+        mapOf("operation" to operation.name.lowercase(), "batch" to batch),
     )
 
     /** Способ добавления участника; HISTORY — выбран из подсказок по прошлым соревнованиям организатора. */

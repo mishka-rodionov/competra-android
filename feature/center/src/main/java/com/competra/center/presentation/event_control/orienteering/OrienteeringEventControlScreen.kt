@@ -56,7 +56,6 @@ fun OrienteeringEventControlScreen(
     windowSizeClass: WindowSizeClass
 ) {
     val state by viewModel.state.collectAsState()
-    val isExpanded = windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND)
 
     LaunchedEffect(Unit) {
         viewModel.onAction(OrientEventControlAction.Reload)
@@ -72,7 +71,6 @@ fun OrienteeringEventControlScreen(
 
     OrienteeringEventControlScreenContent(
         state = state,
-        isExpanded = isExpanded,
         onAction = viewModel::onAction
     )
 }
@@ -81,7 +79,6 @@ fun OrienteeringEventControlScreen(
 @Composable
 private fun OrienteeringEventControlScreenContent(
     state: OrienteeringEventControlState,
-    isExpanded: Boolean,
     onAction: (OrientEventControlAction) -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -129,9 +126,10 @@ private fun OrienteeringEventControlScreenContent(
                     Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
                 }
 
-                // 4 NFC-кнопки управления чипом — без изменений
+                // Сканирование чипа финишировавшего участника. Очистка, проверка и запись чипов —
+                // в «Центр» → «Станции и чипы», здесь их нет.
                 SectionHeader(title = "Панель управления")
-                OrienteeringEventControlContent(isExpanded, onAction)
+                OrienteeringEventControlContent(onAction)
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
 
@@ -660,91 +658,58 @@ private fun NavigationRow(text: String, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Панель управления соревнованием: кнопка «Сканировать» — считать чип финишировавшего участника
+ * и посчитать результат.
+ */
 @Composable
-fun OrienteeringEventControlContent(
-    isExpanded: Boolean,
-    userAction: (OrientEventControlAction) -> Unit
-) {
-    if (isExpanded) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            ControlGridItem(Modifier.weight(1f), "Сканировать", Color(0xFF2196F3), R.drawable.edit) {
-                userAction(OrientEventControlAction.OpenOrientReadCard)
-            }
-            ControlGridItem(Modifier.weight(1f), "Очистить", Color(0xFF4CAF50), R.drawable.edit) {
-                userAction(OrientEventControlAction.OpenClearChip)
-            }
-            ControlGridItem(Modifier.weight(1f), "Проверить", Color(0xFFFFC107), R.drawable.edit) {
-                userAction(OrientEventControlAction.OpenChipInspect)
-            }
-            ControlGridItem(Modifier.weight(1f), "Записать", Color(0xFFF44336), R.drawable.edit) {
-                userAction(OrientEventControlAction.OpenWriteChip)
-            }
-        }
-    } else {
-        Column {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                ControlGridItem(Modifier.weight(1f), "Сканировать", Color(0xFF2196F3), R.drawable.edit) {
-                    userAction(OrientEventControlAction.OpenOrientReadCard)
-                }
-                ControlGridItem(Modifier.weight(1f), "Очистить", Color(0xFF4CAF50), R.drawable.edit) {
-                    userAction(OrientEventControlAction.OpenClearChip)
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                ControlGridItem(Modifier.weight(1f), "Проверить", Color(0xFFFFC107), R.drawable.edit) {
-                    userAction(OrientEventControlAction.OpenChipInspect)
-                }
-                ControlGridItem(Modifier.weight(1f), "Записать", Color(0xFFF44336), R.drawable.edit) {
-                    userAction(OrientEventControlAction.OpenWriteChip)
-                }
-            }
-        }
-    }
+fun OrienteeringEventControlContent(userAction: (OrientEventControlAction) -> Unit) {
+    ScanChipButton(onClick = { userAction(OrientEventControlAction.OpenOrientReadCard) })
 }
 
 @Composable
-private fun ControlGridItem(
-    modifier: Modifier,
-    text: String,
-    color: Color,
-    icon: Int,
-    onClick: () -> Unit
-) {
+private fun ScanChipButton(onClick: () -> Unit) {
+    val color = Color(0xFF2196F3)
     Card(
-        modifier = modifier
-            .padding(4.dp)
-            .aspectRatio(1.1f)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
             .clickRipple(onClick = onClick),
         shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
         border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            modifier = Modifier.padding(Dimens.SIZE_BASE.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(48.dp)
                     .background(color.copy(alpha = 0.2f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = ImageVector.vectorResource(icon),
+                    imageVector = ImageVector.vectorResource(R.drawable.edit),
                     contentDescription = null,
                     tint = color,
                     modifier = Modifier.size(24.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = color,
-                textAlign = TextAlign.Center
-            )
+            Spacer(modifier = Modifier.width(Dimens.SIZE_BASE.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Сканировать",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = color
+                )
+                Text(
+                    text = "Считать чип финишировавшего участника и посчитать результат",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -782,7 +747,7 @@ private fun StopwatchBanner(elapsedMillis: Long) {
 @Composable
 fun OrienteeringEventControlScreenPreviewCompact() {
     MaterialTheme {
-        OrienteeringEventControlContent(isExpanded = false, userAction = {})
+        OrienteeringEventControlContent(userAction = {})
     }
 }
 
@@ -810,7 +775,6 @@ fun OrienteeringEventControlScreenPreview() {
                     startTimeMode = StartTimeMode.USER_SET
                 )
             ),
-            isExpanded = false,
             onAction = {}
         )
     }

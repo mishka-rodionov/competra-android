@@ -23,6 +23,7 @@
 | `auth_login_requested` | Запрошен код авторизации | `AuthViewModel.kt` |
 | `auth_login_failed` | Авторизация не удалась | `AuthCodeViewModel.kt` |
 | `nfc_chip_read_attempted` | Зафиксирована попытка чтения чипа | `OrientReadCardViewModel.kt` |
+| `nfc_chip_written` | На экране «Станции и чипы» чип очищен или записан номер (`operation`: clear / write_number; `batch`: подряд или разово) | `StationToolsViewModel.kt` |
 | `create_competition_step_completed` | Пользователь закончил один из шагов мастера | `OrienteeringCreatorViewModel.kt` |
 | `create_competition_courses_imported` | В мастере импортированы дистанции из IOF XML (`courses_count`) | `OrienteeringCreatorViewModel.kt`, web `CreateCompetitionPage.tsx` |
 | `create_competition_standard_groups_added` | В мастере добавлены стандартные группы (`groups_count`) | `OrienteeringCreatorViewModel.kt`, web `CreateCompetitionPage.tsx` |

@@ -1,4 +1,4 @@
-package com.competra.center.presentation.chip_inspect
+package com.competra.center.presentation.station_tools
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -20,11 +20,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,12 +31,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.competra.center.data.chip_inspect.ChipInspectState
-import com.competra.center.data.chip_inspect.ChipScan
+import com.competra.center.data.station_tools.ChipScan
+import com.competra.center.data.station_tools.StationToolsState
 import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.orienteering.SplitTime
 import com.competra.resources.R
-import org.koin.compose.viewmodel.koinViewModel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -57,22 +53,11 @@ private val CleanColor = Color(0xFF2E7D32)
 private val PunchesColor = Color(0xFFE65100)
 
 /**
- * Экран «Считать / Проверить»: показывает содержимое любого приложенного чипа — номер, время
- * очистки, отметки — и вердикт, готов ли чип к старту. Работает без соревнования.
+ * Вкладка «Считать» экрана «Станции и чипы»: содержимое любого приложенного чипа — номер, время
+ * очистки, отметки — и вердикт, готов ли чип к старту. Ничего не сохраняет.
  */
 @Composable
-fun ChipInspectScreen(viewModel: ChipInspectViewModel = koinViewModel()) {
-    val state by viewModel.state.collectAsState()
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        ChipInspectContent(state)
-    }
-}
-
-@Composable
-private fun ChipInspectContent(state: ChipInspectState) {
+internal fun InspectTab(state: StationToolsState) {
     when (val scan = state.lastScan) {
         null -> WaitingView()
         is ChipScan.Participant -> ParticipantChipView(scan, state.scanCount)
@@ -136,6 +121,10 @@ private fun ParticipantChipView(scan: ChipScan.Participant, scanCount: Int) {
                 )
             )
         }
+        val unsynced = scan.unsyncedControlPoints
+        if (unsynced.isNotEmpty()) {
+            item { UnsyncedStationsCard(unsynced) }
+        }
         if (!scan.isClean) {
             item {
                 Text(
@@ -146,7 +135,7 @@ private fun ParticipantChipView(scan: ChipScan.Participant, scanCount: Int) {
                 )
             }
             itemsIndexed(scan.punches) { index, punch ->
-                PunchRow(index = index + 1, punch = punch)
+                PunchRow(index = index + 1, punch = punch, isUnsynced = punch.controlPoint in unsynced)
                 HorizontalDivider()
             }
         }
@@ -237,8 +226,37 @@ private fun InfoCard(rows: List<Pair<String, String>>) {
     }
 }
 
+/**
+ * Предупреждение: у отметок этих КП время позже момента чтения — часы станций не синхронизированы,
+ * время отметок и сплиты по ним неверны.
+ */
 @Composable
-private fun PunchRow(index: Int, punch: SplitTime) {
+private fun UnsyncedStationsCard(controlPoints: List<Int>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
+            Text(
+                text = "Время станции не синхронизировано: " +
+                    controlPoints.joinToString { controlPointLabel(it) },
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Text(
+                text = "Время этих отметок неверное. Запишите карту «Синхронизировать время» " +
+                    "на вкладке «Станция» и приложите её к станции.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+    }
+}
+
+@Composable
+private fun PunchRow(index: Int, punch: SplitTime, isUnsynced: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -257,7 +275,15 @@ private fun PunchRow(index: Int, punch: SplitTime) {
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f)
         )
-        Text(text = formatTime(punch.timestamp), style = MaterialTheme.typography.bodyLarge)
+        if (isUnsynced) {
+            Text(
+                text = "время сбито",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.error
+            )
+        } else {
+            Text(text = formatTime(punch.timestamp), style = MaterialTheme.typography.bodyLarge)
+        }
     }
 }
 
@@ -269,7 +295,8 @@ private fun controlPointLabel(cp: Int): String = when (cp) {
     else -> "КП $cp"
 }
 
-private fun punchesWord(count: Int): String {
+/** Склонение слова «отметка» по числу. */
+internal fun punchesWord(count: Int): String {
     val mod100 = count % 100
     val mod10 = count % 10
     return when {
@@ -290,16 +317,16 @@ private fun formatDateTime(ms: Long): String =
 
 @Preview(name = "Ожидание чипа", showBackground = true)
 @Composable
-private fun ChipInspectWaitingPreview() {
-    MaterialTheme { ChipInspectContent(ChipInspectState()) }
+private fun InspectTabWaitingPreview() {
+    MaterialTheme { InspectTab(StationToolsState()) }
 }
 
 @Preview(name = "Чистый чип", showBackground = true)
 @Composable
-private fun ChipInspectCleanPreview() {
+private fun InspectTabCleanPreview() {
     MaterialTheme {
-        ChipInspectContent(
-            ChipInspectState(
+        InspectTab(
+            StationToolsState(
                 lastScan = ChipScan.Participant(
                     chipNumber = 123,
                     clearTime = 1700000000000L,
@@ -314,10 +341,10 @@ private fun ChipInspectCleanPreview() {
 
 @Preview(name = "Чип с отметками", showBackground = true)
 @Composable
-private fun ChipInspectPunchesPreview() {
+private fun InspectTabPunchesPreview() {
     MaterialTheme {
-        ChipInspectContent(
-            ChipInspectState(
+        InspectTab(
+            StationToolsState(
                 lastScan = ChipScan.Participant(
                     chipNumber = 123,
                     clearTime = 1700000000000L,
