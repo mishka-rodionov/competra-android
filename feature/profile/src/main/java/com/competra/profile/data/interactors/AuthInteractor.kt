@@ -6,6 +6,7 @@ import com.competra.domain.models.user.User
 import com.competra.domain.repository.auth.AuthRepository
 import com.competra.domain.repository.auth.TokenRepository
 import com.competra.domain.repository.fcm.FcmTokenRegistry
+import com.competra.domain.repository.livetrack.MyStartsRepository
 import com.competra.domain.repository.user.UserRepository
 
 class AuthInteractor(
@@ -13,6 +14,7 @@ class AuthInteractor(
     private val tokenRepository: TokenRepository,
     private val userRepository: UserRepository,
     private val fcmTokenRegistry: FcmTokenRegistry,
+    private val myStartsRepository: MyStartsRepository,
 ) {
 
     suspend fun authorize(email: String, code: String): Result<Any> {
@@ -33,6 +35,8 @@ class AuthInteractor(
         }
         userRepository.saveUser(user)
         runCatching { fcmTokenRegistry.refresh() }
+        // Кэш «моих стартов» — для карточки «Сегодня старт» и онлайн-трека без сети.
+        myStartsRepository.refresh()
     }
 
     suspend fun logout(): Result<Unit> {
@@ -40,6 +44,7 @@ class AuthInteractor(
             runCatching { fcmTokenRegistry.unregisterCurrent() }
             tokenRepository.clear()
             userRepository.clearUser()
+            myStartsRepository.clear()
         }
     }
 
@@ -55,6 +60,7 @@ class AuthInteractor(
             runCatching { fcmTokenRegistry.unregisterCurrent() }
             tokenRepository.clear()
             userRepository.clearUser()
+            myStartsRepository.clear()
         }
     }
 

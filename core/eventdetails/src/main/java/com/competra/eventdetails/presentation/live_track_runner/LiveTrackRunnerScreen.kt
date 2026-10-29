@@ -59,7 +59,7 @@ fun LiveTrackRunnerScreen(
         AlertDialog(
             onDismissRequest = { viewModel.onAction(LiveTrackRunnerAction.DismissStop) },
             title = { Text("Остановить трек?") },
-            text = { Text("Запись прекратится, уже записанные точки будут отправлены. Включить трек заново можно на странице соревнования.") },
+            text = { Text("Запись прекратится, уже записанные точки будут отправлены. Включить трек заново можно на странице соревнования или в карточке «Сегодня старт».") },
             confirmButton = { TextButton(onClick = { viewModel.onAction(LiveTrackRunnerAction.ConfirmStop) }) { Text("Остановить") } },
             dismissButton = { TextButton(onClick = { viewModel.onAction(LiveTrackRunnerAction.DismissStop) }) { Text("Продолжить запись") } }
         )
@@ -148,7 +148,9 @@ private fun statusTexts(state: LiveTrackRunnerState, session: RunnerTrackSession
         LiveTrackCloseReason.MANUAL -> "Трек остановлен" to "Трек сохранён в архиве соревнования."
         LiveTrackCloseReason.CONTROL_TIME -> "Трек закрыт" to "Истекло время на прохождение дистанции."
         LiveTrackCloseReason.INACTIVITY -> "Трек закрыт" to "Долго не поступали данные."
-        LiveTrackCloseReason.SESSION_LOST -> "Трек недоступен" to "Сервер не нашёл эту запись. Включите трек заново на странице соревнования."
+        LiveTrackCloseReason.SESSION_LOST -> session.rejectMessage
+            ?.let { "Трек не принят" to "Сервер отклонил трек: $it. Записанные точки удалены." }
+            ?: ("Трек недоступен" to "Сервер не нашёл эту запись. Включите трек заново на странице соревнования.")
         null -> if (session.status == LiveTrackStatus.ACTIVE) "Трек остановлен" to null else "Трек закрыт" to null
     }
 }
@@ -169,6 +171,9 @@ private fun uploadText(state: LiveTrackRunnerState, session: RunnerTrackSession)
     val isDraining = state.pendingPoints > 0 || (session.stopRequested && !session.stopDelivered)
     return when {
         session.isRecording -> when {
+            !session.isRegistered && state.recorder.lastUploadFailed ->
+                "Нет интернета — трек сохраняется в телефоне и загрузится, когда появится связь$queued"
+            !session.isRegistered -> "Подключаемся к серверу…$queued"
             state.recorder.lastUploadFailed -> "Нет связи — точки сохраняются в телефоне$queued"
             lastUploadAt != null -> "Отправлено ${formatAgo(state.now - lastUploadAt)} назад$queued"
             else -> "Ожидание первой отправки$queued"

@@ -33,6 +33,16 @@ class LiveTrackLocalRepositoryImpl(
 
     override suspend fun getSession(sessionId: String): RunnerTrackSession? = dao.getSession(sessionId)?.toDomain()
 
+    override suspend fun createLocalSession(session: RunnerTrackSession) =
+        dao.upsertSession(session.toEntity(inFlightBatchSeq = null))
+
+    override suspend fun markRejected(sessionId: String, message: String?) {
+        dropPending(sessionId)
+        dao.updateStatus(sessionId, LiveTrackStatus.STOPPED.name, LiveTrackCloseReason.SESSION_LOST.name)
+        dao.markStopDelivered(sessionId)
+        dao.setRejectMessage(sessionId, message)
+    }
+
     override suspend fun upsertStartedSession(session: RunnerTrackSession, serverLastBatchSeq: Int) =
         dao.upsertStarted(session.toEntity(inFlightBatchSeq = null), serverLastBatchSeq)
 
@@ -81,7 +91,9 @@ private fun LiveTrackSessionEntity.toDomain() = RunnerTrackSession(
     uploadIntervalSec = uploadIntervalSec,
     lastAckedBatchSeq = lastAckedBatchSeq,
     stopRequested = stopRequested,
-    stopDelivered = stopDelivered
+    stopDelivered = stopDelivered,
+    isRegistered = isRegistered,
+    rejectMessage = rejectMessage
 )
 
 private fun RunnerTrackSession.toEntity(inFlightBatchSeq: Int?) = LiveTrackSessionEntity(
@@ -95,5 +107,7 @@ private fun RunnerTrackSession.toEntity(inFlightBatchSeq: Int?) = LiveTrackSessi
     lastAckedBatchSeq = lastAckedBatchSeq,
     inFlightBatchSeq = inFlightBatchSeq,
     stopRequested = stopRequested,
-    stopDelivered = stopDelivered
+    stopDelivered = stopDelivered,
+    isRegistered = isRegistered,
+    rejectMessage = rejectMessage
 )

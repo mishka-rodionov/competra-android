@@ -9,6 +9,8 @@ import androidx.room.PrimaryKey
  *
  * @property inFlightBatchSeq Номер назначенного, но ещё не подтверждённого сервером батча:
  *   до подтверждения он отправляется повторно с тем же номером (идемпотентность на сервере).
+ * @property isRegistered Сервер уже знает о сессии (до v59 сессии создавал сервер — `true`).
+ * @property rejectMessage Текст отказа сервера, если он не принял сессию.
  */
 @Entity(tableName = "live_track_runner_sessions", indices = [Index("competitionId")])
 data class LiveTrackSessionEntity(
@@ -22,7 +24,9 @@ data class LiveTrackSessionEntity(
     val lastAckedBatchSeq: Int,
     val inFlightBatchSeq: Int?,
     val stopRequested: Boolean,
-    val stopDelivered: Boolean
+    val stopDelivered: Boolean,
+    val isRegistered: Boolean = true,
+    val rejectMessage: String? = null
 )
 
 /**
@@ -37,4 +41,20 @@ data class LiveTrackPointEntity(
     val lon: Double,
     val accuracy: Float?,
     val batchSeq: Int?
+)
+
+/**
+ * Соревнование, на которое зарегистрирован пользователь (см. `MyStart`): кэш списка
+ * `competitions/registered` для карточки «Сегодня старт» без сети.
+ */
+@Entity(tableName = "my_starts")
+data class MyStartEntity(
+    @PrimaryKey val competitionId: String,
+    val title: String,
+    val startDate: Long,
+    val endDate: Long?,
+    val timeZoneId: String,
+    val address: String?,
+    val status: String,
+    val controlTimeMinutes: Int?
 )

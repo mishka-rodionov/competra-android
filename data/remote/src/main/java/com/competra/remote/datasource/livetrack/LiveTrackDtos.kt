@@ -2,10 +2,15 @@ package com.competra.remote.datasource.livetrack
 
 import com.google.gson.annotations.SerializedName
 
-/** `POST /api/live-track/sessions`: участник определяется сервером по JWT. */
+/**
+ * `POST /api/live-track/sessions`: участник определяется сервером по JWT. [clientSessionId] —
+ * UUID сессии, созданной телефоном, [recordedFrom] — начало записи (запись могла идти без сети).
+ */
 data class LiveTrackStartRequest(
     @SerializedName("competitionId") val competitionId: String,
-    @SerializedName("consent") val consent: Boolean
+    @SerializedName("consent") val consent: Boolean,
+    @SerializedName("clientSessionId") val clientSessionId: String,
+    @SerializedName("recordedFrom") val recordedFrom: Long
 )
 
 /** Ответ на старт/возобновление сессии. */

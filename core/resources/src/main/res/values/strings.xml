@@ -110,6 +110,13 @@
     <string name="events_error_title">Не удалось загрузить соревнования</string>
     <string name="events_error_subtitle">Проверьте подключение к интернету и попробуйте снова</string>
     <string name="events_error_retry">Повторить</string>
+    <string name="today_start_title">Сегодня старт</string>
+    <string name="today_start_time">Начало в %1$s</string>
+    <string name="today_start_track_button">Начать трек</string>
+    <string name="today_start_track_hint">Можно без интернета — трек загрузится, когда появится связь</string>
+    <string name="today_start_recording">Идёт запись трека</string>
+    <string name="today_start_uploading">Трек загружается на сервер</string>
+    <string name="today_start_open_track">Открыть</string>
 
     <!-- Competition Status -->
     <string name="status_draft">Черновик</string>

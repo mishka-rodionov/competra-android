@@ -25,15 +25,14 @@ import com.competra.domain.repository.NetworkErrorRepository
 import com.competra.domain.repository.clubs.ClubRepository
 import com.competra.domain.repository.events.CyclicEventDetailsRepository
 import com.competra.domain.repository.user.UserRepository
-import com.competra.core.tracking.CompetitionTrackingController
-import com.competra.core.tracking.LiveTrackEngine
+import com.competra.core.tracking.LiveTrackStarter
 import com.competra.domain.models.cyclic_event.CyclicEventDetails
 import com.competra.domain.models.events.EventStatus
 import com.competra.domain.models.events.EventType
-import com.competra.domain.models.livetrack.LiveTrackRejectedException
 import com.competra.domain.models.livetrack.RunnerTrackSession
 import com.competra.domain.repository.livetrack.LiveTrackLocalRepository
 import com.competra.domain.repository.livetrack.LiveTrackViewerRepository
+import com.competra.domain.repository.livetrack.MyStartsRepository
 import com.competra.eventdetails.data.details.EventDetailsState
 import com.competra.eventdetails.data.details.LiveTrackEntry
 import com.competra.eventdetails.data.registration.RegistrationTeamState
@@ -59,8 +58,8 @@ import java.util.concurrent.TimeUnit
  * @param networkErrorRepository Репозиторий для передачи сетевых ошибок в MainActivity.
  * @param clubRepository Репозиторий клубов — используется для резолва названия клуба-организатора.
  * @param liveTrackLocalRepository Локальная сессия онлайн-трека бегуна и согласие на публикацию.
- * @param liveTrackEngine Старт сессии онлайн-трекинга на сервере.
- * @param trackingController Запуск сервиса записи трека.
+ * @param liveTrackStarter Включение онлайн-трека (работает и без сети).
+ * @param myStartsRepository Кэш соревнований пользователя — обновляется после регистрации/отмены.
  * @param liveTrackViewerRepository Есть ли у соревнования онлайн-треки (кнопка для зрителя).
  * @param pendingTabNavigationRepository Отложенный переход в карточку клуба во вкладке «Клубы».
  */
@@ -74,8 +73,8 @@ class EventDetailsViewModel(
     private val analytics: AnalyticsTracker,
     private val clubRepository: ClubRepository,
     private val liveTrackLocalRepository: LiveTrackLocalRepository,
-    private val liveTrackEngine: LiveTrackEngine,
-    private val trackingController: CompetitionTrackingController,
+    private val liveTrackStarter: LiveTrackStarter,
+    private val myStartsRepository: MyStartsRepository,
     private val liveTrackViewerRepository: LiveTrackViewerRepository,
     private val pendingTabNavigationRepository: PendingTabNavigationRepository,
 ) : BaseViewModel<EventDetailsState>(
@@ -271,6 +270,8 @@ class EventDetailsViewModel(
                         )
                     }
                     refreshLiveTrackEntry()
+                    // Кэш «моих стартов» — для карточки «Сегодня старт» и трека без сети.
+                    myStartsRepository.refresh()
                 }
                 .onFailure { e ->
                     updateState {
@@ -296,6 +297,7 @@ class EventDetailsViewModel(
                 .onSuccess {
                     updateState { copy(isRegistering = false, isUserRegistered = false) }
                     refreshLiveTrackEntry()
+                    myStartsRepository.refresh()
                 }
                 .onFailure { e ->
                     updateState { copy(isRegistering = false, error = e.message) }
@@ -399,27 +401,17 @@ class EventDetailsViewModel(
         startLiveTrack()
     }
 
-    /** Старт сессии на сервере → запуск сервиса записи → экран записи. */
+    /**
+     * Сессия на телефоне → запуск сервиса записи → экран записи. Сеть не нужна: сервер узнает о треке
+     * при первой связи, его отказ бегун увидит на экране записи.
+     */
     private fun startLiveTrack() {
         val eventId = stateValue.eventDetails?.eventId ?: return
         if (stateValue.isStartingLiveTrack) return
         viewModelScope.launch {
             updateState { copy(isStartingLiveTrack = true) }
-            liveTrackEngine.start(eventId)
-                .onSuccess { session ->
-                    trackingController.startRecording(session.sessionId)
-                    navigation.navigate(EventsNavigation.LiveTrackRunnerRoute(eventId = eventId))
-                }
-                .onFailure { error ->
-                    // Отказ сервера (не тот день, уже есть результат…) — показываем его текст.
-                    val rejected = error as? LiveTrackRejectedException
-                    networkErrorRepository.emit(
-                        NetworkErrorEvent(
-                            code = rejected?.httpCode,
-                            message = rejected?.message ?: "Сервер онлайн-трекинга недоступен, попробуйте ещё раз"
-                        )
-                    )
-                }
+            liveTrackStarter.start(eventId, AnalyticsEvent.LiveTrackStartSource.DETAILS)
+            navigation.navigate(EventsNavigation.LiveTrackRunnerRoute(eventId = eventId))
             updateState { copy(isStartingLiveTrack = false) }
         }
     }

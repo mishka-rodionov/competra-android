@@ -19,9 +19,10 @@ enum class LiveTrackStatus {
 enum class LiveTrackCloseReason { MANUAL, RESULT_SAVED, CONTROL_TIME, INACTIVITY, SESSION_LOST }
 
 /**
- * Локальная сессия онлайн-трекинга бегуна.
+ * Локальная сессия онлайн-трекинга бегуна. Создаётся на телефоне (запись начинается и без сети),
+ * сервер узнаёт о ней при первой связи — см. [isRegistered].
  *
- * @property sessionId Id сессии на сервере.
+ * @property sessionId UUID сессии; телефон создаёт его сам, сервер принимает как `clientSessionId`.
  * @property competitionId Соревнование.
  * @property status Последний известный статус на сервере.
  * @property closeReason Причина закрытия, если сессия закрыта.
@@ -32,6 +33,10 @@ enum class LiveTrackCloseReason { MANUAL, RESULT_SAVED, CONTROL_TIME, INACTIVITY
  * @property stopRequested Бегун нажал «Стоп»: запись GPS прекращена, осталось дослать буфер и
  *   сообщить серверу об остановке.
  * @property stopDelivered Сервер подтвердил остановку (или сам закрыл сессию).
+ * @property isRegistered Сервер уже знает о сессии. До этого точки копятся в телефоне, а
+ *   [status] и [deadlineAt] — локальные.
+ * @property rejectMessage Почему сервер не принял сессию (не зарегистрирован, трек слишком старый…),
+ *   если отказал; точки при этом удалены.
  */
 data class RunnerTrackSession(
     val sessionId: String,
@@ -43,7 +48,9 @@ data class RunnerTrackSession(
     val uploadIntervalSec: Int,
     val lastAckedBatchSeq: Int,
     val stopRequested: Boolean,
-    val stopDelivered: Boolean
+    val stopDelivered: Boolean,
+    val isRegistered: Boolean = true,
+    val rejectMessage: String? = null
 ) {
     /** Идёт ли запись GPS: сессия активна на сервере, бегун её не останавливал. */
     val isRecording: Boolean get() = status == LiveTrackStatus.ACTIVE && !stopRequested

@@ -1,7 +1,9 @@
 package com.competra.local.database
 
 import com.competra.local.dao.livetrack.LiveTrackDao
+import com.competra.local.dao.livetrack.MyStartDao
 import com.competra.local.entities.livetrack.LiveTrackPointEntity
+import com.competra.local.entities.livetrack.MyStartEntity
 import com.competra.local.entities.livetrack.LiveTrackSessionEntity
 import androidx.room.Database
 import androidx.room.RoomDatabase
@@ -43,7 +45,8 @@ import com.competra.local.entities.user.UserEntity
 // v49: номер стартового КП дистанции (startControlPoint) — для StartTimeMode.BY_START_STATION.
 // v52: буфер онлайн-трекинга бегуна (live_track_runner_sessions / live_track_runner_points).
 // v53: координаты старта и финиша дистанции — темп на первом/последнем перегоне.
-private const val DB_VERSION = 58
+// v59: сессия онлайн-трека создаётся телефоном (isRegistered, rejectMessage) + кэш my_starts.
+private const val DB_VERSION = 59
 
 /**
  * Основной класс базы данных приложения (Room).
@@ -63,7 +66,8 @@ private const val DB_VERSION = 58
         BikeDetailsEntity::class,
         SkiDetailsEntity::class,
         LiveTrackSessionEntity::class,
-        LiveTrackPointEntity::class
+        LiveTrackPointEntity::class,
+        MyStartEntity::class
     ],
     version = DB_VERSION,
     exportSchema = false
@@ -83,4 +87,5 @@ abstract class CompetraDatabase : RoomDatabase() {
     abstract fun distanceDao(): DistanceDao
     abstract fun workoutDao(): WorkoutDao
     abstract fun liveTrackDao(): LiveTrackDao
+    abstract fun myStartDao(): MyStartDao
 }

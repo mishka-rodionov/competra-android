@@ -74,6 +74,9 @@ interface LiveTrackDao {
     @Query("DELETE FROM live_track_runner_points WHERE sessionId = :sessionId")
     suspend fun deletePoints(sessionId: String)
 
+    @Query("UPDATE live_track_runner_sessions SET rejectMessage = :message WHERE sessionId = :sessionId")
+    suspend fun setRejectMessage(sessionId: String, message: String?)
+
     /**
      * Батч к отправке. Назначение номера и точек — в одной транзакции: иначе при убийстве процесса
      * между шагами часть точек осталась бы с номером, которого сессия «не помнит».

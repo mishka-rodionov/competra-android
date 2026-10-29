@@ -28,7 +28,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -56,6 +58,9 @@ import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.ResultsStatus
 import com.competra.resources.R
 import com.competra.events.data.main.EventsAction
+import com.competra.events.data.main.TodayStart
+import com.competra.eventdetails.presentation.live_track_runner.LiveTrackConsentDialog
+import com.competra.eventdetails.presentation.live_track_runner.LiveTrackPermissionsEffect
 import com.competra.events.presentation.filter.EventsFilterBottomSheet
 import com.competra.utils.DateTimeFormat
 import androidx.compose.material3.IconButton
@@ -63,8 +68,9 @@ import androidx.compose.ui.res.stringResource
 import org.koin.androidx.compose.koinViewModel
 
 /**
- * Экран списка событий.
+ * Экран списка событий. Список обновляется жестом pull-to-refresh.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventsScreen(viewModel: EventsViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -78,39 +84,77 @@ fun EventsScreen(viewModel: EventsViewModel = koinViewModel()) {
             onResetFilter = { viewModel.onAction(EventsAction.ResetFilter) }
         )
 
-        if (refreshState is LoadState.Error) {
-            EventsErrorState(
-                onRetry = { events.retry() },
-                modifier = Modifier.fillMaxSize()
-            )
-        } else if (events.itemCount == 0 && refreshState !is LoadState.Loading) {
-            EventsEmptyState(
-                isFilterActive = !state.appliedFilter.isEmpty,
-                onResetFilter = { viewModel.onAction(EventsAction.ResetFilter) },
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_HALFER.dp), // Отступ между карточками 12 dp
-                contentPadding = PaddingValues(
-                    horizontal = Dimens.SIZE_BASE.dp, // Поля по бокам 16 dp
-                    vertical = Dimens.SIZE_HALFER.dp   // Поля сверху/снизу 12 dp
+        // Над списком, а не в нём: карточка нужна и когда список не загрузился (нет сети на старте).
+        state.todayStarts.forEach { todayStart ->
+            TodayStartCard(
+                todayStart = todayStart,
+                onAction = viewModel::onAction,
+                modifier = Modifier.padding(
+                    start = Dimens.SIZE_BASE.dp,
+                    end = Dimens.SIZE_BASE.dp,
+                    bottom = Dimens.SIZE_HALF.dp
                 )
-            ) {
-                items(count = events.itemCount, key = events.itemKey { it.id }) { index ->
-                    events[index]?.let { item ->
-                        EventItem(item, userAction = viewModel::onAction)
-                    }
-                }
-                item {
-                    EventsAppendFooter(
-                        loadState = events.loadState.append,
-                        onRetry = { events.retry() }
+            )
+        }
+
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = {
+                viewModel.onAction(EventsAction.Refresh)
+                events.refresh()
+            },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Ошибку на весь экран показываем, только если показать нечего: при неудачном
+            // обновлении уже загруженный список остаётся (о сбое сообщит глобальный диалог).
+            if (refreshState is LoadState.Error && events.itemCount == 0) {
+                EventsStateContainer {
+                    EventsErrorState(
+                        onRetry = { events.retry() },
+                        modifier = Modifier.fillMaxSize()
                     )
+                }
+            } else if (events.itemCount == 0 && refreshState !is LoadState.Loading) {
+                EventsStateContainer {
+                    EventsEmptyState(
+                        isFilterActive = !state.appliedFilter.isEmpty,
+                        onResetFilter = { viewModel.onAction(EventsAction.ResetFilter) },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_HALFER.dp), // Отступ между карточками 12 dp
+                    contentPadding = PaddingValues(
+                        horizontal = Dimens.SIZE_BASE.dp, // Поля по бокам 16 dp
+                        vertical = Dimens.SIZE_HALFER.dp   // Поля сверху/снизу 12 dp
+                    )
+                ) {
+                    items(count = events.itemCount, key = events.itemKey { it.id }) { index ->
+                        events[index]?.let { item ->
+                            EventItem(item, userAction = viewModel::onAction)
+                        }
+                    }
+                    item {
+                        EventsAppendFooter(
+                            loadState = events.loadState.append,
+                            onRetry = { events.retry() }
+                        )
+                    }
                 }
             }
         }
+    }
+
+    state.liveTrackConsentFor?.let {
+        LiveTrackConsentDialog(
+            onAccept = { viewModel.onAction(EventsAction.LiveTrackConsentAccepted) },
+            onDismiss = { viewModel.onAction(EventsAction.LiveTrackConsentDismissed) }
+        )
+    }
+    LiveTrackPermissionsEffect(viewModel.liveTrackPermissionRequests) { granted ->
+        viewModel.onAction(EventsAction.LiveTrackPermissionsResult(granted))
     }
 
     if (state.isFilterDialogOpen) {
@@ -119,6 +163,90 @@ fun EventsScreen(viewModel: EventsViewModel = koinViewModel()) {
             onApply = { viewModel.onAction(EventsAction.ApplyFilter(it)) },
             onDismiss = { viewModel.onAction(EventsAction.CloseFilterDialog) }
         )
+    }
+}
+
+/**
+ * Карточка «Сегодня старт»: соревнование пользователя на сегодня из локального кэша и кнопка
+ * онлайн-трека, которая работает без интернета. Тап по карточке открывает детали соревнования.
+ */
+@Composable
+private fun TodayStartCard(
+    todayStart: TodayStart,
+    onAction: (EventsAction) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val start = todayStart.start
+    val session = todayStart.session
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickRipple { onAction(EventsAction.EventClick(start.competitionId)) },
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
+            Text(
+                text = stringResource(R.string.today_start_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(Dimens.SIZE_QUARTER.dp))
+            Text(
+                text = start.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = stringResource(R.string.today_start_time, DateTimeFormat.transformLongToTime(start.startDate, start.zone)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+            if (todayStart.isTrackInProgress) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(
+                            if (session?.isRecording == true) R.string.today_start_recording else R.string.today_start_uploading
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedButton(onClick = { onAction(EventsAction.OpenLiveTrack(start.competitionId)) }) {
+                        Text(text = stringResource(R.string.today_start_open_track))
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { onAction(EventsAction.StartLiveTrack(start.competitionId)) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(text = stringResource(R.string.today_start_track_button))
+                }
+                Spacer(modifier = Modifier.height(Dimens.SIZE_QUARTER.dp))
+                Text(
+                    text = stringResource(R.string.today_start_track_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Прокручиваемая обёртка для пустого состояния и ошибки на весь экран: без вложенной прокрутки
+ * жест pull-to-refresh на них не срабатывает.
+ */
+@Composable
+private fun EventsStateContainer(content: @Composable () -> Unit) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item { Box(modifier = Modifier.fillParentMaxSize()) { content() } }
     }
 }
 

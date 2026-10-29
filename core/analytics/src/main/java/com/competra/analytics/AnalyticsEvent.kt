@@ -91,10 +91,32 @@ sealed class AnalyticsEvent(
 
     // region Live track (онлайн-трекинг бегуна)
 
-    /** Бегун включил онлайн-трекинг (или возобновил уже идущую на сервере сессию). */
-    class LiveTrackStarted(competitionId: String, isResumed: Boolean) : AnalyticsEvent(
+    /** Откуда бегун включил онлайн-трек. */
+    enum class LiveTrackStartSource { DETAILS, TODAY_CARD }
+
+    /**
+     * Бегун включил онлайн-трекинг (или продолжил уже идущую запись — [isResumed]); [offline] —
+     * в момент включения не было сети, трек уйдёт на сервер позже.
+     */
+    class LiveTrackStarted(
+        competitionId: String,
+        isResumed: Boolean,
+        source: LiveTrackStartSource,
+        offline: Boolean
+    ) : AnalyticsEvent(
         "live_track_started",
-        mapOf("competition_id" to competitionId, "is_resumed" to isResumed),
+        mapOf(
+            "competition_id" to competitionId,
+            "is_resumed" to isResumed,
+            "source" to source.name.lowercase(),
+            "offline" to offline
+        ),
+    )
+
+    /** Сервер не принял трек, записанный на телефоне (не зарегистрирован, трек старше 48 ч…). */
+    class LiveTrackRejected(competitionId: String, httpCode: Int) : AnalyticsEvent(
+        "live_track_rejected",
+        mapOf("competition_id" to competitionId, "http_code" to httpCode),
     )
 
     /** Зритель открыл онлайн-треки соревнования (кнопка на деталях события). */

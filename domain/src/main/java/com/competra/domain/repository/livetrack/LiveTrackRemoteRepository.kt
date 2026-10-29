@@ -12,8 +12,11 @@ import com.competra.domain.models.livetrack.RunnerTrackPoint
  */
 interface LiveTrackRemoteRepository {
 
-    /** Старт или возобновление сессии текущего пользователя в соревновании (с согласием). */
-    suspend fun start(competitionId: String): Result<LiveTrackStartResult>
+    /**
+     * Регистрация на сервере сессии, созданной телефоном (с согласием): [clientSessionId] — её UUID,
+     * [recordedFrom] — когда началась запись. Повтор с тем же id возвращает ту же сессию.
+     */
+    suspend fun start(competitionId: String, clientSessionId: String, recordedFrom: Long): Result<LiveTrackStartResult>
 
     /** Отправка батча; батчи отправляются строго последовательно. */
     suspend fun sendPoints(sessionId: String, batchSeq: Int, points: List<RunnerTrackPoint>): Result<LiveTrackAck>

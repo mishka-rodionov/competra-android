@@ -38,3 +38,5 @@
 - [groups-without-distance](groups-without-distance/README.md) — группы без дистанции: регистрация открывается до планирования дистанций, метки и баннеры, блокировка жеребьёвки по дистанциям, чтения чипа и публикации результатов.
 - [participant-history-suggestions](participant-history-suggestions/README.md) — подсказки в диалоге «Новый участник» из прошлых соревнований организатора (фамилия, имя и команда в одно касание) и массовое добавление со списком и галочками.
 - [distance-map-visibility](distance-map-visibility/README.md) — карта и координаты дистанции до старта видны только организаторам, остальным — с момента старта; удаление заменённого файла карты.
+- [events-list-refresh](events-list-refresh/README.md) — обновление списка соревнований жестом pull-to-refresh (Android).
+- [live-track-offline-start](live-track-offline-start/README.md) — онлайн-трек без интернета: карточка «Сегодня старт» на вкладке «События», запись в телефоне и загрузка при появлении связи, приём трека задним числом.

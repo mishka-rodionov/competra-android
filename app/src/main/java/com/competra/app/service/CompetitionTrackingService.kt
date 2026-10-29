@@ -11,6 +11,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import com.competra.analytics.AnalyticsEvent
 import com.competra.app.R
 import com.competra.core.tracking.GpsLocationSource
 import com.competra.core.tracking.LiveTrackEngine
@@ -115,9 +116,17 @@ class CompetitionTrackingService : Service() {
         serviceScope.launch { watchSession(id) }
     }
 
-    /** Раз в несколько секунд сверяется с Room: запись могла закончиться (стоп, сервер закрыл сессию). */
+    /**
+     * Раз в несколько секунд сверяется с Room: запись могла закончиться (стоп, сервер закрыл сессию).
+     * Истёк срок сессии ([RunnerTrackSession.deadlineAt]: серверный или, пока связи не было, локальный) —
+     * запись останавливается сама: без сети сервер не может закрыть её по контрольному времени.
+     */
     private suspend fun watchSession(id: String) {
         while (workJob?.isActive == true && sessionId == id) {
+            val session = local.getSession(id)
+            if (session?.isRecording == true && System.currentTimeMillis() > session.deadlineAt) {
+                engine.requestStop(id, AnalyticsEvent.LiveTrackStopReason.CONTROL_TIME)
+            }
             refreshRecording(local.getSession(id))
             delay(WATCH_INTERVAL_MS)
         }

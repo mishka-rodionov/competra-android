@@ -22,6 +22,12 @@ interface LiveTrackLocalRepository {
     /** Сессия по id. */
     suspend fun getSession(sessionId: String): RunnerTrackSession?
 
+    /** Создаёт сессию, начатую на телефоне (сервер о ней ещё не знает). */
+    suspend fun createLocalSession(session: RunnerTrackSession)
+
+    /** Сервер не принял сессию: точки удаляются, сессия закрывается с причиной [message]. */
+    suspend fun markRejected(sessionId: String, message: String?)
+
     /**
      * Сохраняет сессию после старта/возобновления на сервере и согласует нумерацию батчей:
      * батчи с номером не больше [serverLastBatchSeq] сервер уже принял — они считаются

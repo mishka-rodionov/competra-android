@@ -460,3 +460,21 @@ val MIGRATION_57_58 = object : Migration(57, 58) {
         db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN organizerName TEXT")
     }
 }
+
+/**
+ * Миграция с версии 58 на 59.
+ * Онлайн-трек без сети: сессию создаёт телефон (isRegistered — сервер о ней знает, rejectMessage —
+ * отказ сервера) и кэш соревнований пользователя для карточки «Сегодня старт».
+ */
+val MIGRATION_58_59 = object : Migration(58, 59) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE live_track_runner_sessions ADD COLUMN isRegistered INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE live_track_runner_sessions ADD COLUMN rejectMessage TEXT")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS my_starts (" +
+                "competitionId TEXT NOT NULL, title TEXT NOT NULL, startDate INTEGER NOT NULL, endDate INTEGER, " +
+                "timeZoneId TEXT NOT NULL, address TEXT, status TEXT NOT NULL, controlTimeMinutes INTEGER, " +
+                "PRIMARY KEY(competitionId))"
+        )
+    }
+}

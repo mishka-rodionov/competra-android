@@ -4,7 +4,6 @@ import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.competra.domain.models.Competition
 import com.competra.domain.models.events.EventsFilter
-import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.events.EventsRepository
 
 /** Размер страницы публичного списка событий. Должен совпадать с limit, который уходит на бэкенд. */
@@ -13,14 +12,15 @@ const val EVENTS_PAGE_SIZE = 20
 /**
  * Источник страниц публичного списка событий. Пересоздаётся при смене [filter] (см. EventsViewModel).
  *
- * Глобальный лоадер ([loadingRepository]) и глобальный диалог сетевой ошибки ([onRefreshError])
+ * Индикатор загрузки ([onRefreshLoading]) и глобальный диалог сетевой ошибки ([onRefreshError])
  * задействуются только на первой странице (refresh) — ошибка догрузки следующей страницы
- * во время скролла показывается локально в футере списка, без модального диалога.
+ * во время скролла показывается локально в футере списка, без модального диалога. Какой
+ * индикатор показать (глобальный лоадер или pull-to-refresh), решает ViewModel.
  */
 class EventsPagingSource(
     private val eventsRepository: EventsRepository,
     private val filter: EventsFilter,
-    private val loadingRepository: LoadingRepository,
+    private val onRefreshLoading: suspend (Boolean) -> Unit,
     private val onRefreshError: (Throwable) -> Unit
 ) : PagingSource<Int, Competition>() {
 
@@ -33,11 +33,11 @@ class EventsPagingSource(
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Competition> {
         val page = params.key ?: 0
         val isRefresh = params is LoadParams.Refresh
-        if (isRefresh) loadingRepository.emit(true)
+        if (isRefresh) onRefreshLoading(true)
 
         val result = eventsRepository.getEvents(filter = filter, page = page, limit = EVENTS_PAGE_SIZE)
 
-        if (isRefresh) loadingRepository.emit(false)
+        if (isRefresh) onRefreshLoading(false)
 
         return result.fold(
             onSuccess = { paged ->

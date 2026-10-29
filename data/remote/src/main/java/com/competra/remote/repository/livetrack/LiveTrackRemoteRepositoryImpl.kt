@@ -27,8 +27,15 @@ class LiveTrackRemoteRepositoryImpl(
     private val gson: Gson
 ) : LiveTrackRemoteRepository {
 
-    override suspend fun start(competitionId: String): Result<LiveTrackStartResult> = call {
-        dataSource.start(LiveTrackStartRequest(competitionId = competitionId, consent = true))
+    override suspend fun start(competitionId: String, clientSessionId: String, recordedFrom: Long): Result<LiveTrackStartResult> = call {
+        dataSource.start(
+            LiveTrackStartRequest(
+                competitionId = competitionId,
+                consent = true,
+                clientSessionId = clientSessionId,
+                recordedFrom = recordedFrom
+            )
+        )
     }.map {
         LiveTrackStartResult(
             sessionId = it.sessionId,
