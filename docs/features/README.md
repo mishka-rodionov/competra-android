@@ -41,3 +41,4 @@
 - [events-list-refresh](events-list-refresh/README.md) — обновление списка соревнований жестом pull-to-refresh (Android).
 - [center-background-refresh](center-background-refresh/README.md) — «Центр» и управление соревнованием без блокирующего лоадера: локальные данные сразу, обновление с сервера в фоне, строка статуса «Офлайн», pull-to-refresh.
 - [live-track-offline-start](live-track-offline-start/README.md) — онлайн-трек без интернета: карточка «Сегодня старт» на вкладке «События», запись в телефоне и загрузка при появлении связи, приём трека задним числом.
+- [distance-details](distance-details/README.md) — подробности дистанции в вебе: порядок КП, загрузились ли координаты, длины перегонов; порядок КП в превью IOF XML мастера.
