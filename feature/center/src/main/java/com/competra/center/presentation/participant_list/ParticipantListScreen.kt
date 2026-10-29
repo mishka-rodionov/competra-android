@@ -51,6 +51,7 @@ import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.ParticipantGroupParticipants
 import com.competra.resources.R
 import com.competra.ui.BaseAction
+import com.competra.ui.millisUntilNextCountdownTick
 import com.competra.ui.CompetitionStartTimeRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -153,11 +154,17 @@ fun ParticipantListContent(
         userAction.invoke(ParticipantListAction.SetParticipantDns(participant, isDns))
     }
     var currentTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(isCompetitionRunning) {
+    LaunchedEffect(isCompetitionRunning, state.participantGroupWithParticipants) {
         if (isCompetitionRunning) {
+            // Тик на границах секунд до ближайшего старта — отсчёт совпадает с сигналами
             while (true) {
-                delay(500)
-                currentTimeMs = System.currentTimeMillis()
+                val now = System.currentTimeMillis()
+                currentTimeMs = now
+                val nextStart = state.participantGroupWithParticipants
+                    .flatMap { it.participants }
+                    .filter { it.startTime > now }
+                    .minOfOrNull { it.startTime }
+                delay(millisUntilNextCountdownTick(now, nextStart))
             }
         }
     }

@@ -29,6 +29,7 @@ import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.resources.R
 import com.competra.ui.BaseAction
+import com.competra.ui.millisUntilNextCountdownTick
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -69,12 +70,15 @@ fun StartGridContent(
     val pagerState = rememberPagerState { slots.size }
     val scope = rememberCoroutineScope()
 
-    // Тикаем «сейчас» раз в полсекунды для обратного отсчёта в шапке страницы.
+    // Тикаем «сейчас» на границах секунд до ближайшего старта — цифра в шапке страницы
+    // меняется одновременно с баннером и предстартовыми сигналами.
     var currentTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(slots) {
         while (true) {
-            currentTimeMs = System.currentTimeMillis()
-            delay(500)
+            val now = System.currentTimeMillis()
+            currentTimeMs = now
+            val nextStart = slots.filter { it.startTime > now }.minOfOrNull { it.startTime }
+            delay(millisUntilNextCountdownTick(now, nextStart))
         }
     }
 
@@ -217,7 +221,8 @@ private fun SlotHeader(
         !isCompetitionRunning -> null
         msLeft <= 0L -> "стартовали"
         else -> {
-            val totalSec = msLeft / 1000L
+            // Округляем вверх, как баннер и сигналы: «00:03» держится до сигнала «3» включительно
+            val totalSec = (msLeft + 999L) / 1000L
             "до старта %02d:%02d".format(totalSec / 60, totalSec % 60)
         }
     }
