@@ -999,7 +999,8 @@ fun DeleteParticipantDialog(
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
                 Text(
-                    text = "${participant.firstName} ${participant.lastName} (№${participant.startNumber})",
+                    text = "${participant.firstName} ${participant.lastName}" +
+                        participant.startNumber.takeIf { it.isNotBlank() }?.let { " (№$it)" }.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1065,10 +1066,9 @@ fun ParticipantList(
         ),
         verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_HALF.dp)
     ) {
-        itemsIndexed(participants) { index, participant ->
+        itemsIndexed(participants) { _, participant ->
             ParticipantCard(
                 participant = participant,
-                displayIndex = index + 1,
                 showGroupName = showGroupName,
                 currentTimeMs = currentTimeMs,
                 isCompetitionRunning = isCompetitionRunning,
@@ -1085,7 +1085,6 @@ fun ParticipantList(
 @Composable
 fun ParticipantCard(
     participant: OrienteeringParticipant,
-    displayIndex: Int,
     showGroupName: Boolean = false,
     currentTimeMs: Long = 0L,
     isCompetitionRunning: Boolean = false,
@@ -1130,7 +1129,9 @@ fun ParticipantCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = participant.startNumber.ifEmpty { displayIndex.toString() },
+                    // Без номера (до жеребьёвки) — прочерк, а не порядковый номер строки,
+                    // чтобы не путать его с настоящим стартовым номером / номером чипа
+                    text = participant.startNumber.ifEmpty { "—" },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer

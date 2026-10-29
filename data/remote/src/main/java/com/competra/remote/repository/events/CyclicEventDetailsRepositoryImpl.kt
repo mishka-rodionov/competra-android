@@ -164,7 +164,8 @@ class CyclicEventDetailsRepositoryImpl(
             groupName = groupName,
             competitionId = "",
             commandName = commandName ?: "",
-            startNumber = startNumber.toString(),
+            // 0 — номер ещё не назначен (самостоятельная регистрация до жеребьёвки)
+            startNumber = startNumber.takeIf { it > 0 }?.toString().orEmpty(),
             startTime = startTime,
             chipNumber = chipNumber.toString(),
             comment = comment ?: "",

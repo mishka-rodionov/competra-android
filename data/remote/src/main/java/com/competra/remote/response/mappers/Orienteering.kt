@@ -139,7 +139,8 @@ fun OrienteeringParticipantResponse.toDomain(): OrienteeringParticipant {
         groupName = groupName.orEmpty(),
         competitionId = competitionId.orEmpty(),
         commandName = commandName.orEmpty(),
-        startNumber = startNumber.orEmpty(),
+        // 0 — номер ещё не назначен (самостоятельная регистрация до жеребьёвки)
+        startNumber = startNumber?.takeUnless { it == "0" }.orEmpty(),
         startTime = startTime ?: 0L,
         chipNumber = chipNumber.orEmpty(),
         comment = comment.orEmpty(),

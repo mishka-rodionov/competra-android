@@ -226,10 +226,9 @@ fun DrawParticipantsScreen(viewModel: DrawViewModel = koinViewModel()) {
                         itemsIndexed(
                             items = participants,
                             key = { _, p -> p.id }
-                        ) { index, participant ->
+                        ) { _, participant ->
                             ParticipantCard(
                                 participant = participant,
-                                displayIndex = index + 1,
                                 onEditClick = {},
                                 onDeleteClick = {}
                             )
