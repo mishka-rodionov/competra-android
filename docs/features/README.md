@@ -39,4 +39,5 @@
 - [participant-history-suggestions](participant-history-suggestions/README.md) — подсказки в диалоге «Новый участник» из прошлых соревнований организатора (фамилия, имя и команда в одно касание) и массовое добавление со списком и галочками.
 - [distance-map-visibility](distance-map-visibility/README.md) — карта и координаты дистанции до старта видны только организаторам, остальным — с момента старта; удаление заменённого файла карты.
 - [events-list-refresh](events-list-refresh/README.md) — обновление списка соревнований жестом pull-to-refresh (Android).
+- [center-background-refresh](center-background-refresh/README.md) — «Центр» и управление соревнованием без блокирующего лоадера: локальные данные сразу, обновление с сервера в фоне, строка статуса «Офлайн», pull-to-refresh.
 - [live-track-offline-start](live-track-offline-start/README.md) — онлайн-трек без интернета: карточка «Сегодня старт» на вкладке «События», запись в телефоне и загрузка при появлении связи, приём трека задним числом.

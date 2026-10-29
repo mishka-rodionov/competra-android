@@ -5,11 +5,13 @@ import com.competra.designsystem.components.NetworkImage
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -25,10 +27,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.competra.designsystem.components.clickRipple
 import com.competra.designsystem.theme.Dimens
 import com.competra.center.data.CenterEffects
 import com.competra.center.data.main.CenterState
+import com.competra.center.data.refresh.RemoteRefreshState
+import com.competra.center.presentation.common.RefreshStatusBar
 import com.competra.domain.models.Competition
 import com.competra.domain.models.Coordinates
 import com.competra.domain.models.KindOfSport
@@ -51,8 +57,10 @@ fun CenterScreen(viewModel: CenterViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
     val handleEffects = remember { viewModel::handleEffects }
 
-    LaunchedEffect(null) {
-        viewModel.initialize()
+    // Каждый показ экрана (вход на вкладку, возврат из соревнования или из фона): локальные
+    // данные видны сразу, сервер опрашивается в фоне не чаще раза в 30 секунд.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.onResume()
     }
 
     Surface(
@@ -86,6 +94,7 @@ private fun CenterScreenContent(state: CenterState, handleEffects: (CenterEffect
 /**
  * Вид экрана для авторизованного пользователя.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AuthorizedCenterContent(state: CenterState, handleEffects: (CenterEffects) -> Unit) {
     Column(
@@ -102,7 +111,9 @@ private fun AuthorizedCenterContent(state: CenterState, handleEffects: (CenterEf
             color = MaterialTheme.colorScheme.onBackground
         )
 
-        Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+        RefreshStatusBar(state = state.refresh)
+
+        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
         // Кнопка создания нового события
         Button(
@@ -127,16 +138,27 @@ private fun AuthorizedCenterContent(state: CenterState, handleEffects: (CenterEf
 
         Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
 
-        if (state.controlledEvents.isEmpty()) {
-            EmptyControlledEventsView()
-        } else {
-            Text(
-                text = "Мои старты (${state.controlledEvents.size})",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            ControlledEventsList(state, handleEffects)
+        PullToRefreshBox(
+            isRefreshing = state.refresh.isPullRefresh,
+            onRefresh = { handleEffects(CenterEffects.Refresh) },
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            when {
+                // Локальная БД отвечает мгновенно — до первого ответа просто пусто, без заглушки.
+                !state.isLocalLoaded -> Unit
+                state.controlledEvents.isEmpty() -> EmptyControlledEventsView(state.refresh)
+                else -> Column {
+                    Text(
+                        text = "Мои старты (${state.controlledEvents.size})",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    ControlledEventsList(state, handleEffects)
+                }
+            }
         }
     }
 }
@@ -369,17 +391,55 @@ private fun StationToolsEntryCard(onClick: () -> Unit) {
 }
 
 /**
- * Заглушка, если у организатора еще нет событий.
+ * Заглушка, если в локальной БД у организатора нет событий. Пока идёт первая загрузка с сервера
+ * (новое устройство, переустановка) — индикатор в области списка вместо «нет событий».
+ * Прокручиваемая, чтобы работал жест pull-to-refresh.
  */
 @Composable
-private fun EmptyControlledEventsView() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text = "У вас пока нет созданных событий.\nНажмите кнопку выше, чтобы начать.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
+private fun EmptyControlledEventsView(refresh: RemoteRefreshState) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val viewportHeight = maxHeight
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(viewportHeight),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                if (refresh.isRefreshing && refresh.lastUpdatedAt == null) {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                    Text(
+                        text = "Загружаем ваши события…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                } else if (refresh.isFailed && refresh.lastUpdatedAt == null) {
+                    // Список с сервера ещё ни разу не загрузился (новое устройство без связи) —
+                    // «нет событий» было бы неправдой: они могут быть на сервере.
+                    Text(
+                        text = "Не удалось загрузить события с сервера.\n" +
+                            "Они появятся, когда будет связь, — или потяните экран вниз.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                } else {
+                    Text(
+                        text = "У вас пока нет созданных событий.\nНажмите кнопку выше, чтобы начать.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -457,6 +517,8 @@ private fun CenterScreenAuthPreview() {
     CenterScreenContent(
         state = CenterState(
             isAuthed = true,
+            isLocalLoaded = true,
+            refresh = RemoteRefreshState(lastUpdatedAt = System.currentTimeMillis()),
             controlledEvents = listOf(
                 OrienteeringCompetition(
                     competitionId = "1",

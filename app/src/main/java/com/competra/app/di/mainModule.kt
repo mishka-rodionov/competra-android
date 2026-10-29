@@ -1,6 +1,7 @@
 package com.competra.app.di
 
 import com.competra.domain.repository.LoadingRepository
+import com.competra.domain.repository.NetworkAvailabilityRepository
 import com.competra.domain.repository.NetworkErrorRepository
 import com.competra.domain.repository.OnboardingRequestRepository
 import com.competra.domain.repository.ResultConflictRepository
@@ -25,5 +26,6 @@ val mainModule = module {
     single { ResultConflictRepository() }
     single { NetworkErrorRepository() }
     single { LoadingRepository() }
+    single { NetworkAvailabilityRepository() }
     single { OnboardingRequestRepository() }
 }

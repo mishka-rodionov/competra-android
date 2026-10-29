@@ -1,5 +1,6 @@
 package com.competra.center.data.event_control
 
+import com.competra.center.data.refresh.RemoteRefreshState
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.OrienteeringCompetition
@@ -21,6 +22,7 @@ import com.competra.ui.BaseState
  * @property isShowStopConfirmDialog Флаг отображения диалога подтверждения завершения.
  * @property isShowCloseRegistrationDialog Флаг отображения диалога подтверждения завершения регистрации.
  * @property groupsWithoutDistance Названия групп, которым не назначена дистанция, — напоминание назначить их до старта.
+ * @property refresh Состояние фоновой загрузки данных соревнования с сервера.
  * @property pendingLinkRequests Заявки спортсменов на привязку результатов, ожидающие решения; null — не загружено
  *   (офлайн, соревнование ещё не на сервере или нет прав) — тогда, как и при 0, раздел не показывается.
  */
@@ -41,7 +43,8 @@ data class OrienteeringEventControlState(
     val isShowStopConfirmDialog: Boolean = false,
     val isShowCloseRegistrationDialog: Boolean = false,
     val pendingLinkRequests: Int? = null,
-    val groupsWithoutDistance: List<String> = emptyList()
+    val groupsWithoutDistance: List<String> = emptyList(),
+    val refresh: RemoteRefreshState = RemoteRefreshState()
 ) : BaseState {
 
     /**

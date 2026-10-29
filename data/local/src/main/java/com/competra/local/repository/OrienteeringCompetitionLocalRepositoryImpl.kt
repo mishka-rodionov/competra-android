@@ -16,8 +16,13 @@ import com.competra.local.dao.ParticipantGroupDao
 import com.competra.local.dao.orienteering.OrienteeringParticipantDao
 import com.competra.local.dao.orienteering.OrienteeringResultDao
 import com.competra.local.dao.orienteering.DistanceDao
+import com.competra.local.database.DatabaseHelper
 import com.competra.local.mappers.toDomain
 import com.competra.local.mappers.toEntity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import androidx.room.withTransaction
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Реализация локального репозитория для работы с соревнованиями по спортивному ориентированию.
@@ -32,8 +37,16 @@ class OrienteeringCompetitionLocalRepositoryImpl(
     private val participantGroupDao: ParticipantGroupDao,
     private val participantDao: OrienteeringParticipantDao,
     private val orienteeringResultDao: OrienteeringResultDao,
-    private val distanceDao: DistanceDao
+    private val distanceDao: DistanceDao,
+    private val databaseHelper: DatabaseHelper
 ) : OrienteeringCompetitionLocalRepository {
+
+    /**
+     * Соревнования, физически удалённые за время жизни процесса (после удаления на сервере).
+     * [mergeCompetitionsFromServer] их не вставляет: снимок с сервера, запрошенный до удаления,
+     * иначе вернул бы удалённое соревнование.
+     */
+    private val purgedCompetitionIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     private fun OrienteeringCompetition.applyUnsynced(): OrienteeringCompetition =
         copy(
@@ -144,6 +157,52 @@ class OrienteeringCompetitionLocalRepositoryImpl(
                 .getCompetitionsByUserId(userId)
                 .map { it.toDomain() }
         }
+    }
+
+    override fun observeCompetitionsByUserid(userId: String): Flow<List<OrienteeringCompetition>> =
+        orienteeringCompetitionDao.observeCompetitionsByUserId(userId)
+            .map { entities -> entities.map { it.toDomain() } }
+
+    override suspend fun mergeCompetitionsFromServer(
+        userId: String,
+        serverCompetitions: List<OrienteeringCompetition>
+    ): Result<Any> {
+        return runCatching {
+            // Одна транзакция: правка или пометка на удаление из UI не вклинится между чтением
+            // строки и её перезаписью, а список на экране перерисуется один раз.
+            databaseHelper.db.withTransaction {
+                val plan = planServerMerge(
+                    local = orienteeringCompetitionDao.getCompetitionsByUserIdIncludingDeleted(userId)
+                        .map { it.toDomain() },
+                    server = serverCompetitions,
+                    localKey = { it.competitionId },
+                    serverKey = { it.competitionId },
+                    isLocalSynced = { it.competition.isSynced },
+                    isLocalOnServer = { it.serverUpdatedAt != null }
+                )
+                // plan.toDelete намеренно не применяем — см. KDoc интерфейса.
+                // updateCompetition (UPDATE, не REPLACE) не трогает дочерние дистанции и группы и
+                // сохраняет локальные флаг жеребьёвки и время старта, если сервер их не прислал.
+                plan.toUpdate
+                    .filter { (local, server) -> !server.isOlderThan(local) }
+                    .forEach { (_, server) -> updateCompetition(server, markUnsynced = false).getOrThrow() }
+                // Ответ на запрос, ушедший до удаления соревнования, не должен вернуть его в список.
+                val toInsert = plan.toInsert.filter { it.competitionId !in purgedCompetitionIds }
+                if (toInsert.isNotEmpty()) {
+                    orienteeringCompetitionDao.insertAll(toInsert.map { it.toEntity() })
+                }
+            }
+        }
+    }
+
+    /**
+     * Серверная версия старше локальной: ответ на запрос списка ушёл до того, как синхронизация
+     * выгрузила локальную правку и записала новый ответ сервера, — перезапись вернула бы старые данные.
+     */
+    private fun OrienteeringCompetition.isOlderThan(local: OrienteeringCompetition): Boolean {
+        val serverAt = serverUpdatedAt ?: return false
+        val localAt = local.serverUpdatedAt ?: return false
+        return serverAt < localAt
     }
 
     override suspend fun getCompetition(competitionId: String): Result<OrienteeringCompetition?> {
@@ -309,6 +368,7 @@ class OrienteeringCompetitionLocalRepositoryImpl(
 
     override suspend fun deleteCompetition(competitionId: String): Result<Unit> {
         return runCatching {
+            purgedCompetitionIds += competitionId
             orienteeringResultDao.deleteResultsByCompetitionId(competitionId)
             participantDao.deleteParticipantsByCompetitionId(competitionId)
             participantGroupDao.deleteGroupsForCompetition(competitionId)

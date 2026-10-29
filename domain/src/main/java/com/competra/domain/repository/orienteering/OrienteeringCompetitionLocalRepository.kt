@@ -8,6 +8,7 @@ import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.PastParticipation
 import com.competra.domain.models.orienteering.Distance
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Интерфейс локального репозитория для работы с данными соревнований по ориентированию.
@@ -37,6 +38,28 @@ interface OrienteeringCompetitionLocalRepository {
     suspend fun updateParticipantGroup(participantGroup: ParticipantGroup, markUnsynced: Boolean = true): Result<Any>
     suspend fun getCompetitionWithDetails(competitionId: String): Result<OrienteeringCompetitionDetails>
     suspend fun getCompetitionsByUserid(userId: String): Result<List<OrienteeringCompetition>>
+
+    /**
+     * Поток соревнований организатора [userId] (без помеченных на удаление): эмитит заново при
+     * каждом изменении локальной БД.
+     */
+    fun observeCompetitionsByUserid(userId: String): Flow<List<OrienteeringCompetition>>
+
+    /**
+     * Применяет серверный снимок списка соревнований организатора [userId] при загрузке с сервера
+     * (pull) по правилам [com.competra.domain.sync.planServerMerge]: синхронизированные записи
+     * обновляются серверной версией, записи с неотправленными изменениями (правка или пометка на
+     * удаление) не трогаются, новые — вставляются. Серверная версия старше локальной
+     * (по `serverUpdatedAt`) не применяется, а соревнования, уже удалённые локально после удаления
+     * на сервере, не вставляются повторно — снимок мог быть запрошен до синхронизации.
+     *
+     * Соревнования, пропавшие из снимка, локально не удаляются: удаление каскадом уносит
+     * участников и результаты, которые могут быть ещё не выгружены на сервер.
+     */
+    suspend fun mergeCompetitionsFromServer(
+        userId: String,
+        serverCompetitions: List<OrienteeringCompetition>
+    ): Result<Any>
 
     suspend fun deleteCompetition(competitionId: String): Result<Unit>
 

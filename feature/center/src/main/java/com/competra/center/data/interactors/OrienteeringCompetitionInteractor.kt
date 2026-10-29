@@ -27,6 +27,7 @@ import com.competra.domain.repository.orienteering.OrienteeringCompetitionRemote
 import com.competra.domain.sync.planServerMerge
 import com.competra.domain.models.orienteering.PastParticipation
 import com.competra.domain.sync.SyncTrigger
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Интерактор для работы с соревнованиями по спортивному ориентированию.
@@ -142,38 +143,26 @@ class OrienteeringCompetitionInteractor(
     }
 
     /**
-     * Получает список соревнований пользователя.
-     *
-     * Реализует стратегию:
-     * 1. Сначала пытается получить данные из сети
-     * 2. При успехе - обновляет локальное хранилище
-     * 3. При неудаче - возвращает данные из локального хранилища
+     * Поток соревнований пользователя из локальной БД — экран показывает его сразу, не дожидаясь
+     * сервера. Свежие данные с сервера подтягивает [refreshCompetitionsFromServer]: записав их
+     * в БД, он вызывает новую эмиссию этого потока.
      *
      * @param userId Идентификатор пользователя
-     * @return Result со списком соревнований или ошибкой
      */
-    suspend fun getCompetitionsByUserId(userId: String): Result<List<OrienteeringCompetition>> {
-        // 1. Сначала пробуем получить из сети
-        val remoteResult = remoteRepository.getCompetitionsByUserid()
+    fun observeCompetitionsByUserId(userId: String): Flow<List<OrienteeringCompetition>> =
+        localRepository.observeCompetitionsByUserid(userId)
 
-        remoteResult.onSuccess { competitions ->
-            // 2. Если сеть успешна — обновляем локальное хранилище
-            localRepository.saveCompetitions(competitions, markUnsynced = false)
-            val compet = localRepository.getCompetitionsByUserid(userId).getOrNull()
-            Log.d("LOG_TAG", "getCompetitionsByUserId: size = ${compet?.size}")
-            return Result.success(compet ?: competitions)
+    /**
+     * Загружает список соревнований пользователя с сервера и сливает его с локальной БД
+     * ([OrienteeringCompetitionLocalRepository.mergeCompetitionsFromServer]).
+     *
+     * @param userId Идентификатор пользователя
+     * @return failure, если сервер недоступен или ответил ошибкой — локальные данные не меняются
+     */
+    suspend fun refreshCompetitionsFromServer(userId: String): Result<Unit> =
+        remoteRepository.getCompetitionsByUserid().mapCatching { competitions ->
+            localRepository.mergeCompetitionsFromServer(userId, competitions).getOrThrow()
         }
-
-        // 3. Если сеть упала — достаём локальные данные
-        val localResult = localRepository.getCompetitionsByUserid(userId)
-
-        localResult.onSuccess { localCompetitions ->
-            return Result.success(localCompetitions)
-        }
-
-        // 4. Если вообще всё сломалось — возвращаем ошибку сети
-        return Result.failure(remoteResult.exceptionOrNull() ?: Exception("Unknown error"))
-    }
 
     /**
      * Сохраняет участника соревнования локально, затем синхронизирует с сервером.
@@ -725,11 +714,12 @@ class OrienteeringCompetitionInteractor(
      *
      * @param remoteCompetitionId Серверный ID соревнования.
      * @param localCompetitionId Локальный ID соревнования в Room.
+     * @return true, если сервер ответил и данные слиты; false — сервер недоступен (локальная БД не тронута).
      */
-    suspend fun fetchAndSyncFromServer(competitionId: String) {
+    suspend fun fetchAndSyncFromServer(competitionId: String): Boolean {
         val serverDistances = remoteRepository
             .getDistancesForCompetition(competitionId)
-            .getOrNull() ?: return
+            .getOrNull() ?: return false
 
         // Включает и помеченные на удаление (isDeleted) — иначе их «воскресит» вставка с сервера.
         // Локальный id дистанции автогенерируемый, поэтому сопоставляем по remoteId.
@@ -757,7 +747,7 @@ class OrienteeringCompetitionInteractor(
 
         val serverGroups = remoteRepository
             .getCompetitionParticipantsGroups(competitionId)
-            .getOrNull() ?: return
+            .getOrNull() ?: return false
 
         val fixedGroups = serverGroups.map { group ->
             group.copy(
@@ -768,6 +758,7 @@ class OrienteeringCompetitionInteractor(
             )
         }
         localRepository.mergeParticipantGroupsFromServer(competitionId, fixedGroups)
+        return true
     }
 
     /**
@@ -795,11 +786,12 @@ class OrienteeringCompetitionInteractor(
      *
      * @param remoteCompetitionId Серверный ID соревнования.
      * @param localCompetitionId Локальный ID соревнования в Room.
+     * @return true, если сервер ответил и участники слиты; false — сервер недоступен.
      */
-    suspend fun fetchAndSyncParticipantsFromServer(competitionId: String) {
+    suspend fun fetchAndSyncParticipantsFromServer(competitionId: String): Boolean {
         val serverParticipants = remoteRepository
             .getParticipantsForCompetition(competitionId)
-            .getOrNull() ?: return
+            .getOrNull() ?: return false
 
         // Карта serverGroupId → localGroupId для корректной привязки участника к группе
         val remoteToLocalGroupId = localRepository.getCompetitionWithDetails(competitionId)
@@ -842,6 +834,7 @@ class OrienteeringCompetitionInteractor(
         plan.toInsert.forEach { server ->
             localRepository.saveParticipant(server.toLocal(isChipGiven = server.isChipGiven), markUnsynced = false)
         }
+        return true
     }
 
     /**

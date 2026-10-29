@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,6 +29,7 @@ import androidx.window.core.layout.WindowSizeClass
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import com.competra.center.presentation.common.GroupsWithoutDistanceBanner
+import com.competra.center.presentation.common.RefreshStatusBar
 import com.competra.designsystem.components.DSBottomDialog
 import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.components.clickRipple
@@ -96,186 +98,194 @@ private fun OrienteeringEventControlScreenContent(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(Dimens.SIZE_BASE.dp)
+        PullToRefreshBox(
+            isRefreshing = state.refresh.isPullRefresh,
+            onRefresh = { onAction(OrientEventControlAction.Refresh) },
+            modifier = Modifier.fillMaxSize()
         ) {
-            Text(
-                text = state.competitionTitle,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
-
-            if (!state.isFinished && state.groupsWithoutDistance.isNotEmpty()) {
-                GroupsWithoutDistanceBanner(
-                    titles = state.groupsWithoutDistance,
-                    message = "До старта назначьте дистанции в редактировании соревнования (шаг «Группы») " +
-                        "или в вебе — без них не провести жеребьёвку по дистанциям и не посчитать результаты по чипам."
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(Dimens.SIZE_BASE.dp)
+            ) {
+                Text(
+                    text = state.competitionTitle,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
-            }
 
-            // 4 NFC-кнопки управления чипом — без изменений
-            SectionHeader(title = "Панель управления")
-            OrienteeringEventControlContent(isExpanded, onAction)
+                RefreshStatusBar(state = state.refresh)
 
-            Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
-            // Баннеры статуса — только когда соревнование запущено
-            if (state.isCompetitionRunning) {
-                if (state.isTimerRunning) {
-                    CountdownBanner(
-                        countdownMillis = state.countdownMillis,
-                        onCancel = { onAction(OrientEventControlAction.CancelCountdown) }
+                if (!state.isFinished && state.groupsWithoutDistance.isNotEmpty()) {
+                    GroupsWithoutDistanceBanner(
+                        titles = state.groupsWithoutDistance,
+                        message = "До старта назначьте дистанции в редактировании соревнования (шаг «Группы») " +
+                            "или в вебе — без них не провести жеребьёвку по дистанциям и не посчитать результаты по чипам."
                     )
-                } else {
-                    if (!state.isTimerRunning) {
-                        StopwatchBanner(elapsedMillis = state.stopwatchMillis)
-                        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-                    }
-                    if (state.allParticipantsFinished) {
-                        AllParticipantsFinishedBanner()
-                    } else {
-                        CompetitionStartedBanner()
-                    }
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
                 }
-                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
-            }
 
-            // Регистрация — до запуска соревнования. Завершение регистрации запрещает участникам
-            // отменять заявку, после чего организатор спокойно правит стартовый протокол.
-            if (!state.isFinished && !state.isCompetitionRunning) {
-                SectionHeader(title = "Регистрация")
-                RegistrationSection(
-                    isRegistrationClosed = state.isRegistrationClosed,
-                    onCloseRegistration = { onAction(OrientEventControlAction.ShowCloseRegistrationDialog) }
-                )
-                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
-            }
+                // 4 NFC-кнопки управления чипом — без изменений
+                SectionHeader(title = "Панель управления")
+                OrienteeringEventControlContent(isExpanded, onAction)
 
-            // Список разделов с прогрессивным раскрытием
-            SectionHeader(title = "Разделы")
+                Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
 
-            // 1. Стартовый протокол — всегда
-            NavigationRow(
-                text = "Стартовый протокол",
-                onClick = { onAction(OrientEventControlAction.OpenParticipantLists) }
-            )
-
-            // 2. Жеребьёвка — если добавлены участники и соревнование не запущено. При старте по
-            // стартовой станции жеребьёвки не бывает вообще — время старта берётся из отметки на чипе.
-            if (!state.isFinished && !state.isCompetitionRunning && state.participantGroups.isNotEmpty() && !isByStartStation) {
-                NavigationRow(
-                    text = "Жеребьёвка",
-                    onClick = { onAction(OrientEventControlAction.OpenDrawParticipants) }
-                )
-            }
-
-            // 3. Стартовая решётка — после жеребьёвки (до запуска как предпросмотр и во время старта).
-            // Без жеребьёвки (BY_START_STATION) концепция стартовых минут неприменима — скрываем.
-            if (isDrawConducted && !isByStartStation) {
-                NavigationRow(
-                    text = "Стартовая решётка",
-                    onClick = { onAction(OrientEventControlAction.OpenStartGrid) }
-                )
-            }
-
-            // 4. Выдача чипов — после жеребьёвки и до завершения: во время соревнования нужна
-            // для дозаявленных участников и замены чипа.
-            if (!state.isFinished && isDrawConducted) {
-                NavigationRow(
-                    text = "Выдача чипов",
-                    onClick = { onAction(OrientEventControlAction.OpenGetOrienteeringChip) }
-                )
-            }
-
-            // 5. Результаты — после завершения или во время соревнования (текущие финишные результаты)
-            if (state.isFinished || state.isCompetitionRunning) {
-                NavigationRow(
-                    text = "Результаты",
-                    onClick = { onAction(OrientEventControlAction.OpenResults) }
-                )
-            }
-
-            // 6. Заявки на привязку результатов — спортсмены, внесённые вручную, просят привязать
-            // результаты к своим профилям. Раздел показываем, только если есть поданные заявки.
-            state.pendingLinkRequests?.takeIf { it > 0 }?.let { pending ->
-                NavigationRow(
-                    text = "Заявки на привязку результатов ($pending)",
-                    onClick = { onAction(OrientEventControlAction.OpenLinkRequests) }
-                )
-            }
-
-            // Секция старта/завершения
-            if (showStartSection) {
-                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
-                SectionHeader(title = "Старт")
-
-                if (!state.isCompetitionRunning) {
-                    val canLaunch = startTimeMode == StartTimeMode.USER_SET ||
-                        startTimeMode == StartTimeMode.STRICT ||
-                        startTimeMode == StartTimeMode.BY_START_STATION
-
-                    if (startTimeMode == StartTimeMode.USER_SET) {
-                        DSTextInput(
-                            modifier = Modifier.fillMaxWidth(),
-                            text = state.countdownTimerInput,
-                            label = { Text(stringResource(R.string.label_countdown_timer)) },
-                            onValueChanged = { onAction(OrientEventControlAction.UpdateCountdownTimerInput(it)) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
+                // Баннеры статуса — только когда соревнование запущено
+                if (state.isCompetitionRunning) {
+                    if (state.isTimerRunning) {
+                        CountdownBanner(
+                            countdownMillis = state.countdownMillis,
+                            onCancel = { onAction(OrientEventControlAction.CancelCountdown) }
                         )
+                    } else {
+                        if (!state.isTimerRunning) {
+                            StopwatchBanner(elapsedMillis = state.stopwatchMillis)
+                            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                        }
+                        if (state.allParticipantsFinished) {
+                            AllParticipantsFinishedBanner()
+                        } else {
+                            CompetitionStartedBanner()
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+                }
+
+                // Регистрация — до запуска соревнования. Завершение регистрации запрещает участникам
+                // отменять заявку, после чего организатор спокойно правит стартовый протокол.
+                if (!state.isFinished && !state.isCompetitionRunning) {
+                    SectionHeader(title = "Регистрация")
+                    RegistrationSection(
+                        isRegistrationClosed = state.isRegistrationClosed,
+                        onCloseRegistration = { onAction(OrientEventControlAction.ShowCloseRegistrationDialog) }
+                    )
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+                }
+
+                // Список разделов с прогрессивным раскрытием
+                SectionHeader(title = "Разделы")
+
+                // 1. Стартовый протокол — всегда
+                NavigationRow(
+                    text = "Стартовый протокол",
+                    onClick = { onAction(OrientEventControlAction.OpenParticipantLists) }
+                )
+
+                // 2. Жеребьёвка — если добавлены участники и соревнование не запущено. При старте по
+                // стартовой станции жеребьёвки не бывает вообще — время старта берётся из отметки на чипе.
+                if (!state.isFinished && !state.isCompetitionRunning && state.participantGroups.isNotEmpty() && !isByStartStation) {
+                    NavigationRow(
+                        text = "Жеребьёвка",
+                        onClick = { onAction(OrientEventControlAction.OpenDrawParticipants) }
+                    )
+                }
+
+                // 3. Стартовая решётка — после жеребьёвки (до запуска как предпросмотр и во время старта).
+                // Без жеребьёвки (BY_START_STATION) концепция стартовых минут неприменима — скрываем.
+                if (isDrawConducted && !isByStartStation) {
+                    NavigationRow(
+                        text = "Стартовая решётка",
+                        onClick = { onAction(OrientEventControlAction.OpenStartGrid) }
+                    )
+                }
+
+                // 4. Выдача чипов — после жеребьёвки и до завершения: во время соревнования нужна
+                // для дозаявленных участников и замены чипа.
+                if (!state.isFinished && isDrawConducted) {
+                    NavigationRow(
+                        text = "Выдача чипов",
+                        onClick = { onAction(OrientEventControlAction.OpenGetOrienteeringChip) }
+                    )
+                }
+
+                // 5. Результаты — после завершения или во время соревнования (текущие финишные результаты)
+                if (state.isFinished || state.isCompetitionRunning) {
+                    NavigationRow(
+                        text = "Результаты",
+                        onClick = { onAction(OrientEventControlAction.OpenResults) }
+                    )
+                }
+
+                // 6. Заявки на привязку результатов — спортсмены, внесённые вручную, просят привязать
+                // результаты к своим профилям. Раздел показываем, только если есть поданные заявки.
+                state.pendingLinkRequests?.takeIf { it > 0 }?.let { pending ->
+                    NavigationRow(
+                        text = "Заявки на привязку результатов ($pending)",
+                        onClick = { onAction(OrientEventControlAction.OpenLinkRequests) }
+                    )
+                }
+
+                // Секция старта/завершения
+                if (showStartSection) {
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+                    SectionHeader(title = "Старт")
+
+                    if (!state.isCompetitionRunning) {
+                        val canLaunch = startTimeMode == StartTimeMode.USER_SET ||
+                            startTimeMode == StartTimeMode.STRICT ||
+                            startTimeMode == StartTimeMode.BY_START_STATION
+
+                        if (startTimeMode == StartTimeMode.USER_SET) {
+                            DSTextInput(
+                                modifier = Modifier.fillMaxWidth(),
+                                text = state.countdownTimerInput,
+                                label = { Text(stringResource(R.string.label_countdown_timer)) },
+                                onValueChanged = { onAction(OrientEventControlAction.UpdateCountdownTimerInput(it)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                        }
+
+                        if (!state.allChipsDistributed) {
+                            Text(
+                                text = "Не все участники получили чипы",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(bottom = Dimens.SIZE_HALF.dp)
+                            )
+                        }
+
+                        if (canLaunch) {
+                            Button(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                onClick = { onAction(OrientEventControlAction.ShowStartConfirmDialog) },
+                                enabled = state.allChipsDistributed,
+                                shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text(
+                                    if (isByStartStation) "ОТКРЫТЬ СТАРТ" else "ЗАПУСТИТЬ ТАЙМЕР",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    if (state.isCompetitionRunning) {
                         Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-                    }
-
-                    if (!state.allChipsDistributed) {
-                        Text(
-                            text = "Не все участники получили чипы",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(bottom = Dimens.SIZE_HALF.dp)
-                        )
-                    }
-
-                    if (canLaunch) {
                         Button(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp),
-                            onClick = { onAction(OrientEventControlAction.ShowStartConfirmDialog) },
-                            enabled = state.allChipsDistributed,
+                            onClick = { onAction(OrientEventControlAction.ShowStopConfirmDialog) },
                             shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                         ) {
-                            Text(
-                                if (isByStartStation) "ОТКРЫТЬ СТАРТ" else "ЗАПУСТИТЬ ТАЙМЕР",
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text("ЗАВЕРШИТЬ СОРЕВНОВАНИЕ", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
-                if (state.isCompetitionRunning) {
-                    Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        onClick = { onAction(OrientEventControlAction.ShowStopConfirmDialog) },
-                        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("ЗАВЕРШИТЬ СОРЕВНОВАНИЕ", fontWeight = FontWeight.Bold)
-                    }
-                }
+                Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
             }
-
-            Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
         }
     }
 

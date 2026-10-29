@@ -6,6 +6,7 @@ import com.competra.analytics.AnalyticsTracker
 import com.competra.center.data.event_control.OrientEventControlAction
 import com.competra.center.data.event_control.OrienteeringEventControlState
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
+import com.competra.center.data.refresh.BackgroundRefresher
 import com.competra.center.data.write_chip.WriteChipTab
 import com.competra.data.navigation.CenterNavigation
 import com.competra.data.navigation.EventsNavigation
@@ -19,6 +20,7 @@ import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.orienteering.withoutDistance
 import com.competra.domain.repository.LoadingRepository
+import com.competra.domain.repository.NetworkAvailabilityRepository
 import com.competra.domain.repository.NetworkErrorRepository
 import com.competra.domain.repository.participant_link.ParticipantLinkRepository
 import com.competra.ui.BaseAction
@@ -30,6 +32,8 @@ import com.competra.utils.isValidStartTimestamp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * ViewModel для экрана управления соревнованием по ориентированию.
@@ -46,25 +50,63 @@ class OrienteeringEventControlViewModel(
     private val networkErrorRepository: NetworkErrorRepository,
     private val loadingRepository: LoadingRepository,
     private val analytics: AnalyticsTracker,
-    private val participantLinkRepository: ParticipantLinkRepository
+    private val participantLinkRepository: ParticipantLinkRepository,
+    private val networkAvailabilityRepository: NetworkAvailabilityRepository
 ) : BaseViewModel<OrienteeringEventControlState>(OrienteeringEventControlState()) {
 
     val competitionId: String? = navigation.getArguments<String>(EventsConstants.EVENT_ID.name)
     private var timerJob: Job? = null
     private var stopwatchJob: Job? = null
 
+    private val refresher = BackgroundRefresher(viewModelScope) { refreshFromServer() }
+    private val localLoadMutex = Mutex()
+
+    init {
+        viewModelScope.launch {
+            refresher.state.collect { refresh -> updateState { copy(refresh = refresh) } }
+        }
+        viewModelScope.launch {
+            networkAvailabilityRepository.availableEvents.collect { refresher.refreshIfStale() }
+        }
+    }
+
+    /**
+     * Показ экрана: данные из локальной БД отображаются сразу, свежие с сервера подтягиваются
+     * в фоне ([refresher]) — без глобального лоудера, чтобы плохая связь на старте не
+     * блокировала организатора.
+     */
     private fun loadCompetitionData() {
         val id = competitionId ?: return
-        viewModelScope.launch {
-            loadingRepository.emit(true)
-            val serverConfirmed = orienteeringCompetitionInteractor.getCompetition(id)
-                ?.serverUpdatedAt != null
-            if (serverConfirmed) {
-                orienteeringCompetitionInteractor.fetchAndSyncFromServer(id)
-                orienteeringCompetitionInteractor.fetchAndSyncParticipantsFromServer(id)
-            }
-            loadPendingLinkRequests(id, serverConfirmed)
+        viewModelScope.launch { loadLocalCompetitionData(id) }
+        refresher.refreshIfStale()
+    }
 
+    /**
+     * Загружает данные соревнования с сервера в локальную БД и перечитывает экран.
+     *
+     * @return true — данные обновлены; false — сервер недоступен; null — соревнование ещё не
+     *   выгружено на сервер (тянуть нечего, его отправит синхронизация).
+     */
+    private suspend fun refreshFromServer(): Boolean? {
+        val id = competitionId
+            ?.takeIf { orienteeringCompetitionInteractor.getCompetition(it)?.serverUpdatedAt != null }
+            ?: return null
+        loadPendingLinkRequests(id, serverConfirmed = true)
+        val updated = orienteeringCompetitionInteractor.fetchAndSyncFromServer(id) &&
+            orienteeringCompetitionInteractor.fetchAndSyncParticipantsFromServer(id)
+        // Перечитываем и при неудаче: часть данных (например, дистанции) могла успеть обновиться.
+        loadLocalCompetitionData(id)
+        return updated
+    }
+
+    /**
+     * Читает соревнование из локальной БД и применяет к экрану (без сети).
+     * Вызовы идут строго по очереди ([localLoadMutex]): чтение при показе экрана и перечитывание
+     * после ответа сервера не должны применить данные в обратном порядке, а восстановление
+     * времени старта — выполниться дважды.
+     */
+    private suspend fun loadLocalCompetitionData(id: String) {
+        localLoadMutex.withLock {
             orienteeringCompetitionInteractor.tryAutoStartFromRegistration(id)
 
             orienteeringCompetitionInteractor.getCompetitionWithDetails(id).onSuccess { details ->
@@ -102,7 +144,6 @@ class OrienteeringEventControlViewModel(
                 }
                 handleFailure(it)
             }
-            loadingRepository.emit(false)
         }
     }
 
@@ -274,6 +315,8 @@ class OrienteeringEventControlViewModel(
             }
 
             OrientEventControlAction.Reload -> loadCompetitionData()
+
+            OrientEventControlAction.Refresh -> refresher.refresh(isPull = true)
 
             OrientEventControlAction.StopService -> viewModelScope.launch {
                 serviceController.stop()

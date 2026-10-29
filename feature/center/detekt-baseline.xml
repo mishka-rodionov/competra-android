@@ -474,7 +474,6 @@
     <ID>ReturnCount:OrientReadCardViewModel.kt$OrientReadCardViewModel$suspend fun getExpectedControlPoints(groupId: Long): List&lt;ControlPoint&gt;</ID>
     <ID>ReturnCount:OrientReadCardViewModel.kt$fun computeByChoiceResult( expected: List&lt;ControlPoint&gt;, actual: List&lt;SplitTime&gt;, startTime: Long, group: ParticipantGroup ): CheckResult</ID>
     <ID>ReturnCount:OrienteeringCompetitionInteractor.kt$OrienteeringCompetitionInteractor$suspend fun areAllParticipantsFinished(competitionId: String): Boolean</ID>
-    <ID>ReturnCount:OrienteeringCompetitionInteractor.kt$OrienteeringCompetitionInteractor$suspend fun getCompetitionsByUserId(userId: String): Result&lt;List&lt;OrienteeringCompetition&gt;&gt;</ID>
     <ID>ReturnCount:OrienteeringCompetitionInteractor.kt$OrienteeringCompetitionInteractor$suspend fun tryAutoFinish(competitionId: String): Boolean</ID>
     <ID>ReturnCount:OrienteeringCompetitionInteractor.kt$OrienteeringCompetitionInteractor$suspend fun tryAutoStartFromRegistration(competitionId: String): Boolean</ID>
     <ID>ReturnCount:OrienteeringEventControlViewModel.kt$OrienteeringEventControlViewModel$private fun onCountdownFinished()</ID>

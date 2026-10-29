@@ -11,6 +11,7 @@ import com.competra.center.di.centerModule
 import com.competra.clubs.di.clubsModule
 import com.competra.diary.di.diaryModule
 import com.competra.core.sync.NetworkAvailabilityObserver
+import com.competra.domain.repository.NetworkAvailabilityRepository
 import com.competra.core.sync.SyncBootstrap
 import com.competra.core.sync.WorkoutSyncBootstrap
 import com.competra.core.sync.di.syncModule
@@ -58,6 +59,7 @@ import org.koin.core.context.startKoin
 class CompetraApp : Application(), Configuration.Provider {
 
     private val networkObserver: NetworkAvailabilityObserver by inject()
+    private val networkAvailabilityRepository: NetworkAvailabilityRepository by inject()
 
     /**
      * On-demand Configuration: WorkManagerInitializer (отключённый в Manifest) больше не
@@ -112,6 +114,8 @@ class CompetraApp : Application(), Configuration.Provider {
             SyncBootstrap.enqueue(this)
             WorkoutSyncBootstrap.enqueue(this)
             LiveTrackFlushWorker.enqueue(this)
+            // Открытые экраны «Центра» дотягивают данные, не загруженные без сети.
+            networkAvailabilityRepository.notifyAvailable()
         }
         // Дополнительный enqueue на старте — на случай, если сеть уже есть и есть unsynced.
         SyncBootstrap.enqueue(this)

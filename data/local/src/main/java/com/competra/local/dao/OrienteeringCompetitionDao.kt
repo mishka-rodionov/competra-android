@@ -69,6 +69,21 @@ interface OrienteeringCompetitionDao {
     @Query("SELECT * FROM orienteering_competitions WHERE mainOrganizerId = :userId AND isDeleted = 0")
     suspend fun getCompetitionsByUserId(userId: String): List<OrienteeringCompetitionEntity>
 
+    /**
+     * Соревнования организатора [userId] (без помеченных на удаление) как поток: эмитит заново
+     * при каждом изменении таблицы — экран «Центр» показывает локальные данные сразу и
+     * подхватывает результат фоновой загрузки с сервера без перезапроса.
+     */
+    @Query("SELECT * FROM orienteering_competitions WHERE mainOrganizerId = :userId AND isDeleted = 0")
+    fun observeCompetitionsByUserId(userId: String): Flow<List<OrienteeringCompetitionEntity>>
+
+    /**
+     * Соревнования организатора [userId] включая помеченные на удаление — для слияния с
+     * серверным снимком, чтобы вставка с сервера не «воскресила» удаляемую запись.
+     */
+    @Query("SELECT * FROM orienteering_competitions WHERE mainOrganizerId = :userId")
+    suspend fun getCompetitionsByUserIdIncludingDeleted(userId: String): List<OrienteeringCompetitionEntity>
+
     @Query("SELECT * FROM orienteering_competitions WHERE isSynced = 0 AND isDeleted = 0")
     suspend fun getUnsynced(): List<OrienteeringCompetitionEntity>
 

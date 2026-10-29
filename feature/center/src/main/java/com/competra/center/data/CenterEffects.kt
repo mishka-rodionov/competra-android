@@ -12,4 +12,6 @@ sealed class CenterEffects {
     data class ShowDeleteCompetitionDialog(val competition: OrienteeringCompetition): CenterEffects()
     data object HideDeleteCompetitionDialog: CenterEffects()
     data class DeleteCompetition(val competition: OrienteeringCompetition): CenterEffects()
+    /** Обновить список с сервера жестом pull-to-refresh. */
+    data object Refresh: CenterEffects()
 }

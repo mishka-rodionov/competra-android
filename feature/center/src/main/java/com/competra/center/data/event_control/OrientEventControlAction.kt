@@ -39,6 +39,9 @@ sealed class OrientEventControlAction: BaseAction {
 
     data object Reload: OrientEventControlAction()
 
+    /** Обновить данные соревнования с сервера жестом pull-to-refresh. */
+    data object Refresh: OrientEventControlAction()
+
     data object StopService: OrientEventControlAction()
 
 }
