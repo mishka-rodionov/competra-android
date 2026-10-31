@@ -21,12 +21,16 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.competra.center.data.start_grid.StartGridAction
 import com.competra.center.data.start_grid.StartGridState
 import com.competra.center.data.start_grid.StartSlot
+import com.competra.center.data.start_grid.hintNumbers
+import com.competra.center.data.start_grid.nextStartSlot
 import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.orienteering.OrienteeringParticipant
+import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.resources.R
 import com.competra.ui.BaseAction
 import com.competra.ui.millisUntilNextCountdownTick
@@ -135,6 +139,20 @@ fun StartGridContent(
                 .padding(horizontal = Dimens.SIZE_BASE.dp, vertical = Dimens.SIZE_HALF.dp)
         )
 
+        // Кто стартует следом за текущей минутой — по реальному времени, листание решётки
+        // подсказку не меняет.
+        if (state.isCompetitionRunning) {
+            NextStartHint(
+                nextSlot = slots.nextStartSlot(state.currentSlotIndex),
+                punchingSystem = state.competition?.punchingSystem,
+                zeroTimeMs = state.zeroTimeMs,
+                modifier = Modifier.padding(
+                    horizontal = Dimens.SIZE_BASE.dp,
+                    vertical = Dimens.SIZE_HALF.dp
+                )
+            )
+        }
+
         SecondaryScrollableTabRow(
             selectedTabIndex = pagerState.currentPage.coerceIn(0, slots.lastIndex),
             edgePadding = 16.dp,
@@ -203,6 +221,63 @@ fun StartGridContent(
                     Text(text = "Сейчас", fontWeight = FontWeight.Bold)
                 }
             }
+        }
+    }
+}
+
+/**
+ * Подсказка «Следующими стартуют»: минута, идущая за текущей, и номера её участников
+ * (при Sportiduino — номера чипов). Если следующей минуты нет — сообщает об этом.
+ */
+@Composable
+private fun NextStartHint(
+    nextSlot: StartSlot?,
+    punchingSystem: PunchingSystem?,
+    zeroTimeMs: Long?,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Dimens.SIZE_BASE.dp, vertical = Dimens.SIZE_HALF.dp)
+        ) {
+            if (nextSlot == null) {
+                Text(
+                    text = "Следующих стартов нет",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                return@Column
+            }
+            val minute = zeroTimeMs
+                ?.let { formatStartMinute(nextSlot.startTime - it) }
+                ?: formatTime(nextSlot.startTime)
+            val numbers = nextSlot.hintNumbers(punchingSystem)
+            val suffix = if (punchingSystem == PunchingSystem.SPORTIDUINO) " · чипы" else ""
+            Text(
+                text = "Следующими стартуют · $minute$suffix",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                // Стартовый номер среди номеров чипов помечаем «№», чтобы не спутать.
+                text = numbers.joinToString(" · ") { number ->
+                    if (punchingSystem == PunchingSystem.SPORTIDUINO && !number.isChip) "№${number.value}"
+                    else number.value
+                },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

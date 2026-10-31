@@ -109,7 +109,8 @@
       "Bash(find /Users/rodionov/projects/competra/archive/competra-web -type f -name \"*.kt\" | grep -i result | head -20)",
       "Bash(find /Users/rodionov/projects/competra/archive/competra-web -type f -name \"*.kt\" | xargs grep -l \"SplitTime\\\\|Split\" | head -10)",
       "Bash(xargs -I{} basename {})",
-      "Bash(rtk read *)"
+      "Bash(rtk read *)",
+      "Bash(cd /Users/rodionov/projects/competra && rtk grep -rniE \"penalt|штраф|overtime|controlTime|timeLimit\" --include=*.kt competra-android competra-server/eSport/src | grep -viE \"test|/build/\" | head -60)"
     ]
   },
   "prefersReducedMotion": true
