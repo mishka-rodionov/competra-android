@@ -63,6 +63,9 @@ import com.competra.eventdetails.presentation.registration.RegistrationTeamField
 import com.competra.ui.components.toFractionalRect
 import com.competra.utils.DateTimeFormat
 import org.koin.androidx.compose.koinViewModel
+import java.time.Instant
+import java.time.LocalTime
+import java.time.ZoneId
 
 /**
  * Экран деталей события.
@@ -171,14 +174,17 @@ fun ScrollableColumnScreenWithImageAnimation(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(text = state.eventDetails?.city ?: "", modifier = Modifier.weight(1f))
-            Text(
-                text = buildDateRangeText(
-                    state.eventDetails?.startDate,
-                    state.eventDetails?.endDate,
-                    state.eventDetails?.startTime
-                ),
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = state.eventDetails?.let { buildDateRangeText(it) } ?: "")
+                val startTimeText = state.eventDetails?.let { buildStartTimeText(it) }
+                if (startTimeText != null) {
+                    Text(
+                        text = "Старт в $startTimeText",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
 
         state.eventDetails?.let { EventMetaInfo(it) }
@@ -356,15 +362,36 @@ private fun LiveTrackButton(
 }
 
 /**
- * Строит строку с диапазоном дат события: одна дата или "старт – финиш",
- * если событие многодневное.
+ * Часовой пояс соревнования: в нём организатор задаёт дату и время старта.
+ * Без пояса или с некорректным — пояс устройства.
  */
-private fun buildDateRangeText(startDate: Long?, endDate: Long?, startTime: Long?): String {
-    val start = DateTimeFormat.transformLongToDisplayDate(startDate)
-    val end = DateTimeFormat.transformLongToDisplayDate(endDate)
-    val dateText = if (end.isNotEmpty() && end != start) "$start – $end" else start
-    val timeText = startTime?.let { DateTimeFormat.transformLongToTime(it) }?.takeIf { it.isNotEmpty() }
-    return if (timeText != null) "$dateText, $timeText" else dateText
+private fun CyclicEventDetails.zone(): ZoneId =
+    timeZoneId?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault()
+
+/**
+ * Строит строку с диапазоном дат события: одна дата или "старт – финиш",
+ * если событие многодневное. Даты — в часовом поясе соревнования.
+ */
+private fun buildDateRangeText(eventDetails: CyclicEventDetails): String {
+    val zone = eventDetails.zone()
+    val start = DateTimeFormat.transformLongToDisplayDate(eventDetails.startDate, zone)
+    val end = DateTimeFormat.transformLongToDisplayDate(eventDetails.endDate, zone)
+    return if (end.isNotEmpty() && end != start) "$start – $end" else start
+}
+
+/**
+ * Время старта (ЧЧ:ММ в часовом поясе соревнования): фактическое [CyclicEventDetails.startTime],
+ * если секундомер уже запущен, иначе плановое — время из [CyclicEventDetails.startDate].
+ * null, если времени нет: старые соревнования хранили дату без времени (полночь).
+ */
+private fun buildStartTimeText(eventDetails: CyclicEventDetails): String? {
+    val zone = eventDetails.zone()
+    eventDetails.startTime?.takeIf { it > 0 }?.let {
+        return DateTimeFormat.transformLongToTime(it, zone).takeIf { text -> text.isNotEmpty() }
+    }
+    val planned = Instant.ofEpochMilli(eventDetails.startDate).atZone(zone).toLocalTime()
+    if (planned == LocalTime.MIDNIGHT) return null
+    return DateTimeFormat.transformLongToTime(eventDetails.startDate, zone).takeIf { it.isNotEmpty() }
 }
 
 /**
@@ -824,8 +851,9 @@ private fun mockEvent(
     organizationId = "org_1",
     title = "Марафон \"Путь к успеху\"",
     description = "Большой забег через весь город.",
-    startDate = System.currentTimeMillis(),
-    endDate = System.currentTimeMillis() + 86400000L,
+    startDate = 1_780_297_200_000L, // 1 июня 2026, 10:00 МСК
+    endDate = 1_780_297_200_000L + 86400000L,
+    timeZoneId = "Europe/Moscow",
     endRegistrationDate = System.currentTimeMillis() - 3600000L,
     maxParticipants = 500,
     city = "Москва",
