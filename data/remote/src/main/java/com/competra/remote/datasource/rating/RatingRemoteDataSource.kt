@@ -4,6 +4,7 @@ import com.competra.remote.base.CommonModel
 import com.competra.remote.base.PagedResponse
 import com.competra.remote.request.rating.AddCompetitionToRatingRequest
 import com.competra.remote.request.rating.CreateRatingRequest
+import com.competra.remote.request.rating.MergeStandingsRequest
 import com.competra.remote.request.rating.SetGroupMappingRequest
 import com.competra.remote.request.rating.UpdateRatingRequest
 import com.competra.remote.response.rating.AddCompetitionToRatingResponse
@@ -12,6 +13,7 @@ import com.competra.remote.response.rating.RatingGroupMappingSuggestionResponse
 import com.competra.remote.response.rating.RatingResponse
 import com.competra.remote.response.rating.RatingSearchResponse
 import com.competra.remote.response.rating.RatingStandingsResponse
+import com.competra.remote.response.orienteering.OrganizerLinkResultResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -77,4 +79,11 @@ interface RatingRemoteDataSource {
         @Path("id") id: String,
         @Query("groupId") groupId: Long
     ): Result<CommonModel<RatingStandingsResponse>>
+
+    /** Объединить дубли в таблице рейтинга: привязать к аккаунту основной строки или переименовать в её ФИО. */
+    @POST("ratings/{id}/standings/merge")
+    suspend fun mergeStandings(
+        @Path("id") id: String,
+        @Body request: MergeStandingsRequest
+    ): Result<CommonModel<OrganizerLinkResultResponse>>
 }

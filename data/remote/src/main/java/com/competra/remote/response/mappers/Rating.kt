@@ -8,6 +8,7 @@ import com.competra.domain.models.rating.RatingGroupMappingSuggestion
 import com.competra.domain.models.rating.RatingSeries
 import com.competra.domain.models.rating.RatingStanding
 import com.competra.domain.models.rating.RatingStandingBreakdownEntry
+import com.competra.domain.models.rating.RatingStandings
 import com.competra.domain.models.rating.RatingSummary
 import com.competra.remote.response.rating.AddCompetitionToRatingResponse
 import com.competra.remote.response.rating.RatingCompetitionResponse
@@ -70,10 +71,18 @@ fun RatingStandingEntryResponse.toDomain() = RatingStanding(
     displayName = displayName,
     totalPoints = totalPoints,
     rank = rank,
-    breakdown = breakdown.map { RatingStandingBreakdownEntry(it.competitionId, it.place, it.points) }
+    breakdown = breakdown.map {
+        RatingStandingBreakdownEntry(it.competitionId, it.place, it.points, it.participantId.orEmpty())
+    },
+    userId = userId?.takeIf { it.isNotBlank() },
+    firstName = firstName.orEmpty(),
+    lastName = lastName.orEmpty()
 )
 
-fun RatingStandingsResponse.toDomain(): List<RatingStanding> = standings.map { it.toDomain() }
+fun RatingStandingsResponse.toDomain() = RatingStandings(
+    standings = standings.map { it.toDomain() },
+    possibleDuplicates = possibleDuplicates.orEmpty()
+)
 
 fun RatingSearchResponse.toDomain() = RatingSummary(
     id = id,

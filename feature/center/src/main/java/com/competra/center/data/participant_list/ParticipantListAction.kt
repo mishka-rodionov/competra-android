@@ -98,4 +98,12 @@ sealed class ParticipantListAction : BaseAction {
      */
     data object GenerateTestParticipants : ParticipantListAction()
 
+    /** Открыть диалог «Привязать к аккаунту» для вручную внесённого участника. */
+    data class ShowLinkToAccount(val participant: OrienteeringParticipant) : ParticipantListAction()
+    data object HideLinkToAccount : ParticipantListAction()
+    data class LinkQueryChange(val query: String) : ParticipantListAction()
+    data object SearchLinkCandidates : ParticipantListAction()
+    data class SelectLinkCandidate(val userId: String) : ParticipantListAction()
+    data object ConfirmLinkToAccount : ParticipantListAction()
+
 }

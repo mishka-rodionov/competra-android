@@ -10,6 +10,7 @@ import com.competra.center.data.draw.LateEntrySlotFinder
 import com.competra.center.data.draw.ProtocolStart
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
 import com.competra.center.data.participant_list.LateEntryPreview
+import com.competra.center.data.participant_list.LinkToAccountState
 import com.competra.center.data.participant_list.ParticipantListAction
 import com.competra.center.data.participant_list.ParticipantListState
 import com.competra.center.data.participant_list.TestParticipantFixtures
@@ -23,6 +24,7 @@ import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
+import com.competra.domain.repository.participant_link.ParticipantLinkRepository
 import com.competra.ui.BaseAction
 import com.competra.ui.viewmodel.BaseViewModel
 import com.competra.utils.constants.EventsConstants
@@ -39,7 +41,8 @@ class ParticipantListViewModel(
     private val competitionInteractor: OrienteeringCompetitionInteractor,
     private val navigation: Navigation,
     private val loadingRepository: LoadingRepository,
-    private val analytics: AnalyticsTracker
+    private val analytics: AnalyticsTracker,
+    private val participantLinkRepository: ParticipantLinkRepository
 ): BaseViewModel<ParticipantListState>(ParticipantListState()) {
 
     val competitionId: String? = navigation.getArguments<String>(EventsConstants.EVENT_ID.name)
@@ -130,6 +133,52 @@ class ParticipantListViewModel(
             ParticipantListAction.GenerateTestParticipants -> {
                 generateTestParticipants()
             }
+            is ParticipantListAction.ShowLinkToAccount -> {
+                updateState { copy(linkToAccount = LinkToAccountState(action.participant, action.participant.lastName)) }
+                searchLinkCandidates()
+            }
+            ParticipantListAction.HideLinkToAccount -> updateState { copy(linkToAccount = null) }
+            is ParticipantListAction.LinkQueryChange -> updateLink { copy(query = action.query) }
+            ParticipantListAction.SearchLinkCandidates -> searchLinkCandidates()
+            is ParticipantListAction.SelectLinkCandidate -> updateLink { copy(selectedUserId = action.userId, error = null) }
+            ParticipantListAction.ConfirmLinkToAccount -> confirmLinkToAccount()
+        }
+    }
+
+    private fun updateLink(block: LinkToAccountState.() -> LinkToAccountState) {
+        updateState { copy(linkToAccount = linkToAccount?.block()) }
+    }
+
+    private fun searchLinkCandidates() {
+        val link = stateValue.linkToAccount ?: return
+        viewModelScope.launch {
+            updateLink { copy(isSearching = true, selectedUserId = null, error = null) }
+            participantLinkRepository.getLinkCandidates(link.participant.id, link.query)
+                .onSuccess { candidates -> updateLink { copy(candidates = candidates, isSearching = false) } }
+                .onFailure { e ->
+                    updateLink { copy(candidates = emptyList(), isSearching = false, error = e.message ?: "Нет связи с сервером") }
+                }
+        }
+    }
+
+    /**
+     * Привязка идёт на сервере (участник должен быть уже синхронизирован). После успеха
+     * userId пишем и в локальную копию — иначе карточка покажет «не привязан» до следующей синхронизации.
+     */
+    private fun confirmLinkToAccount() {
+        val link = stateValue.linkToAccount ?: return
+        val userId = link.selectedUserId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            updateLink { copy(isLinking = true, error = null) }
+            participantLinkRepository.linkParticipants(userId, listOf(link.participant.id))
+                .onSuccess {
+                    competitionInteractor.updateParticipantLocally(link.participant.copy(userId = userId))
+                    updateState { copy(linkToAccount = null) }
+                    getCompetitionDetails()
+                }
+                .onFailure { e ->
+                    updateLink { copy(isLinking = false, error = e.message ?: "Не удалось привязать") }
+                }
         }
     }
 

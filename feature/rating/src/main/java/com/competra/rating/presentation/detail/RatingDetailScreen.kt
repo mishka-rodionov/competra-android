@@ -20,7 +20,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +50,7 @@ import com.competra.designsystem.theme.Dimens
 import com.competra.domain.models.rating.RatingCompetition
 import com.competra.domain.models.rating.RatingStanding
 import com.competra.rating.data.detail.RatingDetailAction
+import com.competra.rating.data.detail.mergeProblem
 import com.competra.resources.R
 import org.koin.androidx.compose.koinViewModel
 
@@ -123,6 +127,26 @@ fun RatingDetailScreen(ratingId: String, viewModel: RatingDetailViewModel = koin
                 }
             }
 
+            if (state.isAdmin && state.duplicateGroups.isNotEmpty() && !state.isSelectingForMerge) {
+                item {
+                    DuplicatesCard(
+                        groups = state.duplicateGroups,
+                        onMerge = { keys -> viewModel.onAction(RatingDetailAction.OpenMerge(keys)) }
+                    )
+                }
+            }
+            if (state.isAdmin && state.standings.size > 1) {
+                item {
+                    MergeSelectionBar(
+                        isSelecting = state.isSelectingForMerge,
+                        selectedCount = state.selectedKeys.size,
+                        onStart = { viewModel.onAction(RatingDetailAction.StartMergeSelection) },
+                        onCancel = { viewModel.onAction(RatingDetailAction.CancelMergeSelection) },
+                        onMerge = { viewModel.onAction(RatingDetailAction.OpenMergeForSelected) }
+                    )
+                }
+            }
+
             if (state.isStandingsLoading) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -140,6 +164,7 @@ fun RatingDetailScreen(ratingId: String, viewModel: RatingDetailViewModel = koin
                     Box(modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp)) {
                         StandingRow(
                             standing = standing,
+                            selected = if (state.isSelectingForMerge) standing.participantKey in state.selectedKeys else null,
                             onClick = { viewModel.onAction(RatingDetailAction.StandingClick(standing.participantKey)) }
                         )
                     }
@@ -168,6 +193,18 @@ fun RatingDetailScreen(ratingId: String, viewModel: RatingDetailViewModel = koin
         }
     }
 
+    state.mergeEntries?.let { entries ->
+        MergeDialog(
+            entries = entries,
+            targetKey = state.mergeTargetKey,
+            isMerging = state.isMerging,
+            error = state.mergeError,
+            onSelectTarget = { viewModel.onAction(RatingDetailAction.SelectMergeTarget(it)) },
+            onDismiss = { viewModel.onAction(RatingDetailAction.CloseMerge) },
+            onConfirm = { viewModel.onAction(RatingDetailAction.ConfirmMerge) }
+        )
+    }
+
     if (state.isDeleteConfirmOpen) {
         AlertDialog(
             onDismissRequest = { viewModel.onAction(RatingDetailAction.CloseDeleteConfirm) },
@@ -188,7 +225,131 @@ fun RatingDetailScreen(ratingId: String, viewModel: RatingDetailViewModel = koin
 }
 
 @Composable
-private fun StandingRow(standing: RatingStanding, onClick: () -> Unit) {
+private fun DuplicatesCard(groups: List<List<RatingStanding>>, onMerge: (List<String>) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.SIZE_BASE.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
+    ) {
+        Column(
+            modifier = Modifier.padding(Dimens.SIZE_HALFER.dp),
+            verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)
+        ) {
+            Text(stringResource(R.string.rating_detail_duplicates_title), style = MaterialTheme.typography.titleSmall)
+            groups.forEach { group ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = group.joinToString(" · ") { entry ->
+                            "${entry.lastName} ${entry.firstName}" + if (entry.userId != null) " (аккаунт)" else ""
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedButton(onClick = { onMerge(group.map { it.participantKey }) }) {
+                        Text(stringResource(R.string.rating_detail_merge_action))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MergeSelectionBar(
+    isSelecting: Boolean,
+    selectedCount: Int,
+    onStart: () -> Unit,
+    onCancel: () -> Unit,
+    onMerge: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.SIZE_BASE.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isSelecting) {
+            Text(
+                text = stringResource(R.string.rating_detail_merge_select_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onCancel) { Text(stringResource(android.R.string.cancel)) }
+            TextButton(onClick = onMerge, enabled = selectedCount >= 2) {
+                Text(stringResource(R.string.rating_detail_merge_selected_action, selectedCount))
+            }
+        } else {
+            TextButton(onClick = onStart) { Text(stringResource(R.string.rating_detail_merge_manual_action)) }
+        }
+    }
+}
+
+@Composable
+private fun MergeDialog(
+    entries: List<RatingStanding>,
+    targetKey: String?,
+    isMerging: Boolean,
+    error: String?,
+    onSelectTarget: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val target = entries.firstOrNull { it.participantKey == targetKey } ?: entries.first()
+    val problem = mergeProblem(target, entries)
+    val targetName = "${target.lastName} ${target.firstName}".trim()
+    AlertDialog(
+        onDismissRequest = { if (!isMerging) onDismiss() },
+        title = { Text(stringResource(R.string.rating_detail_merge_dialog_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)) {
+                Text(stringResource(R.string.rating_detail_merge_dialog_hint), style = MaterialTheme.typography.bodySmall)
+                entries.forEach { entry ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onSelectTarget(entry.participantKey) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = entry.participantKey == target.participantKey,
+                            onClick = { onSelectTarget(entry.participantKey) }
+                        )
+                        Column {
+                            Text("${entry.lastName} ${entry.firstName}", style = MaterialTheme.typography.bodyMedium)
+                            val kind = stringResource(
+                                if (entry.userId != null) R.string.rating_detail_merge_account else R.string.rating_detail_merge_no_account
+                            )
+                            Text(
+                                text = "$kind · ${entry.breakdown.size} ${startsCountLabel(entry.breakdown.size)} · ${entry.totalPoints}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = problem ?: stringResource(
+                        if (target.userId != null) R.string.rating_detail_merge_link_explanation
+                        else R.string.rating_detail_merge_rename_explanation,
+                        targetName
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (error != null) {
+                    Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = problem == null && !isMerging) {
+                Text(stringResource(if (isMerging) R.string.rating_detail_merging else R.string.rating_detail_merge_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isMerging) { Text(stringResource(android.R.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun StandingRow(standing: RatingStanding, selected: Boolean?, onClick: () -> Unit) {
     val startsCount = standing.breakdown.size
     val isTopThree = standing.rank in 1..3
     val badgeContainer = when (standing.rank) {
@@ -211,6 +372,9 @@ private fun StandingRow(standing: RatingStanding, onClick: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(Dimens.SIZE_HALFER.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (selected != null) {
+                Checkbox(checked = selected, onCheckedChange = { onClick() })
+            }
             Box(
                 modifier = Modifier.size(Dimens.SIZE_DOUBLE_QUARTER.dp).clip(CircleShape).background(badgeContainer),
                 contentAlignment = Alignment.Center

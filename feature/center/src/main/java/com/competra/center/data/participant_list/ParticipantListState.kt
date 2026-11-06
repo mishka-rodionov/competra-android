@@ -6,6 +6,7 @@ import com.competra.domain.models.orienteering.KnownParticipant
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.ParticipantGroupParticipants
+import com.competra.domain.models.participant_link.LinkCandidate
 import com.competra.ui.BaseState
 
 /**
@@ -34,8 +35,24 @@ data class ParticipantListState(
     val resultStatuses: Map<String, ResultStatus> = emptyMap(),
     val errorMessage: String? = null,
     val lateEntry: LateEntryPreview? = null,
-    val participantHistory: List<KnownParticipant> = emptyList()
+    val participantHistory: List<KnownParticipant> = emptyList(),
+    /** Диалог «Привязать к аккаунту»; null — закрыт. */
+    val linkToAccount: LinkToAccountState? = null
 ): BaseState
+
+/**
+ * Организатор сам привязывает вручную внесённого участника к аккаунту (онлайн, eSport
+ * `POST /event/orienteering/participants/link`).
+ */
+data class LinkToAccountState(
+    val participant: OrienteeringParticipant,
+    val query: String,
+    val candidates: List<LinkCandidate> = emptyList(),
+    val isSearching: Boolean = false,
+    val selectedUserId: String? = null,
+    val isLinking: Boolean = false,
+    val error: String? = null
+)
 
 /**
  * Предпросмотр стартового времени дозаявки для открытой группы. Окончательное время

@@ -53,7 +53,7 @@ class AthleteStartsViewModel(
                 return@launch
             }
 
-            val standing = standingsResult.getOrDefault(emptyList())
+            val standing = standingsResult.getOrNull()?.standings.orEmpty()
                 .firstOrNull { it.participantKey == stateValue.participantKey }
 
             updateState {

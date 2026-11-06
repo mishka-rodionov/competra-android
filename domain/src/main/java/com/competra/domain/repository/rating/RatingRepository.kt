@@ -7,6 +7,7 @@ import com.competra.domain.models.rating.RatingGroup
 import com.competra.domain.models.rating.RatingGroupMappingSuggestion
 import com.competra.domain.models.rating.RatingSeries
 import com.competra.domain.models.rating.RatingStanding
+import com.competra.domain.models.rating.RatingStandings
 import com.competra.domain.models.rating.RatingSummary
 
 /** Рейтинги соревнований работают только online — без offline-first/`:core:sync`, ошибки сети — обычный [Result.failure]. */
@@ -39,5 +40,11 @@ interface RatingRepository {
     /** Перезаписывает маппинг групп соревнования [competitionId] в рейтинге [ratingId] целиком. */
     suspend fun setGroupMapping(ratingId: String, competitionId: String, mappings: Map<Long, Long>): Result<Unit>
 
-    suspend fun getStandings(ratingId: String, ratingGroupId: Long): Result<List<RatingStanding>>
+    suspend fun getStandings(ratingId: String, ratingGroupId: Long): Result<RatingStandings>
+
+    /**
+     * Объединить дубли таблицы рейтинга: участники [sourceKeys] привязываются к аккаунту строки
+     * [targetKey] или переименовываются в её ФИО. Возвращает число изменённых участников.
+     */
+    suspend fun mergeStandings(ratingId: String, ratingGroupId: Long, targetKey: String, sourceKeys: List<String>): Result<Int>
 }

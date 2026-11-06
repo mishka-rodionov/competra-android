@@ -14,6 +14,10 @@ import com.competra.domain.repository.rating.RatingRepository
 import com.competra.domain.repository.user.UserRepository
 import com.competra.rating.data.detail.RatingDetailAction
 import com.competra.rating.data.detail.RatingDetailState
+import com.competra.rating.data.detail.defaultMergeTarget
+import com.competra.rating.data.detail.mergeProblem
+import com.competra.domain.models.rating.RatingStanding
+import com.competra.domain.models.rating.RatingStandings
 import com.competra.ui.BaseAction
 import com.competra.ui.viewmodel.BaseViewModel
 import kotlinx.coroutines.launch
@@ -37,10 +41,15 @@ class RatingDetailViewModel(
         when (action) {
             is RatingDetailAction.BackClick -> viewModelScope.launch { navigation.back() }
             is RatingDetailAction.SelectGroup -> {
-                updateState { copy(selectedGroupId = action.groupId) }
+                updateState { copy(selectedGroupId = action.groupId, isSelectingForMerge = false, selectedKeys = emptySet()) }
                 loadStandings(action.groupId)
             }
             is RatingDetailAction.StandingClick -> {
+                if (stateValue.isSelectingForMerge) {
+                    val key = action.participantKey
+                    updateState { copy(selectedKeys = if (key in selectedKeys) selectedKeys - key else selectedKeys + key) }
+                    return
+                }
                 val groupId = stateValue.selectedGroupId ?: return
                 viewModelScope.launch {
                     navigation.navigate(
@@ -64,6 +73,13 @@ class RatingDetailViewModel(
             is RatingDetailAction.OpenDeleteConfirm -> updateState { copy(isDeleteConfirmOpen = true) }
             is RatingDetailAction.CloseDeleteConfirm -> updateState { copy(isDeleteConfirmOpen = false) }
             is RatingDetailAction.ConfirmDelete -> confirmDelete()
+            is RatingDetailAction.StartMergeSelection -> updateState { copy(isSelectingForMerge = true, selectedKeys = emptySet()) }
+            is RatingDetailAction.CancelMergeSelection -> updateState { copy(isSelectingForMerge = false, selectedKeys = emptySet()) }
+            is RatingDetailAction.OpenMerge -> openMerge(action.participantKeys)
+            is RatingDetailAction.OpenMergeForSelected -> openMerge(stateValue.selectedKeys.toList())
+            is RatingDetailAction.SelectMergeTarget -> updateState { copy(mergeTargetKey = action.participantKey, mergeError = null) }
+            is RatingDetailAction.CloseMerge -> updateState { copy(mergeEntries = null, mergeTargetKey = null, mergeError = null) }
+            is RatingDetailAction.ConfirmMerge -> confirmMerge()
         }
     }
 
@@ -111,7 +127,7 @@ class RatingDetailViewModel(
     private fun loadStandings(groupId: Long, forceReload: Boolean = false) {
         val cached = stateValue.standingsByGroup[groupId]
         if (!forceReload && cached != null) {
-            updateState { copy(standings = cached) }
+            updateState { copy(standings = cached.standings, duplicateGroups = duplicateGroupsOf(cached)) }
             return
         }
         viewModelScope.launch {
@@ -120,7 +136,8 @@ class RatingDetailViewModel(
                 .onSuccess { standings ->
                     updateState {
                         copy(
-                            standings = standings,
+                            standings = standings.standings,
+                            duplicateGroups = duplicateGroupsOf(standings),
                             standingsByGroup = standingsByGroup + (groupId to standings),
                             isStandingsLoading = false
                         )
@@ -129,6 +146,56 @@ class RatingDetailViewModel(
                 .onFailure { throwable ->
                     updateState { copy(isStandingsLoading = false) }
                     emitNetworkError(throwable)
+                }
+        }
+    }
+
+    private fun duplicateGroupsOf(standings: RatingStandings): List<List<RatingStanding>> {
+        val byKey = standings.standings.associateBy { it.participantKey }
+        return standings.possibleDuplicates
+            .map { keys -> keys.mapNotNull { byKey[it] } }
+            .filter { it.size > 1 }
+    }
+
+    private fun openMerge(participantKeys: List<String>) {
+        val byKey = stateValue.standings.associateBy { it.participantKey }
+        val entries = participantKeys.mapNotNull { byKey[it] }
+        if (entries.size < 2) return
+        updateState {
+            copy(mergeEntries = entries, mergeTargetKey = defaultMergeTarget(entries)?.participantKey, mergeError = null)
+        }
+    }
+
+    private fun confirmMerge() {
+        val entries = stateValue.mergeEntries ?: return
+        val groupId = stateValue.selectedGroupId ?: return
+        val target = entries.firstOrNull { it.participantKey == stateValue.mergeTargetKey } ?: return
+        if (mergeProblem(target, entries) != null) return
+        viewModelScope.launch {
+            updateState { copy(isMerging = true, mergeError = null) }
+            ratingRepository.mergeStandings(
+                ratingId = stateValue.ratingId,
+                ratingGroupId = groupId,
+                targetKey = target.participantKey,
+                sourceKeys = entries.map { it.participantKey }.filter { it != target.participantKey }
+            )
+                .onSuccess {
+                    updateState {
+                        copy(
+                            isMerging = false,
+                            mergeEntries = null,
+                            mergeTargetKey = null,
+                            isSelectingForMerge = false,
+                            selectedKeys = emptySet(),
+                            // Объединение меняет участников и в других группах рейтинга — кэш невалиден.
+                            standingsByGroup = emptyMap()
+                        )
+                    }
+                    loadStandings(groupId, forceReload = true)
+                }
+                .onFailure { throwable ->
+                    // 422 с понятным текстом (два аккаунта, дубль в соревновании) — показываем в диалоге.
+                    updateState { copy(isMerging = false, mergeError = throwable.message ?: "Не удалось объединить") }
                 }
         }
     }

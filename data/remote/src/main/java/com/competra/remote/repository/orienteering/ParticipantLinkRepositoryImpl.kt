@@ -1,12 +1,14 @@
 package com.competra.remote.repository.orienteering
 
 import com.competra.domain.models.participant_link.CompetitionLinkRequest
+import com.competra.domain.models.participant_link.LinkCandidate
 import com.competra.domain.models.participant_link.LinkRequest
 import com.competra.domain.models.participant_link.LinkRequestSource
 import com.competra.domain.models.participant_link.LinkSuggestion
 import com.competra.domain.repository.participant_link.ParticipantLinkRepository
 import com.competra.remote.datasource.orienteering.ParticipantLinkRemoteDataSource
 import com.competra.remote.request.orienteering.CreateParticipantLinkRequest
+import com.competra.remote.request.orienteering.OrganizerLinkParticipantsRequest
 import com.competra.remote.request.orienteering.ReviewParticipantLinkRequest
 import com.competra.remote.response.mappers.toDomain
 
@@ -41,4 +43,12 @@ class ParticipantLinkRepositoryImpl(
 
     override suspend fun unlinkParticipant(participantId: String): Result<Unit> =
         remoteDataSource.unlinkParticipant(participantId).mapCatching { Unit }
+
+    override suspend fun getLinkCandidates(participantId: String, query: String): Result<List<LinkCandidate>> =
+        remoteDataSource.getLinkCandidates(participantId, query.trim().ifBlank { null })
+            .mapCatching { it.result.orEmpty().map { c -> c.toDomain() } }
+
+    override suspend fun linkParticipants(userId: String, participantIds: List<String>): Result<Int> =
+        remoteDataSource.linkParticipants(OrganizerLinkParticipantsRequest(userId, participantIds))
+            .mapCatching { it.result?.updatedCount ?: 0 }
 }

@@ -1,5 +1,13 @@
 package com.competra.center.presentation.participant_list
 
+import com.competra.center.data.participant_list.LinkToAccountState
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -118,6 +126,10 @@ fun ParticipantListScreen(
             onDismiss = { userAction.invoke(ParticipantListAction.HideDeleteParticipantDialog) },
             onConfirm = { userAction.invoke(ParticipantListAction.DeleteParticipant(participant)) }
         )
+    }
+
+    state.linkToAccount?.let { link ->
+        LinkToAccountDialog(state = link, userAction = userAction)
     }
 
     state.errorMessage?.let { message ->
@@ -281,6 +293,9 @@ fun ParticipantListContent(
                                 },
                                 onDeleteClick = { participant ->
                                     userAction.invoke(ParticipantListAction.ShowDeleteParticipantDialog(participant))
+                                },
+                                onLinkClick = { participant ->
+                                    userAction.invoke(ParticipantListAction.ShowLinkToAccount(participant))
                                 }
                             )
                         }
@@ -309,6 +324,9 @@ fun ParticipantListContent(
                                 },
                                 onDeleteClick = { participant ->
                                     userAction.invoke(ParticipantListAction.ShowDeleteParticipantDialog(participant))
+                                },
+                                onLinkClick = { participant ->
+                                    userAction.invoke(ParticipantListAction.ShowLinkToAccount(participant))
                                 }
                             )
                         }
@@ -1060,7 +1078,9 @@ fun ParticipantList(
     resultStatuses: Map<String, ResultStatus> = emptyMap(),
     onDnsToggle: (OrienteeringParticipant, Boolean) -> Unit = { _, _ -> },
     onEditClick: (OrienteeringParticipant) -> Unit,
-    onDeleteClick: (OrienteeringParticipant) -> Unit
+    onDeleteClick: (OrienteeringParticipant) -> Unit,
+    /** null — без действия «Привязать к аккаунту». */
+    onLinkClick: ((OrienteeringParticipant) -> Unit)? = null
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1083,7 +1103,8 @@ fun ParticipantList(
                 resultStatus = resultStatuses[participant.id],
                 onDnsToggle = { isDns -> onDnsToggle(participant, isDns) },
                 onEditClick = { onEditClick(participant) },
-                onDeleteClick = { onDeleteClick(participant) }
+                onDeleteClick = { onDeleteClick(participant) },
+                onLinkClick = onLinkClick?.let { { it(participant) } }
             )
         }
     }
@@ -1099,7 +1120,9 @@ fun ParticipantCard(
     resultStatus: ResultStatus? = null,
     onDnsToggle: (Boolean) -> Unit = {},
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    /** null — без действия «Привязать к аккаунту». */
+    onLinkClick: (() -> Unit)? = null
 ) {
     val isDns = resultStatus == ResultStatus.DNS
     val hasValidStart = isValidTimestamp(participant.startTime)
@@ -1165,6 +1188,21 @@ fun ParticipantCard(
                         text = participant.commandName,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (participant.userId.isNotBlank()) {
+                    Text(
+                        text = "Привязан к аккаунту",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else if (onLinkClick != null) {
+                    Text(
+                        text = "Привязать к аккаунту",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable(onClick = onLinkClick)
                     )
                 }
                 when {
@@ -1418,3 +1456,96 @@ fun ParticipantListScreenPreview() {
         )
     }
 }
+
+/**
+ * Организатор сам привязывает участника к аккаунту: поиск по фамилии, выбор человека.
+ * Нужна сеть и уже синхронизированный участник — иначе сервер ответит ошибкой, она показывается в диалоге.
+ */
+@Composable
+private fun LinkToAccountDialog(state: LinkToAccountState, userAction: (BaseAction) -> Unit) {
+    AlertDialog(
+        onDismissRequest = { if (!state.isLinking) userAction(ParticipantListAction.HideLinkToAccount) },
+        title = { Text("Привязать к аккаунту") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_HALF.dp)) {
+                Text(
+                    text = "${state.participant.lastName} ${state.participant.firstName}. Результат появится в профиле " +
+                        "человека, ему придёт уведомление — при ошибке он сможет отвязать результат сам.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = state.query,
+                        onValueChange = { userAction(ParticipantListAction.LinkQueryChange(it)) },
+                        label = { Text("Фамилия") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { userAction(ParticipantListAction.SearchLinkCandidates) }) { Text("Найти") }
+                }
+                when {
+                    state.isSearching -> CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    state.candidates.isEmpty() -> Text(
+                        text = "Никого не нашли. Человек должен быть зарегистрирован в Competra — попробуйте другое написание.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    else -> LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                        items(state.candidates, key = { it.userId }) { candidate ->
+                            val enabled = !candidate.alreadyInCompetition
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = enabled) {
+                                        userAction(ParticipantListAction.SelectLinkCandidate(candidate.userId))
+                                    }
+                                    .padding(vertical = Dimens.SIZE_QUARTER.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = candidate.userId == state.selectedUserId,
+                                    enabled = enabled,
+                                    onClick = { userAction(ParticipantListAction.SelectLinkCandidate(candidate.userId)) }
+                                )
+                                Column {
+                                    Text(
+                                        text = listOfNotNull(candidate.lastName, candidate.firstName, candidate.middleName)
+                                            .joinToString(" "),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = (candidate.birthYear?.let { "$it г. р." } ?: "Год рождения не указан") +
+                                            if (candidate.nameMatches) " · имя совпадает с протоколом" else "",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    val warning = if (candidate.alreadyInCompetition) {
+                                        "Уже есть в протоколе этого соревнования"
+                                    } else {
+                                        candidate.eligibilityWarning
+                                    }
+                                    if (warning != null) {
+                                        Text(warning, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                state.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { userAction(ParticipantListAction.ConfirmLinkToAccount) },
+                enabled = state.selectedUserId != null && !state.isLinking
+            ) { Text(if (state.isLinking) "Привязываем…" else "Привязать") }
+        },
+        dismissButton = {
+            TextButton(onClick = { userAction(ParticipantListAction.HideLinkToAccount) }, enabled = !state.isLinking) {
+                Text("Отмена")
+            }
+        }
+    )
+}
+

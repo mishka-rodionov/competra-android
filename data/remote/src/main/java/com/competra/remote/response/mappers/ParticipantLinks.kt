@@ -1,5 +1,7 @@
 package com.competra.remote.response.mappers
 
+import com.competra.remote.response.orienteering.LinkCandidateResponse
+import com.competra.domain.models.participant_link.LinkCandidate
 import com.competra.domain.models.participant_link.CompetitionLinkRequest
 import com.competra.domain.models.participant_link.LinkRequest
 import com.competra.domain.models.participant_link.LinkRequestSource
@@ -67,4 +69,15 @@ fun CompetitionLinkRequestResponse.toDomain() = CompetitionLinkRequest(
     eligibilityWarning = eligibilityWarning,
     competingRequests = competingRequests,
     userAlreadyInCompetition = userAlreadyInCompetition
+)
+
+fun LinkCandidateResponse.toDomain() = LinkCandidate(
+    userId = userId,
+    firstName = firstName,
+    lastName = lastName,
+    middleName = middleName?.takeIf { it.isNotBlank() },
+    birthYear = birthYear,
+    nameMatches = nameMatches,
+    eligibilityWarning = eligibilityWarning,
+    alreadyInCompetition = alreadyInCompetition
 )

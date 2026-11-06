@@ -61,3 +61,20 @@ data class CompetitionLinkRequestResponse(
     @SerializedName("competingRequests") val competingRequests: Int,
     @SerializedName("userAlreadyInCompetition") val userAlreadyInCompetition: Boolean
 )
+
+/** Аккаунт, к которому организатор может привязать участника (eSport: LinkCandidateResponse). */
+data class LinkCandidateResponse(
+    @SerializedName("userId") val userId: String,
+    @SerializedName("firstName") val firstName: String,
+    @SerializedName("lastName") val lastName: String,
+    @SerializedName("middleName") val middleName: String?,
+    @SerializedName("birthYear") val birthYear: Int?,
+    @SerializedName("nameMatches") val nameMatches: Boolean,
+    @SerializedName("eligibilityWarning") val eligibilityWarning: String?,
+    @SerializedName("alreadyInCompetition") val alreadyInCompetition: Boolean
+)
+
+/** Итог привязки/переименования/объединения организатором. */
+data class OrganizerLinkResultResponse(
+    @SerializedName("updatedCount") val updatedCount: Int
+)

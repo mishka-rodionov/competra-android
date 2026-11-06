@@ -1,6 +1,7 @@
 package com.competra.domain.repository.participant_link
 
 import com.competra.domain.models.participant_link.CompetitionLinkRequest
+import com.competra.domain.models.participant_link.LinkCandidate
 import com.competra.domain.models.participant_link.LinkRequest
 import com.competra.domain.models.participant_link.LinkRequestSource
 import com.competra.domain.models.participant_link.LinkSuggestion
@@ -34,4 +35,10 @@ interface ParticipantLinkRepository {
 
     /** Отвязать участника от аккаунта: сам привязанный пользователь или организатор. */
     suspend fun unlinkParticipant(participantId: String): Result<Unit>
+
+    /** Аккаунты, к которым организатор может привязать участника; пустой [query] — по фамилии участника. */
+    suspend fun getLinkCandidates(participantId: String, query: String): Result<List<LinkCandidate>>
+
+    /** Организатор сам привязывает участников к аккаунту [userId]. Возвращает число привязанных. */
+    suspend fun linkParticipants(userId: String, participantIds: List<String>): Result<Int>
 }

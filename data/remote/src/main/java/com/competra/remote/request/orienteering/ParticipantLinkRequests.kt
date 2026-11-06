@@ -12,3 +12,9 @@ data class ReviewParticipantLinkRequest(
     @SerializedName("approve") val approve: Boolean,
     @SerializedName("comment") val comment: String? = null
 )
+
+/** Организатор сам привязывает участников к аккаунту (eSport: OrganizerLinkParticipantsRequest). */
+data class OrganizerLinkParticipantsRequest(
+    @SerializedName("userId") val userId: String,
+    @SerializedName("participantIds") val participantIds: List<String>
+)

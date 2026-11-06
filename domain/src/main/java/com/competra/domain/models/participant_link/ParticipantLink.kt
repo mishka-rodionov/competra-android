@@ -94,3 +94,18 @@ data class CompetitionLinkRequest(
     /** У заявителя уже есть свой участник в этом соревновании — одобрить нельзя, нужно удалить дубль. */
     val userAlreadyInCompetition: Boolean,
 )
+
+/** Аккаунт, к которому организатор может привязать участника протокола (без email/телефона). */
+data class LinkCandidate(
+    val userId: String,
+    val firstName: String,
+    val lastName: String,
+    val middleName: String?,
+    val birthYear: Int?,
+    /** ФИО в профиле совпадает с участником протокола. */
+    val nameMatches: Boolean,
+    /** Пол/возраст не подходят к группе участника; null — подходят. */
+    val eligibilityWarning: String?,
+    /** У пользователя уже есть свой участник в этом соревновании — привязать нельзя. */
+    val alreadyInCompetition: Boolean
+)

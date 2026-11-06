@@ -2,9 +2,12 @@ package com.competra.remote.datasource.orienteering
 
 import com.competra.remote.base.CommonModel
 import com.competra.remote.request.orienteering.CreateParticipantLinkRequest
+import com.competra.remote.request.orienteering.OrganizerLinkParticipantsRequest
 import com.competra.remote.request.orienteering.ReviewParticipantLinkRequest
 import com.competra.remote.response.orienteering.CompetitionLinkRequestResponse
+import com.competra.remote.response.orienteering.LinkCandidateResponse
 import com.competra.remote.response.orienteering.LinkRequestResponse
+import com.competra.remote.response.orienteering.OrganizerLinkResultResponse
 import com.competra.remote.response.orienteering.LinkSuggestionResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -45,4 +48,17 @@ interface ParticipantLinkRemoteDataSource {
 
     @POST("event/orienteering/participants/{id}/unlink")
     suspend fun unlinkParticipant(@Path("id") participantId: String): Result<CommonModel<Any>>
+
+    /** Аккаунты для привязки участника организатором; без [query] — по фамилии участника. */
+    @GET("event/orienteering/participants/{id}/link-candidates")
+    suspend fun getLinkCandidates(
+        @Path("id") participantId: String,
+        @Query("query") query: String?
+    ): Result<CommonModel<List<LinkCandidateResponse>>>
+
+    /** Организатор сам привязывает участников к аккаунту — без заявки пользователя. */
+    @POST("event/orienteering/participants/link")
+    suspend fun linkParticipants(
+        @Body request: OrganizerLinkParticipantsRequest
+    ): Result<CommonModel<OrganizerLinkResultResponse>>
 }

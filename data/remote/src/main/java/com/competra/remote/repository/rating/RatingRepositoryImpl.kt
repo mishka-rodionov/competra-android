@@ -1,12 +1,13 @@
 package com.competra.remote.repository.rating
 
+import com.competra.remote.request.rating.MergeStandingsRequest
 import com.competra.domain.models.PagedResult
 import com.competra.domain.models.rating.AddCompetitionToRatingResult
 import com.competra.domain.models.rating.RatingCompetition
 import com.competra.domain.models.rating.RatingGroup
 import com.competra.domain.models.rating.RatingGroupMappingSuggestion
 import com.competra.domain.models.rating.RatingSeries
-import com.competra.domain.models.rating.RatingStanding
+import com.competra.domain.models.rating.RatingStandings
 import com.competra.domain.models.rating.RatingSummary
 import com.competra.domain.repository.rating.RatingRepository
 import com.competra.remote.datasource.rating.RatingRemoteDataSource
@@ -79,9 +80,18 @@ class RatingRepositoryImpl(
         return ratingRemoteDataSource.setGroupMapping(ratingId, competitionId, request).mapCatching { Unit }
     }
 
-    override suspend fun getStandings(ratingId: String, ratingGroupId: Long): Result<List<RatingStanding>> {
+    override suspend fun getStandings(ratingId: String, ratingGroupId: Long): Result<RatingStandings> {
         return ratingRemoteDataSource.getStandings(ratingId, ratingGroupId).mapCatching { it.result!!.toDomain() }
     }
+
+    override suspend fun mergeStandings(
+        ratingId: String,
+        ratingGroupId: Long,
+        targetKey: String,
+        sourceKeys: List<String>
+    ): Result<Int> =
+        ratingRemoteDataSource.mergeStandings(ratingId, MergeStandingsRequest(ratingGroupId, targetKey, sourceKeys))
+            .mapCatching { it.result?.updatedCount ?: 0 }
 
     private fun RatingGroup.toRequest() = RatingGroupRequest(
         id = id.takeIf { it != 0L },
