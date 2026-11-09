@@ -11,7 +11,10 @@
 ### Создание (Android и web)
 
 - **Android**: мастер создания → шаг «Основное» → переключатель **«Регистрация на финише»**. При включении способ старта фиксируется: «По стартовой станции», а система отметки — Sportiduino.
-- **Web**: форма создания соревнования, та же галочка *(веб — в работе)*.
+- **Web**: «Управление» → «Создать» → шаг «Основное» → галочка **«Регистрация на финише»** (в «Добавить прошедшее» её нет). При включении вместо выбора способа старта — подсказка «Старт — по стартовой станции».
+- **Web, редактирование** («Управление» → соревнование → «Общее»): режим только показывается, способ старта не меняется.
+- **Web, детали соревнования**: в карточке «Когда и где» — «Регистрация: На финише — организатор вносит участников при считывании чипа».
+- В форме дистанции (Android и web) пустые поля финиша и старта заполняются кодами 245 и 240 (Sportiduino).
 - Группы создаются как обычно (хотя бы одна обязательна). Дистанции необязательны.
 - Режим задаётся в мастере. На экране управления соревнованием видна подпись «Регистрация на финише — участников вносите при считывании чипа».
 
@@ -64,6 +67,12 @@
 - `ResultRanking.recalculateGroup` не переводит в OVERTIME результаты с `isStatusManual`.
 - Колонки: `orienteering_competitions.is_finish_registration`, `orienteering_results.is_status_manual`, `orienteering_results.read_at` (миграции в `Databases.kt`).
 
+**Web** (`competra-web-ts`):
+
+- `src/types/competition.ts` — `isFinishRegistration` в соревновании, деталях и запросе создания (при редактировании не отправляется — сервер сохраняет значение).
+- `src/features/management/dictionaries.ts` — `finishRegistrationPatch`, `DEFAULT_STATION_CODES`; `CreateCompetitionSteps.tsx` — галочка; `EditCompetitionTab.tsx` — подпись вместо выбора старта; `DistanceDialog.tsx` — коды по умолчанию; `competition-detail/InfoTab.tsx` — подпись режима.
+- `public/guides/first-competition-guide.html` — упоминание режима и кодов станций.
+
 **Android** (`competra-android`):
 
 - `domain/.../orienteering/PunchingSystem.kt`, `UnassignedChipRead.kt`, `repository/orienteering/UnassignedChipReadRepository.kt`.
@@ -77,7 +86,7 @@
 
 | Событие | Параметры |
 |---|---|
-| `create_competition_finished` | + `is_finish_registration` |
+| `create_competition_finished` (Android и web) | + `is_finish_registration` |
 | `finish_read_assigned` | `target`: `new_participant` / `existing_participant`; `source`: `on_read` / `queue` |
 | `result_status_changed_manually` | `status`: `finished` / `dsq` |
 | `participant_added` | `method`: `nfc` — участник создан из карточки на финише (`history` — по подсказке) |
@@ -94,4 +103,4 @@
 
 ## История
 
-- 09.11.2026 — первая версия: eSport (поля и миграции), Android (ветка `feature/finish-registration`). Web — в работе.
+- 09.11.2026 — первая версия: eSport (поля и миграции, задеплоено), Android (ветка `feature/finish-registration`), web (галочка при создании, подпись режима, коды станций в форме дистанции).
