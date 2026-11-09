@@ -478,3 +478,24 @@ val MIGRATION_58_59 = object : Migration(58, 59) {
         )
     }
 }
+
+/**
+ * Миграция с версии 59 на 60.
+ * «Регистрация на финише»: флаг соревнования, ручной статус и время считывания у результата,
+ * локальная очередь неразобранных считываний чипов.
+ */
+val MIGRATION_59_60 = object : Migration(59, 60) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE orienteering_competitions ADD COLUMN isFinishRegistration INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE orienteering_results ADD COLUMN isStatusManual INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE orienteering_results ADD COLUMN readAt INTEGER")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS unassigned_chip_reads (" +
+                "competitionId TEXT NOT NULL, chipNumber INTEGER NOT NULL, readAt INTEGER NOT NULL, " +
+                "clearTime INTEGER NOT NULL, splits TEXT NOT NULL, " +
+                "PRIMARY KEY(competitionId, chipNumber), " +
+                "FOREIGN KEY(competitionId) REFERENCES orienteering_competitions(competitionId) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+    }
+}

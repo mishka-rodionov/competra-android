@@ -8,6 +8,7 @@ import com.competra.center.data.event_control.OrienteeringEventControlState
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
 import com.competra.center.data.refresh.BackgroundRefresher
 import com.competra.data.navigation.CenterNavigation
+import com.competra.domain.repository.orienteering.UnassignedChipReadRepository
 import com.competra.data.navigation.EventsNavigation
 import com.competra.data.navigation.Navigation
 import com.competra.data.navigation.getArguments
@@ -50,7 +51,8 @@ class OrienteeringEventControlViewModel(
     private val loadingRepository: LoadingRepository,
     private val analytics: AnalyticsTracker,
     private val participantLinkRepository: ParticipantLinkRepository,
-    private val networkAvailabilityRepository: NetworkAvailabilityRepository
+    private val networkAvailabilityRepository: NetworkAvailabilityRepository,
+    private val unassignedChipReadRepository: UnassignedChipReadRepository
 ) : BaseViewModel<OrienteeringEventControlState>(OrienteeringEventControlState()) {
 
     val competitionId: String? = navigation.getArguments<String>(EventsConstants.EVENT_ID.name)
@@ -66,6 +68,13 @@ class OrienteeringEventControlViewModel(
         }
         viewModelScope.launch {
             networkAvailabilityRepository.availableEvents.collect { refresher.refreshIfStale() }
+        }
+        competitionId?.let { id ->
+            viewModelScope.launch {
+                unassignedChipReadRepository.observe(id).collect { reads ->
+                    updateState { copy(unassignedReadsCount = reads.size) }
+                }
+            }
         }
     }
 
@@ -117,14 +126,17 @@ class OrienteeringEventControlViewModel(
                     participants = details.groupsWithParticipants.flatMap { it.participants }
                 )
                 val isRunning = competition.competition.status == CompetitionStatus.IN_PROGRESS
-                val allParticipantsFinished = isRunning &&
+                // В режиме «Регистрация на финише» участников вносят по ходу финиша — «все
+                // финишировали» по уже внесённым ничего не значит.
+                val allParticipantsFinished = isRunning && !competition.isFinishRegistration &&
                         orienteeringCompetitionInteractor.areAllParticipantsFinished(id)
                 // Стартовый номер участник получает уже при добавлении, поэтому по участникам
                 // жеребьёвку не определить — опираемся только на флаг. Он не сбрасывается при
                 // синхронизации: локально сохраняется, а с сервера восстанавливается по drawMode.
                 val isDrawConducted = competition.isDrawConducted
                 val distances = orienteeringCompetitionInteractor.getDistances(id).getOrNull().orEmpty()
-                val groupsWithoutDistance = details.groupsWithParticipants
+                // В режиме «Регистрация на финише» группа без дистанции — норма (результат по времени).
+                val groupsWithoutDistance = if (competition.isFinishRegistration) emptyList() else details.groupsWithParticipants
                     .map { it.group }
                     .withoutDistance(distances)
                     .map { it.title }

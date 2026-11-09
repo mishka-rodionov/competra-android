@@ -28,6 +28,8 @@ import com.competra.local.converters.ResultConverters
  * @param splits Список отметок на контрольных пунктах (сплитов)
  * @param isEditable Флаг возможности редактирования результата
  * @param isEdited Флаг того, что результат был изменен вручную
+ * @param isStatusManual Статус выставлен организатором вручную
+ * @param readAt Время считывания чипа на финише (мс)
  */
 @Entity(
     tableName = "orienteering_results",
@@ -70,6 +72,9 @@ data class OrienteeringResultEntity(
     val splits: List<SplitTime>? = null,
     val isEditable: Boolean = true,
     val isEdited: Boolean = false,
+    @ColumnInfo(defaultValue = "0")
+    val isStatusManual: Boolean = false,
+    val readAt: Long? = null,
     val isSynced: Boolean = false,
     val remoteId: String? = null,
     @ColumnInfo(defaultValue = "0")

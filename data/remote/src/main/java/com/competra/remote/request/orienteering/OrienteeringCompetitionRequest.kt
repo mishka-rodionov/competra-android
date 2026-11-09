@@ -55,6 +55,10 @@ data class OrienteeringCompetitionRequest(
     @SerializedName("teamScoring")
     val teamScoring: TeamScoringRequest? = null,
 
+    /** Режим «Регистрация на финише»; null — сервер оставляет сохранённый. */
+    @SerializedName("isFinishRegistration")
+    val isFinishRegistration: Boolean? = null,
+
     /** Режим проведённой жеребьёвки; null — сервер оставляет сохранённый. */
     @SerializedName("drawMode")
     val drawMode: String? = null,

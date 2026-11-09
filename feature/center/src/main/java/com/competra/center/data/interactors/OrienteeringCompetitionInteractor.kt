@@ -374,6 +374,8 @@ class OrienteeringCompetitionInteractor(
             val controlTimeMinutes = effectiveControlTimeMinutes(groupData.group, competition)
             val results = groupData.participants.mapNotNull { it.result }
             val derived = results.map { result ->
+                // Ручной статус организатора («Снят» / «Засчитать») контрольное время не перетирает.
+                if (result.isStatusManual) return@map result
                 val status = applyOvertimePolicy(
                     status = result.status,
                     totalTimeSeconds = result.totalTime,

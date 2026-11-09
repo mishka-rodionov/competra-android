@@ -44,6 +44,7 @@ fun OrienteeringCompetitionResponse.toDomain(): OrienteeringCompetition {
         overtimePolicy = OvertimePolicy.fromString(overtimePolicy),
         byChoiceMode = ByChoiceMode.fromString(byChoiceMode),
         teamScoring = teamScoring?.toDomain(),
+        isFinishRegistration = isFinishRegistration ?: false,
         // Флаг жеребьёвки на сервере не хранится — восстанавливаем его по сохранённому режиму,
         // иначе синхронизация сбрасывала бы его.
         isDrawConducted = drawSettings != null,
@@ -171,6 +172,8 @@ fun OrienteeringResultResponse.toDomain(): OrienteeringResult {
         splits = splits?.map { SplitTime(it.controlPoint, it.timestamp) },
         isEditable = isEditable,
         isEdited = isEdited,
+        isStatusManual = isStatusManual ?: false,
+        readAt = readAt,
         isSynced = true,
         serverUpdatedAt = updatedAt.takeIf { it > 0L }
     )

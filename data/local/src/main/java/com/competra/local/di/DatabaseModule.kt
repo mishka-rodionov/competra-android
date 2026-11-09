@@ -6,6 +6,7 @@ import com.competra.local.dao.UserDao
 import com.competra.local.dao.orienteering.DistanceDao
 import com.competra.local.dao.orienteering.OrienteeringParticipantDao
 import com.competra.local.dao.orienteering.OrienteeringResultDao
+import com.competra.local.dao.orienteering.UnassignedChipReadDao
 import com.competra.local.dao.diary.WorkoutDao
 import com.competra.local.dao.livetrack.LiveTrackDao
 import com.competra.local.dao.livetrack.MyStartDao
@@ -24,4 +25,5 @@ val databaseModule = module {
     single<WorkoutDao> { get<DatabaseHelper>().db.workoutDao() }
     single<LiveTrackDao> { get<DatabaseHelper>().db.liveTrackDao() }
     single<MyStartDao> { get<DatabaseHelper>().db.myStartDao() }
+    single<UnassignedChipReadDao> { get<DatabaseHelper>().db.unassignedChipReadDao() }
 }

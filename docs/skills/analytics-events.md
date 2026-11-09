@@ -27,12 +27,14 @@
 | `create_competition_step_completed` | Пользователь закончил один из шагов мастера | `OrienteeringCreatorViewModel.kt` |
 | `create_competition_courses_imported` | В мастере импортированы дистанции из IOF XML (`courses_count`) | `OrienteeringCreatorViewModel.kt`, web `CreateCompetitionPage.tsx` |
 | `create_competition_standard_groups_added` | В мастере добавлены стандартные группы (`groups_count`) | `OrienteeringCreatorViewModel.kt`, web `CreateCompetitionPage.tsx` |
-| `create_competition_finished` | Мастер создания прошёл до конца (`format`: forward / marking / by_choice_score / by_choice_min_controls; `team_scoring`: none / groups / both) | `OrienteeringCreatorViewModel.kt` |
+| `create_competition_finished` | Мастер создания прошёл до конца (`format`: forward / marking / by_choice_score / by_choice_min_controls; `team_scoring`: none / groups / both; `is_finish_registration`) | `OrienteeringCreatorViewModel.kt` |
 | `team_standings_opened` | Открыт командный зачёт в результатах (`competition_id`) | `OrienteeringCompetitionResultsViewModel.kt`, `EventResultsViewModel.kt` |
 | `participant_added` | Организатор добавил участника в диалоге «Новый участник» (`method`: manual / history — из подсказки по прошлым соревнованиям) | `ParticipantListViewModel.kt` |
 | `participants_bulk_added` | Организатор добавил в группу сразу несколько людей из прошлых соревнований (`participants_count`) | `ParticipantListViewModel.kt` |
 | `participant_drawn` | Прошла жеребьёвка | `DrawViewModel.kt` |
 | `participant_dns_marked` | Участник отмечен «Не стартовал» | `ParticipantListViewModel.kt` |
+| `finish_read_assigned` | «Регистрация на финише»: считывание незнакомого чипа привязано к участнику (`target`: new_participant / existing_participant; `source`: on_read / queue) | `OrientReadCardViewModel.kt` |
+| `result_status_changed_manually` | «Регистрация на финише»: организатор вручную снял или засчитал результат (`status`: finished / dsq) | `OrientReadCardViewModel.kt` |
 
 ### Анти-паттерны
 

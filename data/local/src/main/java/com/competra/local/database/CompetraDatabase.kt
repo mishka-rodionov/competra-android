@@ -18,6 +18,8 @@ import com.competra.local.dao.UserDao
 import com.competra.local.dao.orienteering.OrienteeringParticipantDao
 import com.competra.local.dao.orienteering.OrienteeringResultDao
 import com.competra.local.dao.orienteering.DistanceDao
+import com.competra.local.dao.orienteering.UnassignedChipReadDao
+import com.competra.local.entities.orienteering.UnassignedChipReadEntity
 import com.competra.local.dao.diary.WorkoutDao
 import com.competra.local.entities.orienteering.DistanceEntity
 import com.competra.local.entities.orienteering.OrganizerEntity
@@ -46,7 +48,8 @@ import com.competra.local.entities.user.UserEntity
 // v52: буфер онлайн-трекинга бегуна (live_track_runner_sessions / live_track_runner_points).
 // v53: координаты старта и финиша дистанции — темп на первом/последнем перегоне.
 // v59: сессия онлайн-трека создаётся телефоном (isRegistered, rejectMessage) + кэш my_starts.
-private const val DB_VERSION = 59
+// v60: «Регистрация на финише» — флаг соревнования, isStatusManual/readAt результата, очередь unassigned_chip_reads.
+private const val DB_VERSION = 60
 
 /**
  * Основной класс базы данных приложения (Room).
@@ -67,7 +70,8 @@ private const val DB_VERSION = 59
         SkiDetailsEntity::class,
         LiveTrackSessionEntity::class,
         LiveTrackPointEntity::class,
-        MyStartEntity::class
+        MyStartEntity::class,
+        UnassignedChipReadEntity::class
     ],
     version = DB_VERSION,
     exportSchema = false
@@ -88,4 +92,5 @@ abstract class CompetraDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
     abstract fun liveTrackDao(): LiveTrackDao
     abstract fun myStartDao(): MyStartDao
+    abstract fun unassignedChipReadDao(): UnassignedChipReadDao
 }

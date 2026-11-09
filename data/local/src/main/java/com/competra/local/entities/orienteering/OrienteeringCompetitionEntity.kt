@@ -29,6 +29,7 @@ import com.competra.local.converters.CompetitionConverters
  * @property overtimePolicy Что делать с результатами, превысившими КВ
  * @property byChoiceMode Итог формата «по выбору»: по баллам или по минимуму КП
  * @property teamScoring Настройки командного зачёта; null — зачёта нет
+ * @property isFinishRegistration Режим «Регистрация на финише»
  * @property drawMode Режим проведённой жеребьёвки; null — не проводилась
  * @property drawCorridors Коридоры жеребьёвки по дистанциям
  * @property drawGap Зазор жеребьёвки по дистанциям (в стартовых интервалах)
@@ -55,6 +56,8 @@ data class OrienteeringCompetitionEntity(
     @ColumnInfo(defaultValue = "SCORE")
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     val teamScoring: TeamScoring? = null,
+    @ColumnInfo(defaultValue = "0")
+    val isFinishRegistration: Boolean = false,
     @ColumnInfo(defaultValue = "0")
     val isDrawConducted: Boolean = false,
     val drawMode: String? = null,

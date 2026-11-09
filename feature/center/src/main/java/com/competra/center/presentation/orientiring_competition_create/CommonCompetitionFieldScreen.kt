@@ -343,8 +343,14 @@ private fun CommonCompetitionFieldContent(
             PunchingSystemSelector(state = state, userAction = onAction)
             FieldDescription("Оборудование, которым участники отмечаются на КП")
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-            StartTimeModeSelector(state = state, userAction = onAction)
-            FieldDescription("По протоколу — судья запускает отсчёт, участники уходят по жеребьёвке через интервал. По стартовой станции — время старта каждого фиксирует отметка на стартовой станции")
+            FinishRegistrationSwitch(state = state, userAction = onAction)
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+            if (state.isFinishRegistration) {
+                FieldDescription("Старт — по стартовой станции: время старта каждого фиксирует отметка на ней")
+            } else {
+                StartTimeModeSelector(state = state, userAction = onAction)
+                FieldDescription("По протоколу — судья запускает отсчёт, участники уходят по жеребьёвке через интервал. По стартовой станции — время старта каждого фиксирует отметка на стартовой станции")
+            }
             if (state.startTimeMode != StartTimeMode.BY_START_STATION) {
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
                 StartIntervalSelector(state = state, userAction = onAction)
@@ -539,6 +545,27 @@ private fun ByChoiceModeSelector(
                 ByChoiceMode.MIN_CONTROLS ->
                     "Нужно взять не меньше заданного числа КП, места — по времени. Минимум и обязательные КП задаются у дистанции"
             }
+        )
+    }
+}
+
+/**
+ * Переключатель режима «Регистрация на финише»: участников не регистрируют заранее — организатор
+ * вносит их при считывании чипа на финише. Включение фиксирует старт по стартовой станции.
+ */
+@Composable
+private fun FinishRegistrationSwitch(
+    state: OrienteeringCreatorState,
+    userAction: (OrienteeringCreatorAction) -> Unit
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = "Регистрация на финише", style = MaterialTheme.typography.bodyLarge)
+            FieldDescription("Участников вносите при считывании чипа на финише — заранее регистрировать не нужно")
+        }
+        Switch(
+            checked = state.isFinishRegistration,
+            onCheckedChange = { userAction(OrienteeringCreatorAction.UpdateFinishRegistration(it)) }
         )
     }
 }

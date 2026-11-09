@@ -37,6 +37,7 @@ fun OrienteeringCompetition.toRequest(): OrienteeringCompetitionRequest {
                 overallScopes = it.overallScopes.map { scope -> scope.name }
             )
         } ?: TeamScoringRequest(enabled = false),
+        isFinishRegistration = isFinishRegistration,
         drawMode = drawSettings?.mode?.name,
         drawCorridors = drawSettings?.corridors,
         drawGap = drawSettings?.gap,
@@ -130,6 +131,8 @@ fun OrienteeringResult.toRequest(): OrienteeringResultRequest {
         splits = splits?.map { SplitTimeRequest(it.controlPoint, it.timestamp) },
         isEditable = isEditable,
         isEdited = isEdited,
+        isStatusManual = isStatusManual,
+        readAt = readAt,
         serverUpdatedAt = serverUpdatedAt
     )
 }

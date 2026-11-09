@@ -83,12 +83,17 @@ fun DistanceEditor(
     }
     var showMinControlsError by remember { mutableStateOf(false) }
     var currentInput by remember { mutableStateOf("") }
+    // Не заданный финиш/старт предзаполняем стандартным кодом станции системы отметки (Sportiduino: 245/240).
     var finishCpInput by remember {
-        mutableStateOf(initialDistance?.finishControlPoint?.toString() ?: "")
+        mutableStateOf(
+            (initialDistance?.finishControlPoint ?: state.punchingSystem.defaultFinishStationCode)?.toString() ?: ""
+        )
     }
     var showFinishCpError by remember { mutableStateOf(false) }
     var startCpInput by remember {
-        mutableStateOf(initialDistance?.startControlPoint?.toString() ?: "")
+        mutableStateOf(
+            (initialDistance?.startControlPoint ?: state.punchingSystem.defaultStartStationCode)?.toString() ?: ""
+        )
     }
     var showStartCpError by remember { mutableStateOf(false) }
     var description by remember { mutableStateOf(initialDistance?.description ?: "") }

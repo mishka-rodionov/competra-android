@@ -11,6 +11,8 @@ import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalR
 import com.competra.domain.repository.push.PushPreferencesRepository
 import com.competra.domain.repository.user.UserRepository
 import com.competra.local.repository.OrienteeringCompetitionLocalRepositoryImpl
+import com.competra.local.repository.UnassignedChipReadRepositoryImpl
+import com.competra.domain.repository.orienteering.UnassignedChipReadRepository
 import com.competra.local.repository.auth.TokenRepositoryImpl
 import com.competra.local.repository.diary.WorkoutLocalRepositoryImpl
 import com.competra.local.repository.onboarding.OnboardingRepositoryImpl
@@ -29,4 +31,5 @@ val localModule = module {
     singleOf(::PushPreferencesRepositoryImpl) bind PushPreferencesRepository::class
     singleOf(::LiveTrackLocalRepositoryImpl) bind LiveTrackLocalRepository::class
     singleOf(::MyStartsRepositoryImpl) bind MyStartsRepository::class
+    singleOf(::UnassignedChipReadRepositoryImpl) bind UnassignedChipReadRepository::class
 }

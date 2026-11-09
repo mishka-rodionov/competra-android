@@ -20,6 +20,8 @@ import com.competra.domain.models.Competition
  * @property overtimePolicy Что делать с результатами, превысившими КВ
  * @property byChoiceMode Итог формата «по выбору»: по баллам или по минимуму КП (только для [OrienteeringDirection.BY_CHOICE])
  * @property teamScoring Настройки командного зачёта; `null` — зачёта нет
+ * @property isFinishRegistration Режим «Регистрация на финише»: участники заводятся организатором при
+ * считывании незнакомого чипа на финише; старт — только по стартовой станции
  * @property isDrawConducted Проведена ли жеребьёвка
  * @property drawSettings Режим и параметры проведённой жеребьёвки; `null` — не проводилась
  * или проведена до появления этого поля (тогда правила дозаявки выводятся из протокола)
@@ -37,6 +39,7 @@ data class OrienteeringCompetition(
     val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     val teamScoring: TeamScoring? = null,
+    val isFinishRegistration: Boolean = false,
     val isDrawConducted: Boolean = false,
     val drawSettings: DrawSettings? = null,
     val serverUpdatedAt: Long? = null

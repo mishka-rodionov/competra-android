@@ -40,6 +40,7 @@ import java.time.ZoneId
  * @property punchingSystem Система отметки.
  * @property startTimeMode Режим старта.
  * @property countdownTimer Таймер.
+ * @property isFinishRegistration Режим «Регистрация на финише» (участники заводятся при считывании чипа на финише).
  * @property editGroupIndex Индекс редактируемой группы.
  * @property isShowGroupCreateDialog Флаг отображения диалога создания группы.
  * @property editDistanceIndex Индекс редактируемой дистанции.
@@ -109,6 +110,8 @@ data class OrienteeringCreatorState(
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     /** Настройки командного зачёта; null — зачёта нет. */
     val teamScoring: TeamScoring? = null,
+    /** Режим «Регистрация на финише»; старт при нём — только по стартовой станции. */
+    val isFinishRegistration: Boolean = false,
 
     val editGroupIndex: Int = -1,
     val isShowGroupCreateDialog: Boolean = false,
@@ -185,7 +188,8 @@ data class OrienteeringCreatorState(
             controlTimeMinutes = controlTimeMinutes,
             overtimePolicy = overtimePolicy,
             byChoiceMode = byChoiceMode,
-            teamScoring = teamScoring
+            teamScoring = teamScoring,
+            isFinishRegistration = isFinishRegistration
         )
     }
 }

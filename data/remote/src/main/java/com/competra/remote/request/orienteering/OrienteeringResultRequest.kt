@@ -16,6 +16,10 @@ data class OrienteeringResultRequest(
     val splits: List<SplitTimeRequest>?,
     val isEditable: Boolean,
     val isEdited: Boolean,
+    /** Статус выставлен организатором вручную. */
+    val isStatusManual: Boolean? = null,
+    /** Время считывания чипа на финише (мс); null — сервер оставляет сохранённое. */
+    val readAt: Long? = null,
     val serverUpdatedAt: Long? = null
 )
 

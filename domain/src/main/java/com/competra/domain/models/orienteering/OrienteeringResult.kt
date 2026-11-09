@@ -20,6 +20,9 @@ import com.competra.domain.models.ResultStatus
  * @property splits Сплиты (отметки на КП).
  * @property isEditable Флаг возможности редактирования результата.
  * @property isEdited Флаг того, что результат был изменен вручную.
+ * @property isStatusManual Статус выставлен организатором вручную («Снят» / «Засчитать») — автоматический
+ *                           пересчёт его не перетирает (только в режиме «Регистрация на финише»).
+ * @property readAt Время считывания чипа на финише (мс); `null` — неизвестно.
  */
 data class OrienteeringResult(
     val id: Long = 0,
@@ -37,6 +40,8 @@ data class OrienteeringResult(
     val splits: List<SplitTime>? = null, // Можно хранить как JSON или отдельной таблицей
     val isEditable: Boolean = true,
     val isEdited: Boolean = false,
+    val isStatusManual: Boolean = false,
+    val readAt: Long? = null,
     val isSynced: Boolean = false,
     val remoteId: String? = null,
     val isDeleted: Boolean = false,

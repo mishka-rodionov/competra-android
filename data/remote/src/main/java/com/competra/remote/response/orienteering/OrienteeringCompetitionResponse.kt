@@ -55,6 +55,10 @@ data class OrienteeringCompetitionResponse(
     @SerializedName("teamScoring")
     val teamScoring: TeamScoringResponse? = null,
 
+    /** Режим «Регистрация на финише». */
+    @SerializedName("isFinishRegistration")
+    val isFinishRegistration: Boolean? = null,
+
     /** Режим проведённой жеребьёвки ([com.competra.domain.models.orienteering.DrawMode]); null — не проводилась. */
     @SerializedName("drawMode")
     val drawMode: String? = null,

@@ -1,6 +1,10 @@
 package com.competra.center.data.read_card
 
+import com.competra.analytics.AnalyticsEvent
+import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.ControlPoint
+import com.competra.domain.models.orienteering.KnownParticipant
+import com.competra.domain.models.orienteering.UnassignedChipRead
 import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.OrienteeringParticipant
@@ -76,4 +80,42 @@ data class OrientReadCardState(
      * отметки не с чем, и результат по пустому списку КП выглядел бы правдоподобно, но был бы ложным.
      */
     val groupsWithoutDistance: List<String> = emptyList(),
+    /**
+     * Режим «Регистрация на финише»: незнакомый чип попадает в очередь [unassignedReads] и открывает
+     * карточку участника, а группа без дистанции считается по времени, без проверки КП.
+     */
+    val isFinishRegistration: Boolean = false,
+    /** Код стартовой станции по умолчанию системы отметки — если у дистанции старт не задан. */
+    val defaultStartStationCode: Int? = null,
+    /** Код финишной станции по умолчанию системы отметки — если у дистанции финиш не задан. */
+    val defaultFinishStationCode: Int? = null,
+    /** Код финишной станции для текущего результата (дистанции или по умолчанию). */
+    val finishControlPoint: Int? = null,
+    /** Неразобранные считывания (только в режиме «Регистрация на финише»), свежие сверху. */
+    val unassignedReads: List<UnassignedChipRead> = emptyList(),
+    /** Показан список неразобранных считываний. */
+    val isUnassignedListShown: Boolean = false,
+    /** Считывание, которое сейчас привязывается к участнику (открыта карточка); null — закрыта. */
+    val assigningRead: UnassignedChipRead? = null,
+    /** Откуда открыта карточка — для аналитики. */
+    val assignSource: AnalyticsEvent.FinishReadSource = AnalyticsEvent.FinishReadSource.ON_READ,
+    /** Группы соревнования для карточки участника. */
+    val assignGroups: List<ParticipantGroup> = emptyList(),
+    /** Участники без результата — к ним можно привязать считывание. */
+    val assignCandidates: List<OrienteeringParticipant> = emptyList(),
+    /** Группа, только что созданная из карточки, — карточка выбирает её. */
+    val createdGroupId: Long? = null,
+    /** Люди из прошлых соревнований организатора — подсказки ФИО в карточке. */
+    val participantHistory: List<KnownParticipant> = emptyList(),
 ) : BaseState
+
+/**
+ * Отметка финишной станции после старта в сплитах текущего результата — по ней результат можно
+ * «Засчитать» вручную. `null` — отметки нет (тогда доступно «Засчитать по времени считывания»).
+ */
+val OrientReadCardState.finishPunch: SplitTime?
+    get() {
+        val code = finishControlPoint ?: return null
+        val start = participantResult?.startTime?.takeIf { it > 0L } ?: return null
+        return rawSplits?.firstOrNull { it.controlPoint == code && it.timestamp > start }
+    }

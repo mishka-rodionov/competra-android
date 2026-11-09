@@ -113,6 +113,14 @@ private fun OrienteeringEventControlScreenContent(
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
+                if (state.competition?.isFinishRegistration == true) {
+                    Text(
+                        text = "Регистрация на финише — участников вносите при считывании чипа",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 RefreshStatusBar(state = state.refresh)
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
@@ -130,6 +138,12 @@ private fun OrienteeringEventControlScreenContent(
                 // в «Центр» → «Станции и чипы», здесь их нет.
                 SectionHeader(title = "Панель управления")
                 OrienteeringEventControlContent(onAction)
+                if (state.unassignedReadsCount > 0) {
+                    UnassignedReadsRow(
+                        count = state.unassignedReadsCount,
+                        onClick = { onAction(OrientEventControlAction.OpenOrientReadCard) }
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
 
@@ -323,7 +337,12 @@ private fun OrienteeringEventControlScreenContent(
             onDismiss = { onAction(OrientEventControlAction.HideStopConfirmDialog) },
             sheetContent = {
                 StopConfirmContent(
+                    unassignedReadsCount = state.unassignedReadsCount,
                     onConfirm = { onAction(OrientEventControlAction.StopCompetition) },
+                    onReview = {
+                        onAction(OrientEventControlAction.HideStopConfirmDialog)
+                        onAction(OrientEventControlAction.OpenOrientReadCard)
+                    },
                     onCancel = { onAction(OrientEventControlAction.HideStopConfirmDialog) }
                 )
             }
@@ -382,7 +401,12 @@ private fun StartConfirmContent(
 }
 
 @Composable
-private fun StopConfirmContent(onConfirm: () -> Unit, onCancel: () -> Unit) {
+private fun StopConfirmContent(
+    unassignedReadsCount: Int = 0,
+    onConfirm: () -> Unit,
+    onReview: () -> Unit = {},
+    onCancel: () -> Unit
+) {
     Column(
         modifier = Modifier
             .padding(Dimens.SIZE_BASE.dp)
@@ -399,6 +423,25 @@ private fun StopConfirmContent(onConfirm: () -> Unit, onCancel: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (unassignedReadsCount > 0) {
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+            Text(
+                text = "Осталось неразобранных считываний: $unassignedReadsCount — они не попадут в результаты.",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+            Button(
+                onClick = onReview,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
+            ) {
+                Text("Разобрать", fontWeight = FontWeight.Bold)
+            }
+        }
         Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
         Button(
             onClick = onConfirm,
@@ -408,7 +451,7 @@ private fun StopConfirmContent(onConfirm: () -> Unit, onCancel: () -> Unit) {
             shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
         ) {
-            Text("Завершить", fontWeight = FontWeight.Bold)
+            Text(if (unassignedReadsCount > 0) "Всё равно завершить" else "Завершить", fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
         OutlinedButton(
@@ -665,6 +708,33 @@ private fun NavigationRow(text: String, onClick: () -> Unit) {
 @Composable
 fun OrienteeringEventControlContent(userAction: (OrientEventControlAction) -> Unit) {
     ScanChipButton(onClick = { userAction(OrientEventControlAction.OpenOrientReadCard) })
+}
+
+/** Строка «Неразобранные считывания: N» — открывает экран считывания, где их разбирают. */
+@Composable
+private fun UnassignedReadsRow(count: Int, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickRipple(onClick = onClick),
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
+            Text(
+                text = "Неразобранные считывания: $count",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Text(
+                text = "Чипы, ещё не привязанные к участникам. Нажмите, чтобы разобрать",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+    }
 }
 
 @Composable

@@ -179,6 +179,7 @@ sealed class AnalyticsEvent(
         kindOfSport: String,
         format: String,
         teamScoring: String,
+        isFinishRegistration: Boolean,
     ) : AnalyticsEvent(
         "create_competition_finished",
         mapOf(
@@ -186,6 +187,7 @@ sealed class AnalyticsEvent(
             "kind_of_sport" to kindOfSport,
             "format" to format,
             "team_scoring" to teamScoring,
+            "is_finish_registration" to isFinishRegistration,
         ),
     )
 
@@ -256,6 +258,25 @@ sealed class AnalyticsEvent(
     /** Добавлен участник в соревнование. */
     class ParticipantAdded(method: ParticipantAddMethod) :
         AnalyticsEvent("participant_added", mapOf("method" to method.name.lowercase()))
+
+    /** К кому привязано считывание незнакомого чипа в режиме «Регистрация на финише». */
+    enum class FinishReadTarget { NEW_PARTICIPANT, EXISTING_PARTICIPANT }
+
+    /** Откуда разобрано считывание: сразу после считывания или из очереди неразобранных. */
+    enum class FinishReadSource { ON_READ, QUEUE }
+
+    /** Считывание незнакомого чипа привязано к участнику (режим «Регистрация на финише»). */
+    class FinishReadAssigned(target: FinishReadTarget, source: FinishReadSource) : AnalyticsEvent(
+        "finish_read_assigned",
+        mapOf("target" to target.name.lowercase(), "source" to source.name.lowercase())
+    )
+
+    /** Статус, выставляемый организатором вручную. */
+    enum class ManualResultStatus { FINISHED, DSQ }
+
+    /** Организатор вручную снял или засчитал результат (режим «Регистрация на финише»). */
+    class ResultStatusChangedManually(status: ManualResultStatus) :
+        AnalyticsEvent("result_status_changed_manually", mapOf("status" to status.name.lowercase()))
 
     /** Организатор добавил в группу сразу несколько людей из прошлых соревнований. */
     class ParticipantsBulkAdded(participantsCount: Int) :

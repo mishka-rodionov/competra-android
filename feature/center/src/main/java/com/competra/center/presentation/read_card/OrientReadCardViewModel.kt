@@ -30,6 +30,14 @@ import com.competra.domain.models.orienteering.startPoint
 import com.competra.domain.models.orienteering.punchesAfterStart
 import com.competra.domain.models.orienteering.unsyncedStationControlPoints
 import com.competra.domain.models.orienteering.withoutDistance
+import com.competra.domain.models.orienteering.ParticipantHistory
+import com.competra.domain.models.orienteering.UnassignedChipRead
+import com.competra.domain.models.orienteering.toRawResult
+import com.competra.domain.models.cyclic_event.normalizeCommandName
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
+import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
+import com.competra.domain.repository.orienteering.UnassignedChipReadRepository
+import com.competra.center.data.read_card.finishPunch
 import com.competra.domain.repository.ResultConflictRepository
 import com.competra.nfchelper.SportiduinoHelper
 import com.competra.center.data.read_card.OrientReadCardAction
@@ -38,6 +46,7 @@ import com.competra.ui.viewmodel.BaseViewModel
 import com.competra.utils.constants.EventsConstants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import java.util.UUID
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 
@@ -45,6 +54,8 @@ class OrientReadCardViewModel(
     private val sportiduinoHelper: SportiduinoHelper,
     private val orienteeringCompetitionInteractor: OrienteeringCompetitionInteractor,
     private val resultConflictRepository: ResultConflictRepository,
+    private val unassignedChipReadRepository: UnassignedChipReadRepository,
+    private val localRepository: OrienteeringCompetitionLocalRepository,
     navigation: Navigation,
     private val analytics: AnalyticsTracker,
 ) : BaseViewModel<OrientReadCardState>(OrientReadCardState()) {
@@ -91,6 +102,40 @@ class OrientReadCardViewModel(
             is OrientReadCardAction.SaveResult -> {
                 viewModelScope.launch(Dispatchers.IO) { saveResultFromPending() }
             }
+            OrientReadCardAction.ShowUnassignedReads -> updateState { copy(isUnassignedListShown = true) }
+            OrientReadCardAction.HideUnassignedReads -> updateState { copy(isUnassignedListShown = false) }
+            is OrientReadCardAction.OpenAssignRead -> {
+                val read = stateValue.unassignedReads.firstOrNull { it.chipNumber == action.chipNumber } ?: return
+                updateState { copy(isUnassignedListShown = false) }
+                viewModelScope.launch(Dispatchers.IO) { openAssign(read, AnalyticsEvent.FinishReadSource.QUEUE) }
+            }
+            OrientReadCardAction.DismissAssignRead -> updateState { copy(assigningRead = null, createdGroupId = null) }
+            is OrientReadCardAction.CreateParticipantFromRead -> {
+                viewModelScope.launch(Dispatchers.IO) { createParticipantFromRead(action) }
+            }
+            is OrientReadCardAction.AssignReadToParticipant -> {
+                viewModelScope.launch(Dispatchers.IO) { assignReadToParticipant(action.participantId) }
+            }
+            is OrientReadCardAction.DeleteUnassignedRead -> {
+                val cid = competitionId ?: return
+                viewModelScope.launch(Dispatchers.IO) { unassignedChipReadRepository.delete(cid, action.chipNumber) }
+            }
+            is OrientReadCardAction.CreateGroupForRead -> {
+                viewModelScope.launch(Dispatchers.IO) { createGroupForRead(action.title) }
+            }
+            is OrientReadCardAction.SetManualStatus -> {
+                viewModelScope.launch(Dispatchers.IO) { setManualStatus(action.finished) }
+            }
+            OrientReadCardAction.CreditFinishByReadTime -> {
+                val finishCode = stateValue.finishControlPoint ?: return
+                val readAt = stateValue.participantResult?.readAt ?: return
+                val rawSplits = stateValue.rawSplits ?: return
+                // Синтетическая отметка финиша во время считывания — дальше обычная проверка, как
+                // у «Засчитать КП»: организатор сохраняет результат кнопкой «Сохранить».
+                val updated = (rawSplits + SplitTime(controlPoint = finishCode, timestamp = readAt)).sortedBy { it.timestamp }
+                updateState { copy(rawSplits = updated, isPendingSave = true) }
+                viewModelScope.launch(Dispatchers.IO) { recalculatePending() }
+            }
         }
     }
 
@@ -112,7 +157,8 @@ class OrientReadCardViewModel(
                 status = ResultStatus.DSQ,
                 penaltyTime = 0,
                 splits = rawSplits,
-                isEdited = true
+                isEdited = true,
+                readAt = stateValue.participantResult?.readAt
             )
         } else {
             val checkResult = computeCheckResult(participant.groupId, startTime, expected, rawSplits)
@@ -136,7 +182,8 @@ class OrientReadCardViewModel(
                 totalScore = checkResult.totalScore,
                 scorePenalty = checkResult.scorePenalty,
                 splits = checkResult.validSplits,
-                isEdited = true
+                isEdited = true,
+                readAt = stateValue.participantResult?.readAt
             )
         }
         updateState { copy(participantResult = newResult, editingSplitIndex = null) }
@@ -176,11 +223,15 @@ class OrientReadCardViewModel(
                 }
                 if (direction != null) {
                     val byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
+                    val isFinishRegistration = competition?.isFinishRegistration == true
                     updateState {
                         copy(
                             competitionDirection = direction,
                             byChoiceMode = byChoiceMode,
-                            startTimeMode = startTimeMode ?: this.startTimeMode
+                            startTimeMode = startTimeMode ?: this.startTimeMode,
+                            isFinishRegistration = isFinishRegistration,
+                            defaultStartStationCode = competition?.punchingSystem?.defaultStartStationCode,
+                            defaultFinishStationCode = competition?.punchingSystem?.defaultFinishStationCode
                         )
                     }
                     // updateState — fire-and-forget (постит апдейт на Main.immediate и не ждёт его
@@ -190,9 +241,21 @@ class OrientReadCardViewModel(
                     // ошибочно уйдёт в ветку checkControlPointOrderPro (без дедупликации повторных
                     // отметок и без учёта баллов КП) вместо computeByChoiceResult. Дожидаемся
                     // реального применения, чтобы гарантировать порядок.
-                    state.first { it.competitionDirection == direction && it.byChoiceMode == byChoiceMode }
+                    state.first {
+                        it.competitionDirection == direction && it.byChoiceMode == byChoiceMode &&
+                            it.isFinishRegistration == isFinishRegistration
+                    }
+                    if (isFinishRegistration) {
+                        viewModelScope.launch {
+                            unassignedChipReadRepository.observe(id).collect { reads ->
+                                updateState { copy(unassignedReads = reads) }
+                            }
+                        }
+                        loadParticipantHistory(id)
+                    }
                 }
-                loadGroupsWithoutDistance(id)
+                // В режиме «Регистрация на финише» группа без дистанции — норма: считается по времени.
+                if (competition?.isFinishRegistration != true) loadGroupsWithoutDistance(id)
             }
             sportiduinoHelper.subscribeToReadCard { chipData ->
                 handleChipData(chipData)
@@ -208,8 +271,9 @@ class OrientReadCardViewModel(
             is ReadChipData.MasterChipData -> AnalyticsEvent.NfcCardType.MASTER
         }
         analytics.trackEvent(AnalyticsEvent.NfcChipReadAttempted(cardType))
+        val readAt = System.currentTimeMillis()
         val unsyncedCps = (chipData as? ReadChipData.RawResult)
-            ?.let { unsyncedStationControlPoints(it.splits, readAt = System.currentTimeMillis()) }
+            ?.let { unsyncedStationControlPoints(it.splits, readAt = readAt) }
             .orEmpty()
         updateState { copy(unsyncedStationCps = unsyncedCps) }
         when (chipData) {
@@ -221,7 +285,7 @@ class OrientReadCardViewModel(
                             chipNumber = chipData.chipNumber
                         ).onSuccess { participant ->
                             analytics.trackEvent(AnalyticsEvent.NfcChipReadSuccess)
-                            if (getDistance(participant.groupId) == null) {
+                            if (getDistance(participant.groupId) == null && !stateValue.isFinishRegistration) {
                                 updateState {
                                     copy(
                                         scanNotice = "Группе ${participant.groupName} (${participant.lastName} " +
@@ -239,9 +303,15 @@ class OrientReadCardViewModel(
                             updateState { copy(scanNotice = notice) }
                             computeParticipantResult(
                                 participant = participant,
-                                rawResult = chipData
+                                rawResult = chipData,
+                                readAt = readAt
                             )
                         }.onFailure {
+                            if (stateValue.isFinishRegistration && !stateValue.isCompetitionFinished) {
+                                analytics.trackEvent(AnalyticsEvent.NfcChipReadSuccess)
+                                queueUnknownRead(chipData, readAt)
+                                return@onFailure
+                            }
                             analytics.trackEvent(AnalyticsEvent.NfcChipReadFailed("participant_not_found"))
                             updateState {
                                 copy(scanNotice = "Чип №${chipData.chipNumber} не найден среди участников соревнования")
@@ -271,8 +341,20 @@ class OrientReadCardViewModel(
     }
 
     /** КП дистанции по порядку плюс финишный пункт (с координатами финиша, если известны). */
-    suspend fun getExpectedControlPoints(groupId: Long): List<ControlPoint> =
-        getDistance(groupId)?.expectedSequence() ?: emptyList()
+    suspend fun getExpectedControlPoints(groupId: Long): List<ControlPoint> {
+        val distance = getDistance(groupId) ?: return emptyList()
+        // Финиш не задан у дистанции — берём стандартный код финишной станции системы отметки.
+        val withFinish = if (distance.finishControlPoint == null) {
+            distance.copy(finishControlPoint = stateValue.defaultFinishStationCode)
+        } else {
+            distance
+        }
+        return withFinish.expectedSequence()
+    }
+
+    /** Стартовый КП дистанции группы, а если не задан (или дистанции нет) — код стартовой станции по умолчанию. */
+    private suspend fun effectiveStartControlPoint(groupId: Long): Int? =
+        getDistance(groupId)?.startControlPoint ?: stateValue.defaultStartStationCode
 
     private suspend fun getDistance(groupId: Long): Distance? {
         val group = orienteeringCompetitionInteractor.getParticipantGroup(groupId).getOrNull()
@@ -295,13 +377,14 @@ class OrientReadCardViewModel(
      */
     private suspend fun resolveStartTime(participant: OrienteeringParticipant, splits: List<SplitTime>): Long? {
         if (stateValue.startTimeMode != StartTimeMode.BY_START_STATION) return participant.startTime
-        val startCp = getDistance(participant.groupId)?.startControlPoint ?: return null
+        val startCp = effectiveStartControlPoint(participant.groupId) ?: return null
         return splits.firstOrNull { it.controlPoint == startCp }?.timestamp
     }
 
     suspend fun computeParticipantResult(
         participant: OrienteeringParticipant,
-        rawResult: ReadChipData.RawResult
+        rawResult: ReadChipData.RawResult,
+        readAt: Long? = null
     ) {
         val splits = rawResult.splits
         Log.d("LOG_TAG", "computeParticipantResult: $splits")
@@ -309,7 +392,9 @@ class OrientReadCardViewModel(
         val expected = getExpectedControlPoints(participant.groupId)
         Log.d("LOG_TAG", "computeParticipantResult: $expected")
         val expectedCpNumbers = expected.map { it.number }
-        val startControlPoint = getDistance(participant.groupId)?.startControlPoint
+        val startControlPoint = effectiveStartControlPoint(participant.groupId)
+        val finishControlPoint = getDistance(participant.groupId)?.finishControlPoint ?: stateValue.defaultFinishStationCode
+        updateState { copy(finishControlPoint = finishControlPoint) }
 
         val startTime = resolveStartTime(participant, splits)
         if (startTime == null) {
@@ -331,7 +416,8 @@ class OrientReadCardViewModel(
                 rawSplits = splits,
                 expectedCpNumbers = expectedCpNumbers,
                 expectedControlPoints = expected,
-                startControlPoint = startControlPoint
+                startControlPoint = startControlPoint,
+                readAt = readAt
             )
             return
         }
@@ -354,7 +440,8 @@ class OrientReadCardViewModel(
             rawSplits = splits,
             expectedCpNumbers = expectedCpNumbers,
             expectedControlPoints = expected,
-            startControlPoint = startControlPoint
+            startControlPoint = startControlPoint,
+            readAt = readAt
         )
     }
 
@@ -367,7 +454,8 @@ class OrientReadCardViewModel(
         rawSplits: List<SplitTime>,
         expectedCpNumbers: List<Int> = emptyList(),
         expectedControlPoints: List<ControlPoint> = emptyList(),
-        startControlPoint: Int? = null
+        startControlPoint: Int? = null,
+        readAt: Long? = null
     ) {
         val effectiveStatus = applyControlTime(participant.groupId, totalTime, result.status)
         val startPoint = getDistance(participant.groupId)?.startPoint()
@@ -388,7 +476,8 @@ class OrientReadCardViewModel(
             totalScore = result.totalScore,
             scorePenalty = result.scorePenalty,
             // DSQ: сохраняем все отметки с дистанции (для разбора), но без сделанных до старта.
-            splits = if (result.status == ResultStatus.DSQ) punchesAfterStart(rawSplits, startTime) else result.validSplits
+            splits = if (result.status == ResultStatus.DSQ) punchesAfterStart(rawSplits, startTime) else result.validSplits,
+            readAt = readAt
         )
 
         // При старте по стартовой станции реальное время старта узнаётся только сейчас, из чипа —
@@ -504,7 +593,8 @@ class OrientReadCardViewModel(
                 status = ResultStatus.DSQ,
                 penaltyTime = 0,
                 splits = rawSplits,
-                isEdited = true
+                isEdited = true,
+                readAt = stateValue.participantResult?.readAt
             )
         } else {
             val checkResult = computeCheckResult(participant.groupId, startTime, expected, rawSplits)
@@ -528,6 +618,7 @@ class OrientReadCardViewModel(
                 scorePenalty = checkResult.scorePenalty,
                 splits = if (checkResult.status == ResultStatus.DSQ) punchesAfterStart(rawSplits, startTime) else checkResult.validSplits,
                 isEdited = true,
+                readAt = stateValue.participantResult?.readAt,
             )
         }
         updateState { copy(participantResult = newResult, statusMessage = statusText) }
@@ -590,6 +681,9 @@ class OrientReadCardViewModel(
         expected: List<ControlPoint>,
         actual: List<SplitTime>
     ): CheckResult {
+        if (expected.isEmpty() && stateValue.isFinishRegistration) {
+            return finishOnlyCheck(actual, startTime)
+        }
         if (stateValue.competitionDirection != OrienteeringDirection.BY_CHOICE) {
             return checkControlPointOrderPro(expected, punchesAfterStart(actual, startTime))
         }
@@ -648,6 +742,223 @@ class OrientReadCardViewModel(
         )
     }
 
+
+    // --- Режим «Регистрация на финише» ---
+
+    private fun finishOnlyCheck(actual: List<SplitTime>, startTime: Long): CheckResult =
+        computeFinishOnlyResult(actual, startTime, stateValue.defaultFinishStationCode)
+
+    /** Незнакомый чип: считывание — в очередь, сразу открывается карточка участника. */
+    private suspend fun queueUnknownRead(chipData: ReadChipData.RawResult, readAt: Long) {
+        val cid = competitionId ?: return
+        val read = UnassignedChipRead(
+            competitionId = cid,
+            chipNumber = chipData.chipNumber,
+            readAt = readAt,
+            clearTime = chipData.clearTime,
+            splits = chipData.splits
+        )
+        unassignedChipReadRepository.save(read)
+        updateState {
+            copy(
+                participant = null,
+                participantResult = null,
+                rawSplits = null,
+                isPendingSave = false,
+                statusMessage = null,
+                scanNotice = "Чип №${chipData.chipNumber} ещё не привязан к участнику — внесите участника"
+            )
+        }
+        openAssign(read, AnalyticsEvent.FinishReadSource.ON_READ)
+    }
+
+    /** Открывает карточку участника для [read]: подгружает группы и участников без результата. */
+    private suspend fun openAssign(read: UnassignedChipRead, source: AnalyticsEvent.FinishReadSource) {
+        val cid = competitionId ?: return
+        val groups = loadAssignGroups(cid)
+        val withResult = orienteeringCompetitionInteractor.getResultsByGroups(cid).getOrNull().orEmpty()
+            .flatMap { it.participants }
+            .filter { it.result != null }
+            .map { it.participant.id }
+            .toSet()
+        val candidates = orienteeringCompetitionInteractor.getParticipants(cid).getOrNull().orEmpty()
+            .filter { !it.isDeleted && it.id !in withResult }
+            .sortedWith(compareBy({ it.lastName }, { it.firstName }))
+        updateState {
+            copy(
+                assigningRead = read,
+                assignSource = source,
+                assignGroups = groups,
+                assignCandidates = candidates,
+                createdGroupId = null
+            )
+        }
+    }
+
+    private suspend fun loadAssignGroups(competitionId: String): List<ParticipantGroup> =
+        orienteeringCompetitionInteractor.getCompetitionWithDetails(competitionId).getOrNull()
+            ?.groupsWithParticipants
+            ?.map { it.group }
+            ?.filter { !it.isDeleted }
+            .orEmpty()
+
+    /** Создаёт участника по считыванию: номер — следующий свободный, чип — считанный. */
+    private suspend fun createParticipantFromRead(action: OrientReadCardAction.CreateParticipantFromRead) {
+        val cid = competitionId ?: return
+        val read = stateValue.assigningRead ?: return
+        val group = stateValue.assignGroups.firstOrNull { it.groupId == action.groupId } ?: return
+        val maxNumber = orienteeringCompetitionInteractor.getParticipants(cid).getOrNull().orEmpty()
+            .mapNotNull { it.startNumber.toIntOrNull() }
+            .maxOrNull() ?: 0
+        val participant = OrienteeringParticipant(
+            id = UUID.randomUUID().toString(),
+            userId = "",
+            firstName = action.firstName.trim(),
+            lastName = action.lastName.trim(),
+            groupId = group.groupId,
+            groupName = group.title,
+            competitionId = cid,
+            commandName = normalizeCommandName(action.commandName).orEmpty(),
+            startNumber = (maxNumber + 1).toString(),
+            // Время старта участник получит по отметке на стартовой станции.
+            startTime = 0L,
+            chipNumber = read.chipNumber.toString(),
+            comment = "",
+            isChipGiven = true
+        )
+        val saved = orienteeringCompetitionInteractor.saveParticipant(participant)
+        if (saved == null) {
+            updateState { copy(scanNotice = "Не удалось сохранить участника — попробуйте ещё раз") }
+            return
+        }
+        analytics.trackEvent(
+            AnalyticsEvent.ParticipantAdded(
+                if (action.fromHistory) AnalyticsEvent.ParticipantAddMethod.HISTORY
+                else AnalyticsEvent.ParticipantAddMethod.NFC
+            )
+        )
+        finishAssignment(saved, read, AnalyticsEvent.FinishReadTarget.NEW_PARTICIPANT)
+    }
+
+    /** Привязывает считывание к уже заведённому участнику (например, заявленному заранее без чипа). */
+    private suspend fun assignReadToParticipant(participantId: String) {
+        val read = stateValue.assigningRead ?: return
+        val candidate = stateValue.assignCandidates.firstOrNull { it.id == participantId } ?: return
+        val updated = candidate.copy(chipNumber = read.chipNumber.toString(), isChipGiven = true)
+        orienteeringCompetitionInteractor.updateParticipantLocally(updated).onSuccess {
+            orienteeringCompetitionInteractor.syncParticipantWithServer(updated)
+            finishAssignment(updated, read, AnalyticsEvent.FinishReadTarget.EXISTING_PARTICIPANT)
+        }.onFailure {
+            updateState { copy(scanNotice = "Не удалось привязать чип — попробуйте ещё раз") }
+        }
+    }
+
+    /** Убирает считывание из очереди и считает результат участника по его отметкам. */
+    private suspend fun finishAssignment(
+        participant: OrienteeringParticipant,
+        read: UnassignedChipRead,
+        target: AnalyticsEvent.FinishReadTarget
+    ) {
+        unassignedChipReadRepository.delete(read.competitionId, read.chipNumber)
+        analytics.trackEvent(AnalyticsEvent.FinishReadAssigned(target, stateValue.assignSource))
+        updateState { copy(assigningRead = null, createdGroupId = null, scanNotice = null) }
+        val rawResult = read.toRawResult()
+        if (rawResult.splits.isEmpty()) {
+            updateState {
+                copy(
+                    participant = participant,
+                    participantResult = null,
+                    rawSplits = emptyList(),
+                    scanNotice = "На чипе №${read.chipNumber} нет отметок"
+                )
+            }
+            return
+        }
+        computeParticipantResult(participant = participant, rawResult = rawResult, readAt = read.readAt)
+    }
+
+    /** Новая группа прямо из карточки участника (без дистанции — результат по времени). */
+    private suspend fun createGroupForRead(title: String) {
+        val cid = competitionId ?: return
+        val trimmed = title.trim().takeIf { it.isNotEmpty() } ?: return
+        val existing = stateValue.assignGroups.firstOrNull { it.title.equals(trimmed, ignoreCase = true) }
+        if (existing != null) {
+            updateState { copy(createdGroupId = existing.groupId) }
+            return
+        }
+        orienteeringCompetitionInteractor.localSaveParticipantGroups(
+            listOf(
+                ParticipantGroup(
+                    groupId = 0L,
+                    competitionId = cid,
+                    title = trimmed,
+                    gender = null,
+                    distanceId = NO_DISTANCE_ID
+                )
+            )
+        )
+        val groups = loadAssignGroups(cid)
+        updateState {
+            copy(
+                assignGroups = groups,
+                createdGroupId = groups.firstOrNull { it.title == trimmed }?.groupId
+            )
+        }
+    }
+
+    /**
+     * Ручной статус организатора: «Снят» (DSQ) или «Засчитать» (FINISHED — время от старта до
+     * отметки финишной станции). Ручной статус не перетирается автоматическим пересчётом КВ.
+     */
+    private suspend fun setManualStatus(finished: Boolean) {
+        val participant = stateValue.participant ?: return
+        val current = stateValue.participantResult ?: return
+        val updated = if (finished) {
+            val start = current.startTime?.takeIf { it > 0L } ?: return
+            val finish = stateValue.finishPunch ?: return
+            current.copy(
+                status = ResultStatus.FINISHED,
+                finishTime = finish.timestamp,
+                totalTime = (finish.timestamp - start) / 1000L,
+                splits = punchesAfterStart(stateValue.rawSplits.orEmpty(), start),
+                rank = -1,
+                isStatusManual = true,
+                isEdited = true
+            )
+        } else {
+            current.copy(status = ResultStatus.DSQ, rank = -1, isStatusManual = true, isEdited = true)
+        }
+        analytics.trackEvent(
+            AnalyticsEvent.ResultStatusChangedManually(
+                if (finished) AnalyticsEvent.ManualResultStatus.FINISHED else AnalyticsEvent.ManualResultStatus.DSQ
+            )
+        )
+        val existing = orienteeringCompetitionInteractor.getResultByParticipantId(participant.id)
+        if (existing != null) {
+            orienteeringCompetitionInteractor.applyConflictResult(existing, updated)
+        } else {
+            orienteeringCompetitionInteractor.saveParticipantResult(updated)
+        }
+        updateState {
+            copy(
+                participantResult = updated,
+                isPendingSave = false,
+                statusMessage = if (finished) null else "Снят организатором"
+            )
+        }
+        refreshGroupRank(participant)
+    }
+
+    /** Люди из прошлых соревнований — подсказки ФИО в карточке (сначала локально, затем с сервера). */
+    private fun loadParticipantHistory(competitionId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val local = localRepository.getParticipantHistory(competitionId).getOrDefault(emptyList())
+            updateState { copy(participantHistory = ParticipantHistory.aggregate(local)) }
+            orienteeringCompetitionInteractor.getServerParticipantHistory(competitionId).onSuccess { server ->
+                updateState { copy(participantHistory = ParticipantHistory.aggregate(ParticipantHistory.merge(local, server))) }
+            }
+        }
+    }
 }
 
 /**
@@ -819,4 +1130,21 @@ fun insertCreditedPunch(
         result[i] = result[i].copy(timestamp = result[i - 1].timestamp + 1)
     }
     return result
+}
+
+
+/**
+ * Проверка без дистанции (режим «Регистрация на финише», группа без дистанции): КП не
+ * проверяются, результат — время от старта до первой после старта отметки финишной станции
+ * [finishStationCode]. Нет такой отметки — DSQ «Нет отметки финиша» (организатор может
+ * засчитать финиш по времени считывания).
+ */
+fun computeFinishOnlyResult(actual: List<SplitTime>, startTime: Long, finishStationCode: Int?): CheckResult {
+    val afterStart = punchesAfterStart(actual, startTime)
+    val finish = finishStationCode?.let { code -> afterStart.firstOrNull { it.controlPoint == code && it.timestamp > startTime } }
+        ?: return CheckResult(status = ResultStatus.DSQ, message = "Нет отметки финиша", validSplits = afterStart)
+    return CheckResult(
+        status = ResultStatus.FINISHED,
+        validSplits = afterStart.filter { it.timestamp <= finish.timestamp }
+    )
 }

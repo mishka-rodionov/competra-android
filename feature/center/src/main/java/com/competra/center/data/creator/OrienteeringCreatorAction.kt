@@ -49,6 +49,8 @@ sealed class OrienteeringCreatorAction : BaseAction {
     data class UpdateByChoiceMode(val mode: ByChoiceMode): OrienteeringCreatorAction()
     /** Настройки командного зачёта; null — выключить. */
     data class UpdateTeamScoring(val teamScoring: TeamScoring?): OrienteeringCreatorAction()
+    /** Включить/выключить режим «Регистрация на финише». */
+    data class UpdateFinishRegistration(val enabled: Boolean): OrienteeringCreatorAction()
     
     // Действия для регистрации
     data class UpdateRegistrationStartDate(val date: Long) : OrienteeringCreatorAction()

@@ -266,6 +266,21 @@ class OrienteeringCreatorViewModel(
                 copy(teamScoring = action.teamScoring).withValidOvertimePolicy()
             }
 
+            is OrienteeringCreatorAction.UpdateFinishRegistration -> updateState {
+                // Участники стартуют сами, без протокола: время старта даёт только стартовая станция,
+                // а она требует электронной системы отметки.
+                if (action.enabled) {
+                    copy(
+                        isFinishRegistration = true,
+                        startTimeMode = StartTimeMode.BY_START_STATION,
+                        punchingSystem = punchingSystem.takeIf { it.defaultStartStationCode != null }
+                            ?: PunchingSystem.SPORTIDUINO
+                    )
+                } else {
+                    copy(isFinishRegistration = false)
+                }
+            }
+
             is OrienteeringCreatorAction.UpdateStartTimeMode -> updateState {
                 // При переходе на "по стартовой станции" механическая/бумажная отметка (PENCIL/PUNCH)
                 // теряет смысл — стартовая станция требует электронной системы. Если организатор уже
@@ -627,6 +642,7 @@ class OrienteeringCreatorViewModel(
                     overtimePolicy = comp.overtimePolicy,
                     byChoiceMode = comp.byChoiceMode,
                     teamScoring = comp.teamScoring,
+                    isFinishRegistration = comp.isFinishRegistration,
                     isTest = comp.competition.isTest,
                     organizingClubId = comp.competition.organizingClubId,
                 )
@@ -835,6 +851,7 @@ class OrienteeringCreatorViewModel(
                             kindOfSport = KIND_ORIENTEERING,
                             format = competition.analyticsFormat(),
                             teamScoring = competition.teamScoring.analyticsValue(),
+                            isFinishRegistration = competition.isFinishRegistration,
                         )
                     )
                     // Загружаем дистанции из локальной БД и помечаем их unsynced —

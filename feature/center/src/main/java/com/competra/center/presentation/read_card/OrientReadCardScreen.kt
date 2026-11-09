@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.competra.center.data.read_card.OrientReadCardAction
+import com.competra.center.data.read_card.finishPunch
 import com.competra.center.presentation.common.GroupsWithoutDistanceBanner
 import com.competra.designsystem.components.DSTextInput
 import com.competra.designsystem.theme.Dimens
@@ -72,6 +73,13 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                     modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp, vertical = 8.dp)
                 )
             }
+            if (state.isFinishRegistration && state.unassignedReads.isNotEmpty()) {
+                UnassignedReadsBanner(
+                    count = state.unassignedReads.size,
+                    onOpen = { viewModel.onAction(OrientReadCardAction.ShowUnassignedReads) },
+                    modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp, vertical = 8.dp)
+                )
+            }
             if (state.unsyncedStationCps.isNotEmpty()) {
                 ScanNoticeBanner(
                     notice = "Время станции не синхронизировано: " +
@@ -106,6 +114,14 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                         isPendingSave = state.isPendingSave,
                         isReadOnly = state.isCompetitionFinished,
                         statusMessage = state.statusMessage,
+                        isFinishRegistration = state.isFinishRegistration,
+                        canCredit = state.finishPunch != null,
+                        canCreditByReadTime = state.finishPunch == null &&
+                            state.finishControlPoint != null &&
+                            state.participantResult?.readAt != null &&
+                            (state.participantResult?.startTime ?: 0L) > 0L,
+                        onSetStatus = { finished -> viewModel.onAction(OrientReadCardAction.SetManualStatus(finished)) },
+                        onCreditByReadTime = { viewModel.onAction(OrientReadCardAction.CreditFinishByReadTime) },
                         onEditSplit = { index -> viewModel.onAction(OrientReadCardAction.EditSplitClicked(index)) },
                         onCreditCp = { cpNumber, distanceOrdinal ->
                             viewModel.onAction(OrientReadCardAction.CreditMissedCp(cpNumber, distanceOrdinal))
@@ -129,6 +145,35 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 onDelete = {
                     viewModel.onAction(OrientReadCardAction.DeleteSplit(editingIndex))
                 }
+            )
+        }
+
+        if (state.isUnassignedListShown) {
+            UnassignedReadsSheet(
+                reads = state.unassignedReads,
+                startStationCode = state.defaultStartStationCode,
+                finishStationCode = state.defaultFinishStationCode,
+                onOpen = { chip -> viewModel.onAction(OrientReadCardAction.OpenAssignRead(chip)) },
+                onDelete = { chip -> viewModel.onAction(OrientReadCardAction.DeleteUnassignedRead(chip)) },
+                onDismiss = { viewModel.onAction(OrientReadCardAction.HideUnassignedReads) }
+            )
+        }
+
+        state.assigningRead?.let { read ->
+            AssignReadSheet(
+                read = read,
+                groups = state.assignGroups,
+                candidates = state.assignCandidates,
+                history = state.participantHistory,
+                createdGroupId = state.createdGroupId,
+                onCreate = { lastName, firstName, commandName, groupId, fromHistory ->
+                    viewModel.onAction(
+                        OrientReadCardAction.CreateParticipantFromRead(lastName, firstName, commandName, groupId, fromHistory)
+                    )
+                },
+                onAssign = { id -> viewModel.onAction(OrientReadCardAction.AssignReadToParticipant(id)) },
+                onCreateGroup = { title -> viewModel.onAction(OrientReadCardAction.CreateGroupForRead(title)) },
+                onDismiss = { viewModel.onAction(OrientReadCardAction.DismissAssignRead) }
             )
         }
     }
@@ -252,6 +297,11 @@ private fun ReadCardContent(
     isPendingSave: Boolean = false,
     isReadOnly: Boolean = false,
     statusMessage: String? = null,
+    isFinishRegistration: Boolean = false,
+    canCredit: Boolean = false,
+    canCreditByReadTime: Boolean = false,
+    onSetStatus: (finished: Boolean) -> Unit = {},
+    onCreditByReadTime: () -> Unit = {},
     onEditSplit: (index: Int) -> Unit = {},
     onCreditCp: (cpNumber: Int, distanceOrdinal: Int) -> Unit = { _, _ -> },
     onSaveResult: () -> Unit = {},
@@ -333,6 +383,19 @@ private fun ReadCardContent(
                         onCreditCp = if (isPendingSave) onCreditCp else null,
                     )
                 }
+            }
+        }
+
+        // Режим «Регистрация на финише»: правильность прохождения оценивает организатор.
+        if (isFinishRegistration && result != null && !isReadOnly) {
+            item {
+                ManualStatusPanel(
+                    result = result,
+                    canCredit = canCredit,
+                    canCreditByReadTime = canCreditByReadTime,
+                    onSetStatus = onSetStatus,
+                    onCreditByReadTime = onCreditByReadTime
+                )
             }
         }
 
