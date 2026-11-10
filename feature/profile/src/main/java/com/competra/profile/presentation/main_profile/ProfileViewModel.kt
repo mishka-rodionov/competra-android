@@ -59,6 +59,7 @@ class ProfileViewModel(
             ProfileAction.ShowOnboarding -> showOnboardingAgain()
             ProfileAction.ToPushPreferences -> toPushPreferences()
             ProfileAction.ToAboutApp -> toAboutApp()
+            ProfileAction.ToGuides -> toGuides()
             ProfileAction.OpenDeleteAccountConfirm -> updateState { copy(showDeleteAccountConfirm = true) }
             ProfileAction.CloseDeleteAccountConfirm -> updateState { copy(showDeleteAccountConfirm = false) }
             ProfileAction.DeleteAccount -> deleteAccount()
@@ -94,6 +95,15 @@ class ProfileViewModel(
     private fun toAboutApp() {
         viewModelScope.launch {
             navigation.navigate(ProfileNavigation.AboutAppRoute)
+        }
+    }
+
+    /**
+     * Переход на экран «Инструкции» со ссылками на гиды организатора.
+     */
+    private fun toGuides() {
+        viewModelScope.launch {
+            navigation.navigate(ProfileNavigation.GuidesRoute)
         }
     }
 

@@ -291,6 +291,17 @@ fun AuthorizedUser(state: ProfileState, onAction: (ProfileAction) -> Unit) {
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             ProfileMenuItem(
+                text = "Инструкции",
+                icon = ImageVector.vectorResource(R.drawable.ic_menu_book_24px),
+                subtitle = "Как провести соревнование: пошаговые гиды",
+                onClick = { onAction(ProfileAction.ToGuides) }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = Dimens.SIZE_BASE.dp),
+                thickness = 0.5.dp,
+                color = LightColors.greyB8.copy(alpha = 0.3f)
+            )
+            ProfileMenuItem(
                 text = "О приложении",
                 icon = ImageVector.vectorResource(R.drawable.ic_info_24px),
                 onClick = { onAction(ProfileAction.ToAboutApp) }

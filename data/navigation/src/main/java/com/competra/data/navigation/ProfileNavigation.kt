@@ -30,4 +30,7 @@ sealed class ProfileNavigation: BaseNavigation {
     data object UserRegistrationsRoute : ProfileNavigation()
     @Serializable
     data object PushPreferencesRoute : ProfileNavigation()
+    /** Список инструкций для организатора (страницы на competra.ru). */
+    @Serializable
+    data object GuidesRoute : ProfileNavigation()
 }

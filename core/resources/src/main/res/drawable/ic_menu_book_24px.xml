@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+  <!-- Открытая книга: две страницы, левая и правая. -->
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M11,7.3C9.6,6.5 7.8,6 6,6C5,6 4,6.1 3,6.4L3,17.4C4,17.1 5,17 6,17C7.8,17 9.6,17.5 11,18.3Z"/>
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M13,7.3C14.4,6.5 16.2,6 18,6C19,6 20,6.1 21,6.4L21,17.4C20,17.1 19,17 18,17C16.2,17 14.4,17.5 13,18.3Z"/>
+</vector>

@@ -32,6 +32,9 @@ sealed class ProfileAction {
     /** Переход на экран «О приложении». */
     data object ToAboutApp: ProfileAction()
 
+    /** Переход на экран «Инструкции». */
+    data object ToGuides: ProfileAction()
+
     /** Пользователь нажал «Удалить аккаунт» — открыть диалог подтверждения. */
     data object OpenDeleteAccountConfirm: ProfileAction()
 

@@ -51,6 +51,8 @@ enum class AnalyticsScreen(val screenName: String) {
     Registration("registration"),
     UserRegistrations("user_registrations"),
     ProfilePushPreferences("profile_push_preferences"),
+    /** «Инструкции» — список гидов организатора на competra.ru. */
+    ProfileGuides("profile_guides"),
     /** «Мои результаты в протоколах» — совпадает с веб-экраном `/profile/result-links`. */
     ProfileResultLinks("profile_result_links"),
 
@@ -129,6 +131,7 @@ enum class AnalyticsScreen(val screenName: String) {
                 route.contains("RegistrationRoute") -> Registration
                 route.contains("UserRegistrationsRoute") -> UserRegistrations
                 route.contains("PushPreferencesRoute") -> ProfilePushPreferences
+                route.contains("GuidesRoute") -> ProfileGuides
 
                 route.contains("WorkoutEditorRoute") -> DiaryWorkoutEditor
                 route.contains("WorkoutDetailRoute") -> DiaryWorkoutDetail
