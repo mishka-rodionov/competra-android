@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -304,6 +305,9 @@ internal fun MainScreen(viewModel: MainViewModel, windowSizeClass: WindowSizeCla
         Box(
             Modifier
                 .padding(innerPadding)
+                // Нижняя навигация уже учла системную панель — помечаем её insets как
+                // поглощённые, иначе вложенные Scaffold экранов добавляют отступ под неё ещё раз.
+                .consumeWindowInsets(innerPadding)
                 .statusBarsPadding()
         ) {
             BottomNavItem.all.forEach { tab ->
