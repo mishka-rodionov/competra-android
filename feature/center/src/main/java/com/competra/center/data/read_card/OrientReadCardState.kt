@@ -107,6 +107,19 @@ data class OrientReadCardState(
     val createdGroupId: Long? = null,
     /** Люди из прошлых соревнований организатора — подсказки ФИО в карточке. */
     val participantHistory: List<KnownParticipant> = emptyList(),
+    /** Группы, подходящие по отметкам считывания из открытой карточки (см. matchingGroupIdsByPunches). */
+    val assignMatchingGroupIds: Set<Long> = emptySet(),
+    /** Подходящие по отметкам группы (названия) по номеру чипа — для списка неразобранных. */
+    val unassignedMatchingGroups: Map<Int, List<String>> = emptyMap(),
+    /** Открыта карточка «Изменить участника» (ФИО, команда, группа) для участника на экране. */
+    val isEditParticipantShown: Boolean = false,
+    /** Открыт диалог «Отвязать чип». */
+    val isUnlinkChipShown: Boolean = false,
+    /**
+     * Показано предупреждение о выходе с несохранённым результатом ([isPendingSave]): «Назад»
+     * закрыл бы экран, и организатор мог бы решить, что чип уже сохранён.
+     */
+    val isLeaveConfirmShown: Boolean = false,
 ) : BaseState
 
 /**

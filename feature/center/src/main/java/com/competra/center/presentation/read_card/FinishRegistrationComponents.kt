@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.competra.designsystem.components.DSBottomDialog
 import com.competra.designsystem.components.DSTextInput
@@ -49,6 +50,7 @@ import com.competra.domain.models.orienteering.KnownParticipant
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.OrienteeringResult
 import com.competra.domain.models.orienteering.ParticipantHistory
+import com.competra.domain.models.orienteering.SplitTime
 import com.competra.domain.models.orienteering.UnassignedChipRead
 import com.competra.utils.orienteering.toRaceTime
 import java.text.SimpleDateFormat
@@ -65,7 +67,7 @@ internal fun UnassignedReadsBanner(count: Int, onOpen: () -> Unit, modifier: Mod
             .fillMaxWidth()
             .clickable(onClick = onOpen),
         shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Row(
             modifier = Modifier.padding(Dimens.SIZE_BASE.dp),
@@ -76,12 +78,12 @@ internal fun UnassignedReadsBanner(count: Int, onOpen: () -> Unit, modifier: Mod
                     text = "Неразобранные считывания: $count",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
                     text = "Чипы, ещё не привязанные к участникам",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
             TextButton(onClick = onOpen) { Text("Разобрать") }
@@ -99,6 +101,8 @@ internal fun UnassignedReadsSheet(
     reads: List<UnassignedChipRead>,
     startStationCode: Int?,
     finishStationCode: Int?,
+    /** Подходящие по отметкам группы по номеру чипа. */
+    matchingGroups: Map<Int, List<String>>,
     onOpen: (chipNumber: Int) -> Unit,
     onDelete: (chipNumber: Int) -> Unit,
     onDismiss: () -> Unit,
@@ -129,6 +133,7 @@ internal fun UnassignedReadsSheet(
                             read = read,
                             startStationCode = startStationCode,
                             finishStationCode = finishStationCode,
+                            matchingGroups = matchingGroups[read.chipNumber].orEmpty(),
                             onClick = { onOpen(read.chipNumber) },
                             onDelete = { deleting = read }
                         )
@@ -160,14 +165,11 @@ private fun UnassignedReadRow(
     read: UnassignedChipRead,
     startStationCode: Int?,
     finishStationCode: Int?,
+    matchingGroups: List<String>,
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val start = startStationCode?.let { code -> read.splits.firstOrNull { it.controlPoint == code } }
-    val finish = finishStationCode?.let { code ->
-        read.splits.firstOrNull { it.controlPoint == code && (start == null || it.timestamp > start.timestamp) }
-    }
-    val raceTime = if (start != null && finish != null) ((finish.timestamp - start.timestamp) / 1000L).toRaceTime() else null
+    val raceTime = raceTimeOf(read.splits, startStationCode, finishStationCode)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -187,6 +189,21 @@ private fun UnassignedReadRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (read.splits.isNotEmpty()) {
+                Text(
+                    text = punchChain(read.splits, startStationCode, finishStationCode),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (matchingGroups.isNotEmpty()) {
+                Text(
+                    text = "По отметкам: ${matchingGroups.joinToString()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         TextButton(onClick = onDelete) { Text("Удалить") }
     }
@@ -204,6 +221,10 @@ internal fun AssignReadSheet(
     candidates: List<OrienteeringParticipant>,
     history: List<KnownParticipant>,
     createdGroupId: Long?,
+    /** Группы, подходящие по отметкам чипа. */
+    matchingGroupIds: Set<Long>,
+    startStationCode: Int?,
+    finishStationCode: Int?,
     onCreate: (lastName: String, firstName: String, commandName: String, groupId: Long, fromHistory: Boolean) -> Unit,
     onAssign: (participantId: String) -> Unit,
     onCreateGroup: (title: String) -> Unit,
@@ -227,6 +248,8 @@ internal fun AssignReadSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                PunchSummary(splits = read.splits, startStationCode = startStationCode, finishStationCode = finishStationCode)
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
                 if (candidates.isNotEmpty()) {
                     PrimaryTabRow(selectedTabIndex = tab) {
                         Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Новый участник") })
@@ -235,12 +258,14 @@ internal fun AssignReadSheet(
                     Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
                 }
                 if (tab == 0 || candidates.isEmpty()) {
-                    NewParticipantForm(
-                        chipNumber = read.chipNumber,
+                    ParticipantForm(
+                        formKey = "new-${read.chipNumber}",
                         groups = groups,
                         history = history,
                         createdGroupId = createdGroupId,
-                        onCreate = onCreate,
+                        matchingGroupIds = matchingGroupIds,
+                        submitText = "Сохранить и посчитать результат",
+                        onSubmit = onCreate,
                         onCreateGroup = onCreateGroup
                     )
                 } else {
@@ -252,22 +277,32 @@ internal fun AssignReadSheet(
     )
 }
 
+/**
+ * Форма участника: ФИО (с подсказками из [history]), группа (+ «новая группа», с пометкой
+ * подходящих по отметкам [matchingGroupIds]) и команда. Общая для «Нового участника» и
+ * «Изменить участника» ([initial] — текущие данные участника).
+ *
+ * @param formKey Ключ сохраняемого состояния полей — своя форма на каждый чип / участника.
+ */
 @Composable
-private fun NewParticipantForm(
-    chipNumber: Int,
+private fun ParticipantForm(
+    formKey: String,
     groups: List<ParticipantGroup>,
     history: List<KnownParticipant>,
     createdGroupId: Long?,
-    onCreate: (lastName: String, firstName: String, commandName: String, groupId: Long, fromHistory: Boolean) -> Unit,
+    matchingGroupIds: Set<Long>,
+    submitText: String,
+    onSubmit: (lastName: String, firstName: String, commandName: String, groupId: Long, fromHistory: Boolean) -> Unit,
     onCreateGroup: (title: String) -> Unit,
+    initial: OrienteeringParticipant? = null,
 ) {
-    var lastName by rememberSaveable(chipNumber) { mutableStateOf("") }
-    var firstName by rememberSaveable(chipNumber) { mutableStateOf("") }
-    var commandName by rememberSaveable(chipNumber) { mutableStateOf("") }
-    var groupId by rememberSaveable(chipNumber) { mutableStateOf<Long?>(null) }
-    var fromHistory by rememberSaveable(chipNumber) { mutableStateOf(false) }
-    var isNewGroupInput by rememberSaveable(chipNumber) { mutableStateOf(false) }
-    var newGroupTitle by rememberSaveable(chipNumber) { mutableStateOf("") }
+    var lastName by rememberSaveable(formKey) { mutableStateOf(initial?.lastName.orEmpty()) }
+    var firstName by rememberSaveable(formKey) { mutableStateOf(initial?.firstName.orEmpty()) }
+    var commandName by rememberSaveable(formKey) { mutableStateOf(initial?.commandName.orEmpty()) }
+    var groupId by rememberSaveable(formKey) { mutableStateOf(initial?.groupId) }
+    var fromHistory by rememberSaveable(formKey) { mutableStateOf(initial != null) }
+    var isNewGroupInput by rememberSaveable(formKey) { mutableStateOf(false) }
+    var newGroupTitle by rememberSaveable(formKey) { mutableStateOf("") }
 
     // Группа, созданная из карточки, сразу выбирается.
     LaunchedEffect(createdGroupId) {
@@ -277,6 +312,11 @@ private fun NewParticipantForm(
             newGroupTitle = ""
         }
     }
+    // Единственная подходящая по отметкам группа выбирается сразу, если группа ещё не выбрана.
+    LaunchedEffect(matchingGroupIds) {
+        if (groupId == null && matchingGroupIds.size == 1) groupId = matchingGroupIds.first()
+    }
+    val matchingTitles = groups.filter { it.groupId in matchingGroupIds }.map { it.title }
 
     val suggestions = remember(lastName, firstName, history) {
         if (fromHistory) emptyList() else ParticipantHistory.search(history, "$lastName $firstName", limit = 5)
@@ -349,8 +389,15 @@ private fun NewParticipantForm(
                 items = groups,
                 selectedItem = groups.firstOrNull { it.groupId == groupId },
                 onItemSelected = { groupId = it.groupId },
-                itemToString = { it.title }
+                itemToString = { if (it.groupId in matchingGroupIds) "${it.title} · по отметкам" else it.title }
             )
+            if (matchingTitles.isNotEmpty()) {
+                Text(
+                    text = "По отметкам подходит: ${matchingTitles.joinToString()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             TextButton(onClick = { isNewGroupInput = true }) { Text("+ новая группа") }
         }
         DSTextInput(
@@ -363,7 +410,7 @@ private fun NewParticipantForm(
         val selectedGroupId = groupId
         Button(
             onClick = {
-                if (selectedGroupId != null) onCreate(lastName, firstName, commandName, selectedGroupId, fromHistory)
+                if (selectedGroupId != null) onSubmit(lastName, firstName, commandName, selectedGroupId, fromHistory)
             },
             enabled = lastName.isNotBlank() && firstName.isNotBlank() && selectedGroupId != null,
             modifier = Modifier
@@ -371,7 +418,7 @@ private fun NewParticipantForm(
                 .height(56.dp),
             shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
         ) {
-            Text("Сохранить и посчитать результат", fontWeight = FontWeight.Bold)
+            Text(submitText, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -471,6 +518,168 @@ internal fun ManualStatusPanel(
             else -> Unit
         }
     }
+}
+
+/**
+ * Кнопки под участником на экране считывания (режим «Регистрация на финише»): исправить
+ * участника (ФИО, команда, группа) или отвязать чип, если он считан не тому человеку.
+ */
+@Composable
+internal fun FinishParticipantActions(onEdit: () -> Unit, onUnlink: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.SIZE_HALF.dp)) {
+        OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Изменить участника") }
+        OutlinedButton(onClick = onUnlink, modifier = Modifier.weight(1f)) { Text("Отвязать чип") }
+    }
+}
+
+/**
+ * Карточка «Изменить участника»: ФИО, команда, группа. При смене группы результат
+ * пересчитывается по дистанции новой группы.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun EditParticipantSheet(
+    participant: OrienteeringParticipant,
+    groups: List<ParticipantGroup>,
+    createdGroupId: Long?,
+    matchingGroupIds: Set<Long>,
+    onSave: (lastName: String, firstName: String, commandName: String, groupId: Long) -> Unit,
+    onCreateGroup: (title: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    DSBottomDialog(
+        sheetState = sheetState,
+        onDismiss = onDismiss,
+        sheetContent = {
+            Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
+                Text(
+                    text = "Изменить участника",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "При смене группы результат пересчитается по её дистанции",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                ParticipantForm(
+                    formKey = "edit-${participant.id}",
+                    groups = groups,
+                    history = emptyList(),
+                    createdGroupId = createdGroupId,
+                    matchingGroupIds = matchingGroupIds,
+                    submitText = "Сохранить",
+                    onSubmit = { lastName, firstName, commandName, groupId, _ ->
+                        onSave(lastName, firstName, commandName, groupId)
+                    },
+                    onCreateGroup = onCreateGroup,
+                    initial = participant
+                )
+                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+            }
+        }
+    )
+}
+
+/**
+ * Подтверждение «Отвязать чип»: считывание вернётся в неразобранные. Участника, внесённого на
+ * финише по ошибке, можно удалить; заявленный заранее остаётся без чипа и результата.
+ */
+@Composable
+internal fun UnlinkChipDialog(
+    participant: OrienteeringParticipant,
+    onUnlink: (deleteParticipant: Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Отвязать чип №${participant.chipNumber}?") },
+        text = {
+            Text(
+                "Результат ${participant.lastName} ${participant.firstName} будет сброшен, а считывание " +
+                    "вернётся в неразобранные — его можно сразу привязать к другому участнику.\n\n" +
+                    "«Удалить участника» — если его внесли по ошибке. «Оставить участника» — если он заявлен, " +
+                    "но чип считан не ему: он останется без чипа и результата."
+            )
+        },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = { onUnlink(true) }) {
+                    Text("Удалить участника", color = MaterialTheme.colorScheme.error)
+                }
+                TextButton(onClick = { onUnlink(false) }) { Text("Оставить участника") }
+                TextButton(onClick = onDismiss) { Text("Отмена") }
+            }
+        }
+    )
+}
+
+/**
+ * Отметки чипа для карточки незнакомого чипа: цепочка КП по времени и время на дистанции
+ * (от стартовой до финишной станции). Пустой чип — предупреждение.
+ */
+@Composable
+internal fun PunchSummary(splits: List<SplitTime>, startStationCode: Int?, finishStationCode: Int?) {
+    if (splits.isEmpty()) {
+        Text(
+            text = "На чипе нет отметок — возможно, чип не очищали перед стартом или участник не стартовал",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error
+        )
+        return
+    }
+    val start = startStationCode?.let { code -> splits.firstOrNull { it.controlPoint == code } }
+    val raceTime = raceTimeOf(splits, startStationCode, finishStationCode)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
+            Text(
+                text = "Отметки на чипе",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = punchChain(splits, startStationCode, finishStationCode),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            val times = listOfNotNull(
+                start?.let { "старт ${formatClock(it.timestamp)}" },
+                raceTime?.let { "на дистанции $it" } ?: "нет отметки финиша".takeIf { start != null }
+            )
+            if (times.isNotEmpty()) {
+                Text(
+                    text = times.joinToString(" · ").replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/** Цепочка КП по времени отметок: «240 (старт) → 46 → 47 → 48 → 245 (финиш)». */
+private fun punchChain(splits: List<SplitTime>, startStationCode: Int?, finishStationCode: Int?): String =
+    splits.sortedBy { it.timestamp }.joinToString(" → ") { split ->
+        when (split.controlPoint) {
+            startStationCode -> "${split.controlPoint} (старт)"
+            finishStationCode -> "${split.controlPoint} (финиш)"
+            else -> split.controlPoint.toString()
+        }
+    }
+
+/** Время от отметки стартовой станции до первой отметки финишной после неё; null — нет одной из них. */
+private fun raceTimeOf(splits: List<SplitTime>, startStationCode: Int?, finishStationCode: Int?): String? {
+    val start = startStationCode?.let { code -> splits.firstOrNull { it.controlPoint == code } } ?: return null
+    val finish = finishStationCode?.let { code ->
+        splits.firstOrNull { it.controlPoint == code && it.timestamp > start.timestamp }
+    } ?: return null
+    return ((finish.timestamp - start.timestamp) / 1000L).toRaceTime()
 }
 
 private fun formatClock(timestamp: Long): String =

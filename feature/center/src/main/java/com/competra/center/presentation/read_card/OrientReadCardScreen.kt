@@ -1,5 +1,8 @@
 package com.competra.center.presentation.read_card
 
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -56,6 +59,19 @@ import org.koin.compose.viewmodel.koinViewModel
 fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Результат ждёт «Сохранить» (DSQ или правка отметок): «Назад» по привычке закрыл бы экран
+    // без сохранения, а организатор решил бы, что чип уже записан. Предупреждаем.
+    BackHandler(enabled = state.isPendingSave && !state.isCompetitionFinished) {
+        viewModel.onAction(OrientReadCardAction.BackPressedWithPendingSave)
+    }
+    if (state.isLeaveConfirmShown) {
+        LeaveWithPendingSaveDialog(
+            onSaveAndLeave = { viewModel.onAction(OrientReadCardAction.SaveAndLeave) },
+            onLeave = { viewModel.onAction(OrientReadCardAction.LeaveWithoutSaving) },
+            onDismiss = { viewModel.onAction(OrientReadCardAction.DismissLeaveConfirm) }
+        )
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -122,6 +138,8 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                             (state.participantResult?.startTime ?: 0L) > 0L,
                         onSetStatus = { finished -> viewModel.onAction(OrientReadCardAction.SetManualStatus(finished)) },
                         onCreditByReadTime = { viewModel.onAction(OrientReadCardAction.CreditFinishByReadTime) },
+                        onEditParticipant = { viewModel.onAction(OrientReadCardAction.ShowEditParticipant) },
+                        onUnlinkChip = { viewModel.onAction(OrientReadCardAction.ShowUnlinkChip) },
                         onEditSplit = { index -> viewModel.onAction(OrientReadCardAction.EditSplitClicked(index)) },
                         onCreditCp = { cpNumber, distanceOrdinal ->
                             viewModel.onAction(OrientReadCardAction.CreditMissedCp(cpNumber, distanceOrdinal))
@@ -153,6 +171,7 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 reads = state.unassignedReads,
                 startStationCode = state.defaultStartStationCode,
                 finishStationCode = state.defaultFinishStationCode,
+                matchingGroups = state.unassignedMatchingGroups,
                 onOpen = { chip -> viewModel.onAction(OrientReadCardAction.OpenAssignRead(chip)) },
                 onDelete = { chip -> viewModel.onAction(OrientReadCardAction.DeleteUnassignedRead(chip)) },
                 onDismiss = { viewModel.onAction(OrientReadCardAction.HideUnassignedReads) }
@@ -166,6 +185,9 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 candidates = state.assignCandidates,
                 history = state.participantHistory,
                 createdGroupId = state.createdGroupId,
+                matchingGroupIds = state.assignMatchingGroupIds,
+                startStationCode = state.defaultStartStationCode,
+                finishStationCode = state.defaultFinishStationCode,
                 onCreate = { lastName, firstName, commandName, groupId, fromHistory ->
                     viewModel.onAction(
                         OrientReadCardAction.CreateParticipantFromRead(lastName, firstName, commandName, groupId, fromHistory)
@@ -174,6 +196,28 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 onAssign = { id -> viewModel.onAction(OrientReadCardAction.AssignReadToParticipant(id)) },
                 onCreateGroup = { title -> viewModel.onAction(OrientReadCardAction.CreateGroupForRead(title)) },
                 onDismiss = { viewModel.onAction(OrientReadCardAction.DismissAssignRead) }
+            )
+        }
+
+        val participant = state.participant
+        if (state.isEditParticipantShown && participant != null) {
+            EditParticipantSheet(
+                participant = participant,
+                groups = state.assignGroups,
+                createdGroupId = state.createdGroupId,
+                matchingGroupIds = state.assignMatchingGroupIds,
+                onSave = { lastName, firstName, commandName, groupId ->
+                    viewModel.onAction(OrientReadCardAction.UpdateParticipantFromRead(lastName, firstName, commandName, groupId))
+                },
+                onCreateGroup = { title -> viewModel.onAction(OrientReadCardAction.CreateGroupForRead(title)) },
+                onDismiss = { viewModel.onAction(OrientReadCardAction.DismissEditParticipant) }
+            )
+        }
+        if (state.isUnlinkChipShown && participant != null) {
+            UnlinkChipDialog(
+                participant = participant,
+                onUnlink = { delete -> viewModel.onAction(OrientReadCardAction.UnlinkChip(delete)) },
+                onDismiss = { viewModel.onAction(OrientReadCardAction.DismissUnlinkChip) }
             )
         }
     }
@@ -279,6 +323,31 @@ private fun DsqReasonBanner(reason: String) {
 }
 
 /**
+ * Предупреждение при выходе с экрана считывания, когда результат ещё не сохранён.
+ */
+@Composable
+private fun LeaveWithPendingSaveDialog(
+    onSaveAndLeave: () -> Unit,
+    onLeave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Результат не сохранён") },
+        text = { Text("Если выйти сейчас, результат и все несохранённые изменения будут потеряны.") },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = onSaveAndLeave) { Text("Сохранить и выйти", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = onLeave) {
+                    Text("Выйти без сохранения", color = MaterialTheme.colorScheme.error)
+                }
+                TextButton(onClick = onDismiss) { Text("Остаться") }
+            }
+        }
+    )
+}
+
+/**
  * Основное содержимое экрана при наличии данных.
  */
 @Composable
@@ -302,6 +371,10 @@ private fun ReadCardContent(
     canCreditByReadTime: Boolean = false,
     onSetStatus: (finished: Boolean) -> Unit = {},
     onCreditByReadTime: () -> Unit = {},
+    /** «Изменить участника» (режим «Регистрация на финише»). */
+    onEditParticipant: () -> Unit = {},
+    /** «Отвязать чип» (режим «Регистрация на финише»). */
+    onUnlinkChip: () -> Unit = {},
     onEditSplit: (index: Int) -> Unit = {},
     onCreditCp: (cpNumber: Int, distanceOrdinal: Int) -> Unit = { _, _ -> },
     onSaveResult: () -> Unit = {},
@@ -332,6 +405,14 @@ private fun ReadCardContent(
         // Карточка участника
         item {
             ParticipantInfoCard(participant)
+        }
+
+        // Режим «Регистрация на финише»: участника внесли прямо на финише — ошибку (не та группа,
+        // не тот человек) исправляют здесь же.
+        if (isFinishRegistration && !isReadOnly) {
+            item {
+                FinishParticipantActions(onEdit = onEditParticipant, onUnlink = onUnlinkChip)
+            }
         }
 
         // Причина статуса результата (в первую очередь — почему DSQ): без неё нулевое время

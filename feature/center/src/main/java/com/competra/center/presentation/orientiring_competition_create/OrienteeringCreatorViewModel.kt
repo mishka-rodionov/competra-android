@@ -645,6 +645,7 @@ class OrienteeringCreatorViewModel(
                     isFinishRegistration = comp.isFinishRegistration,
                     isTest = comp.competition.isTest,
                     organizingClubId = comp.competition.organizingClubId,
+                    loadedCompetition = comp,
                 )
             }
             

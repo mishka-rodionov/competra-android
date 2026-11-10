@@ -1,5 +1,6 @@
 package com.competra.center.presentation.participant_list
 
+import com.competra.designsystem.components.ExposedDropdownMenuOutlined
 import com.competra.center.data.participant_list.LinkToAccountState
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
@@ -107,6 +108,17 @@ fun ParticipantListScreen(
             groupName = state.participantGroupWithParticipants.getOrNull(state.group)?.group?.title ?: "",
             editingParticipant = state.editingParticipant,
             lateEntry = state.lateEntry,
+            // «Регистрация на финише»: участника внесли на финише — группу можно поправить, пока у
+            // него нет результата (с результатом — на экране считывания, с пересчётом по отметкам).
+            groupChange = state.editingParticipant
+                ?.takeIf { state.competition?.isFinishRegistration == true }
+                ?.let { editing ->
+                    val status = state.resultStatuses[editing.id]
+                    GroupChangeOptions(
+                        groups = state.participantGroupWithParticipants.map { it.group }.filterNot { it.isDeleted },
+                        isLocked = status != null && status != ResultStatus.REGISTERED
+                    )
+                },
             protocolTeams = remember(state.participantGroupWithParticipants) {
                 protocolCommandNames(state.participantGroupWithParticipants.flatMap { it.participants }.map { it.commandName })
             },
@@ -435,6 +447,14 @@ private fun EmptyParticipantsView(message: String) {
     }
 }
 
+/**
+ * Смена группы в диалоге редактирования участника (режим «Регистрация на финише»).
+ *
+ * @property groups Группы соревнования.
+ * @property isLocked У участника есть результат — группа меняется только на экране считывания.
+ */
+data class GroupChangeOptions(val groups: List<ParticipantGroup>, val isLocked: Boolean)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateParticipantDialog(
@@ -447,7 +467,9 @@ fun CreateParticipantDialog(
     /** Подписи команд из протокола соревнования — для подсказок ([protocolCommandNames]). */
     protocolTeams: List<String> = emptyList(),
     /** Люди из прошлых соревнований организатора, которых ещё нет в протоколе. */
-    participantHistory: List<KnownParticipant> = emptyList()
+    participantHistory: List<KnownParticipant> = emptyList(),
+    /** Смена группы при редактировании (режим «Регистрация на финише»); null — группа не меняется. */
+    groupChange: GroupChangeOptions? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     DSBottomDialog(
@@ -460,7 +482,8 @@ fun CreateParticipantDialog(
                 editingParticipant = editingParticipant,
                 lateEntry = lateEntry,
                 protocolTeams = protocolTeams,
-                participantHistory = participantHistory
+                participantHistory = participantHistory,
+                groupChange = groupChange
             )
         },
         onDismiss = { userAction.invoke(ParticipantListAction.HideCreateParticipantDialog) },
@@ -476,9 +499,13 @@ fun CreateParticipantDialogContent(
     editingParticipant: OrienteeringParticipant?,
     lateEntry: LateEntryPreview? = null,
     protocolTeams: List<String> = emptyList(),
-    participantHistory: List<KnownParticipant> = emptyList()
+    participantHistory: List<KnownParticipant> = emptyList(),
+    groupChange: GroupChangeOptions? = null
 ) {
     var placement by remember { mutableStateOf(LateEntryPlacement.FREE_SLOT) }
+    var selectedGroup by remember(editingParticipant, groupChange) {
+        mutableStateOf(groupChange?.groups?.firstOrNull { it.groupId == editingParticipant?.groupId })
+    }
     var firstName by remember(editingParticipant) { mutableStateOf(editingParticipant?.firstName ?: "") }
     var secondName by remember(editingParticipant) { mutableStateOf(editingParticipant?.lastName ?: "") }
     var commandName by remember(editingParticipant) { mutableStateOf(editingParticipant?.commandName ?: "") }
@@ -549,12 +576,33 @@ fun CreateParticipantDialogContent(
             }
         }
 
-        Text(
-            text = "Группа: $groupName",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(vertical = Dimens.SIZE_HALF.dp)
-        )
+        if (groupChange != null && !groupChange.isLocked) {
+            ExposedDropdownMenuOutlined(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Dimens.SIZE_HALF.dp),
+                label = "Группа",
+                items = groupChange.groups,
+                selectedItem = selectedGroup,
+                onItemSelected = { selectedGroup = it },
+                itemToString = { it.title }
+            )
+        } else {
+            Text(
+                text = "Группа: $groupName",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(vertical = Dimens.SIZE_HALF.dp)
+            )
+            if (groupChange?.isLocked == true) {
+                Text(
+                    text = "У участника есть результат — группу меняйте на экране считывания: приложите чип → " +
+                        "«Изменить участника», результат пересчитается по дистанции новой группы.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         if (editingParticipant == null && participantHistory.isNotEmpty()) {
             OutlinedButton(
@@ -751,7 +799,9 @@ fun CreateParticipantDialogContent(
                                     firstName = firstName,
                                     lastName = secondName,
                                     commandName = normalizeCommandName(commandName).orEmpty(),
-                                    startTime = parsedStartTime ?: editingParticipant.startTime
+                                    startTime = parsedStartTime ?: editingParticipant.startTime,
+                                    groupId = selectedGroup?.groupId ?: editingParticipant.groupId,
+                                    groupName = selectedGroup?.title ?: editingParticipant.groupName
                                 )
                             )
                         )

@@ -88,6 +88,7 @@ private fun OrienteeringEventControlScreenContent(
     // Для старта по стартовой станции жеребьёвки не бывает вообще — секции, зависящие от неё
     // (выдача чипов, старт), открываются сразу, без условия isDrawConducted.
     val isDrawConducted = state.isDrawConducted || isByStartStation
+    val isFinishRegistration = state.competition?.isFinishRegistration == true
     val showStartSection = !state.isFinished && isDrawConducted &&
         (state.isCompetitionRunning || state.allChipsDistributed)
 
@@ -113,7 +114,7 @@ private fun OrienteeringEventControlScreenContent(
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
-                if (state.competition?.isFinishRegistration == true) {
+                if (isFinishRegistration) {
                     Text(
                         text = "Регистрация на финише — участников вносите при считывании чипа",
                         style = MaterialTheme.typography.bodySmall,
@@ -182,9 +183,10 @@ private fun OrienteeringEventControlScreenContent(
                 // Список разделов с прогрессивным раскрытием
                 SectionHeader(title = "Разделы")
 
-                // 1. Стартовый протокол — всегда
+                // 1. Стартовый протокол — всегда. В режиме «Регистрация на финише» стартового
+                // протокола нет: это список внесённых на финише участников (исправить ФИО, группу).
                 NavigationRow(
-                    text = "Стартовый протокол",
+                    text = if (isFinishRegistration) "Участники" else "Стартовый протокол",
                     onClick = { onAction(OrientEventControlAction.OpenParticipantLists) }
                 )
 
@@ -207,7 +209,9 @@ private fun OrienteeringEventControlScreenContent(
                 }
 
                 // 4. Выдача чипов — после жеребьёвки и до завершения: во время соревнования нужна
-                // для дозаявленных участников и замены чипа.
+                // для дозаявленных участников и замены чипа. В режиме «Регистрация на финише» выдача
+                // необязательна: в ней можно заранее записать чип заявленным участникам, а не
+                // записанный чип привязывается на финише (вкладка «Уже заявлен»). Старт не блокирует.
                 if (!state.isFinished && isDrawConducted) {
                     NavigationRow(
                         text = "Выдача чипов",
@@ -719,19 +723,19 @@ private fun UnassignedReadsRow(count: Int, onClick: () -> Unit) {
             .padding(vertical = 4.dp)
             .clickRipple(onClick = onClick),
         shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
             Text(
                 text = "Неразобранные считывания: $count",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onErrorContainer
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Text(
                 text = "Чипы, ещё не привязанные к участникам. Нажмите, чтобы разобрать",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     }

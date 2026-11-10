@@ -140,7 +140,14 @@ data class OrienteeringCreatorState(
      * Одноразовое сообщение для снекбара (итог импорта XML, запрет удаления и т.п.);
      * экран показывает его и сбрасывает через [OrienteeringCreatorAction.MessageShown].
      */
-    val message: String? = null
+    val message: String? = null,
+    /**
+     * Соревнование, загруженное для редактирования (null — создание нового). Из него берутся
+     * поля, которые мастер не редактирует: статус, время старта, статус результатов. Без этого
+     * правка уже запущенного соревнования (например, новая группа) возвращала его в DRAFT
+     * и сбрасывала секундомер.
+     */
+    val loadedCompetition: OrienteeringCompetition? = null
 ) : BaseState {
 
     /** Координаты старта выбраны (на карте или пришли с сервера); 0,0 — значение «не задано». */
@@ -161,7 +168,7 @@ data class OrienteeringCreatorState(
                 mainOrganizerId = userId,
                 // Невыбранная точка 0,0 — это Гвинейский залив, а не «нет координат»: шлём null, как веб.
                 coordinates = coordinates.takeIf { hasCoordinates },
-                status = CompetitionStatus.DRAFT,
+                status = loadedCompetition?.competition?.status ?: CompetitionStatus.DRAFT,
                 registrationStart = registrationStart,
                 registrationEnd = registrationEnd,
                 maxParticipants = maxParticipants,
@@ -174,7 +181,8 @@ data class OrienteeringCreatorState(
                 contactPhone = contactPhone,
                 contactEmail = contactEmail,
                 website = website,
-                resultsStatus = ResultsStatus.NOT_PUBLISHED,
+                resultsStatus = loadedCompetition?.competition?.resultsStatus ?: ResultsStatus.NOT_PUBLISHED,
+                resultsUrl = loadedCompetition?.competition?.resultsUrl,
                 timeZoneId = timeZoneId,
                 isTest = isTest,
                 organizingClubId = organizingClubId,
@@ -184,6 +192,7 @@ data class OrienteeringCreatorState(
             punchingSystem = punchingSystem,
             startTimeMode = startTimeMode,
             countdownTimer = countdownTimer,
+            startTime = loadedCompetition?.startTime,
             startIntervalSeconds = startIntervalSeconds,
             controlTimeMinutes = controlTimeMinutes,
             overtimePolicy = overtimePolicy,

@@ -33,6 +33,7 @@ import com.competra.domain.models.orienteering.withoutDistance
 import com.competra.domain.models.orienteering.ParticipantHistory
 import com.competra.domain.models.orienteering.UnassignedChipRead
 import com.competra.domain.models.orienteering.toRawResult
+import com.competra.domain.models.orienteering.matchingGroupIdsByPunches
 import com.competra.domain.models.cyclic_event.normalizeCommandName
 import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
@@ -56,11 +57,18 @@ class OrientReadCardViewModel(
     private val resultConflictRepository: ResultConflictRepository,
     private val unassignedChipReadRepository: UnassignedChipReadRepository,
     private val localRepository: OrienteeringCompetitionLocalRepository,
-    navigation: Navigation,
+    private val navigation: Navigation,
     private val analytics: AnalyticsTracker,
 ) : BaseViewModel<OrientReadCardState>(OrientReadCardState()) {
 
     val competitionId: String? = navigation.getArguments<String>(EventsConstants.EVENT_ID.name)
+
+    /**
+     * Исходное считывание чипа, результат которого сейчас на экране (режим «Регистрация на финише»):
+     * по нему результат пересчитывается при смене группы, и оно возвращается в очередь при
+     * «Отвязать чип». Отметки в state могут быть уже поправлены организатором — здесь нет.
+     */
+    private var currentRead: UnassignedChipRead? = null
 
     override fun onAction(action: BaseAction) {
         if (action !is OrientReadCardAction) return
@@ -102,6 +110,19 @@ class OrientReadCardViewModel(
             is OrientReadCardAction.SaveResult -> {
                 viewModelScope.launch(Dispatchers.IO) { saveResultFromPending() }
             }
+            OrientReadCardAction.BackPressedWithPendingSave -> updateState { copy(isLeaveConfirmShown = true) }
+            OrientReadCardAction.DismissLeaveConfirm -> updateState { copy(isLeaveConfirmShown = false) }
+            OrientReadCardAction.SaveAndLeave -> {
+                updateState { copy(isLeaveConfirmShown = false) }
+                viewModelScope.launch(Dispatchers.IO) {
+                    saveResultFromPending()
+                    launch(Dispatchers.Main) { navigation.back() }
+                }
+            }
+            OrientReadCardAction.LeaveWithoutSaving -> {
+                updateState { copy(isLeaveConfirmShown = false) }
+                viewModelScope.launch(Dispatchers.Main) { navigation.back() }
+            }
             OrientReadCardAction.ShowUnassignedReads -> updateState { copy(isUnassignedListShown = true) }
             OrientReadCardAction.HideUnassignedReads -> updateState { copy(isUnassignedListShown = false) }
             is OrientReadCardAction.OpenAssignRead -> {
@@ -125,6 +146,32 @@ class OrientReadCardViewModel(
             }
             is OrientReadCardAction.SetManualStatus -> {
                 viewModelScope.launch(Dispatchers.IO) { setManualStatus(action.finished) }
+            }
+            OrientReadCardAction.ShowEditParticipant -> {
+                val cid = competitionId ?: return
+                viewModelScope.launch(Dispatchers.IO) {
+                    val groups = loadAssignGroups(cid)
+                    val distances = orienteeringCompetitionInteractor.getDistances(cid).getOrNull().orEmpty()
+                    val splits = currentRead?.splits ?: stateValue.rawSplits.orEmpty()
+                    updateState {
+                        copy(
+                            isEditParticipantShown = true,
+                            assignGroups = groups,
+                            assignMatchingGroupIds = matchingGroupIdsByPunches(splits, groups, distances),
+                            createdGroupId = null
+                        )
+                    }
+                }
+            }
+            OrientReadCardAction.DismissEditParticipant -> updateState { copy(isEditParticipantShown = false, createdGroupId = null) }
+            is OrientReadCardAction.UpdateParticipantFromRead -> {
+                viewModelScope.launch(Dispatchers.IO) { updateParticipantFromRead(action) }
+            }
+            OrientReadCardAction.ShowUnlinkChip -> updateState { copy(isUnlinkChipShown = true) }
+            OrientReadCardAction.DismissUnlinkChip -> updateState { copy(isUnlinkChipShown = false) }
+            is OrientReadCardAction.UnlinkChip -> {
+                updateState { copy(isUnlinkChipShown = false) }
+                viewModelScope.launch(Dispatchers.IO) { unlinkChip(action.deleteParticipant) }
             }
             OrientReadCardAction.CreditFinishByReadTime -> {
                 val finishCode = stateValue.finishControlPoint ?: return
@@ -248,7 +295,8 @@ class OrientReadCardViewModel(
                     if (isFinishRegistration) {
                         viewModelScope.launch {
                             unassignedChipReadRepository.observe(id).collect { reads ->
-                                updateState { copy(unassignedReads = reads) }
+                                val matches = matchingGroupTitles(id, reads)
+                                updateState { copy(unassignedReads = reads, unassignedMatchingGroups = matches) }
                             }
                         }
                         loadParticipantHistory(id)
@@ -301,6 +349,13 @@ class OrientReadCardViewModel(
                                 null
                             }
                             updateState { copy(scanNotice = notice) }
+                            currentRead = UnassignedChipRead(
+                                competitionId = competitionId,
+                                chipNumber = chipData.chipNumber,
+                                readAt = readAt,
+                                clearTime = chipData.clearTime,
+                                splits = chipData.splits
+                            )
                             computeParticipantResult(
                                 participant = participant,
                                 rawResult = chipData,
@@ -381,10 +436,17 @@ class OrientReadCardViewModel(
         return splits.firstOrNull { it.controlPoint == startCp }?.timestamp
     }
 
+    /**
+     * Считает результат участника по отметкам чипа и сохраняет его (DSQ — ждёт «Сохранить»).
+     *
+     * @param replaceExisting Заменить уже сохранённый результат без диалога конфликта (и при DSQ):
+     *   организатор сменил группу участника, и старый результат относится к прежней группе.
+     */
     suspend fun computeParticipantResult(
         participant: OrienteeringParticipant,
         rawResult: ReadChipData.RawResult,
-        readAt: Long? = null
+        readAt: Long? = null,
+        replaceExisting: Boolean = false
     ) {
         val splits = rawResult.splits
         Log.d("LOG_TAG", "computeParticipantResult: $splits")
@@ -417,7 +479,8 @@ class OrientReadCardViewModel(
                 expectedCpNumbers = expectedCpNumbers,
                 expectedControlPoints = expected,
                 startControlPoint = startControlPoint,
-                readAt = readAt
+                readAt = readAt,
+                replaceExisting = replaceExisting
             )
             return
         }
@@ -441,7 +504,8 @@ class OrientReadCardViewModel(
             expectedCpNumbers = expectedCpNumbers,
             expectedControlPoints = expected,
             startControlPoint = startControlPoint,
-            readAt = readAt
+            readAt = readAt,
+            replaceExisting = replaceExisting
         )
     }
 
@@ -455,7 +519,8 @@ class OrientReadCardViewModel(
         expectedCpNumbers: List<Int> = emptyList(),
         expectedControlPoints: List<ControlPoint> = emptyList(),
         startControlPoint: Int? = null,
-        readAt: Long? = null
+        readAt: Long? = null,
+        replaceExisting: Boolean = false
     ) {
         val effectiveStatus = applyControlTime(participant.groupId, totalTime, result.status)
         val startPoint = getDistance(participant.groupId)?.startPoint()
@@ -515,6 +580,31 @@ class OrientReadCardViewModel(
             return
         }
 
+        if (replaceExisting) {
+            // Смена группы: сохранённый результат относится к прежней группе — заменяем его сразу,
+            // при любом статусе, иначе в прежней группе остался бы чужой результат.
+            val existing = orienteeringCompetitionInteractor.getResultByParticipantId(participant.id)
+            if (existing != null) {
+                orienteeringCompetitionInteractor.applyConflictResult(existing, newResult)
+                orienteeringCompetitionInteractor.recalculateGroupRanks(existing.competitionId, existing.groupId)
+                updateState {
+                    copy(
+                        participant = resolvedParticipant,
+                        participantResult = newResult,
+                        rawSplits = rawSplits,
+                        expectedCpNumbers = expectedCpNumbers,
+                        expectedControlPoints = expectedControlPoints,
+                        isPendingSave = false,
+                        statusMessage = statusText,
+                        startControlPoint = startControlPoint,
+                        startPoint = startPoint,
+                    )
+                }
+                refreshGroupRank(resolvedParticipant)
+                return
+            }
+        }
+
         if (newResult.status == ResultStatus.DSQ) {
             // DSQ: показываем результат организатору и ждём явного сохранения
             updateState {
@@ -548,7 +638,11 @@ class OrientReadCardViewModel(
 
         val existing = orienteeringCompetitionInteractor.getResultByParticipantId(participant.id)
 
-        if (existing != null) {
+        if (existing != null && existing.status == ResultStatus.REGISTERED) {
+            // «Зарегистрирован» — результата ещё нет (например, чип отвязали): терять нечего.
+            orienteeringCompetitionInteractor.applyConflictResult(existing, newResult)
+            refreshGroupRank(participant)
+        } else if (existing != null) {
             // Уже есть запись — эмитим конфликт для отображения диалога в MainActivity
             resultConflictRepository.emit(
                 ResultConflictEvent(
@@ -635,7 +729,10 @@ class OrientReadCardViewModel(
             orienteeringCompetitionInteractor.updateParticipantLocally(participant.copy(startTime = resultStartTime))
         }
         val existing = orienteeringCompetitionInteractor.getResultByParticipantId(participant.id)
-        if (existing != null) {
+        if (existing != null && existing.status == ResultStatus.REGISTERED) {
+            orienteeringCompetitionInteractor.applyConflictResult(existing, newResult)
+            refreshGroupRank(participant)
+        } else if (existing != null) {
             resultConflictRepository.emit(
                 ResultConflictEvent(
                     participantName = "${participant.lastName} ${participant.firstName}",
@@ -766,7 +863,9 @@ class OrientReadCardViewModel(
                 rawSplits = null,
                 isPendingSave = false,
                 statusMessage = null,
-                scanNotice = "Чип №${chipData.chipNumber} ещё не привязан к участнику — внесите участника"
+                // Незнакомый чип в этом режиме — норма, а не ошибка: открывается карточка участника,
+                // а в очереди его видно по плашке «Неразобранные считывания». Красное сообщение не нужно.
+                scanNotice = null
             )
         }
         openAssign(read, AnalyticsEvent.FinishReadSource.ON_READ)
@@ -778,20 +877,34 @@ class OrientReadCardViewModel(
         val groups = loadAssignGroups(cid)
         val withResult = orienteeringCompetitionInteractor.getResultsByGroups(cid).getOrNull().orEmpty()
             .flatMap { it.participants }
-            .filter { it.result != null }
+            // «Зарегистрирован» — результата нет (например, чип отвязали), к такому можно привязать.
+            .filter { it.result != null && it.result?.status != ResultStatus.REGISTERED }
             .map { it.participant.id }
             .toSet()
         val candidates = orienteeringCompetitionInteractor.getParticipants(cid).getOrNull().orEmpty()
             .filter { !it.isDeleted && it.id !in withResult }
             .sortedWith(compareBy({ it.lastName }, { it.firstName }))
+        val distances = orienteeringCompetitionInteractor.getDistances(cid).getOrNull().orEmpty()
         updateState {
             copy(
                 assigningRead = read,
                 assignSource = source,
                 assignGroups = groups,
                 assignCandidates = candidates,
+                assignMatchingGroupIds = matchingGroupIdsByPunches(read.splits, groups, distances),
                 createdGroupId = null
             )
+        }
+    }
+
+    /** Подходящие по отметкам группы для каждого неразобранного считывания — подсказка в списке. */
+    private suspend fun matchingGroupTitles(competitionId: String, reads: List<UnassignedChipRead>): Map<Int, List<String>> {
+        if (reads.isEmpty()) return emptyMap()
+        val groups = loadAssignGroups(competitionId)
+        val distances = orienteeringCompetitionInteractor.getDistances(competitionId).getOrNull().orEmpty()
+        return reads.associate { read ->
+            val ids = matchingGroupIdsByPunches(read.splits, groups, distances)
+            read.chipNumber to groups.filter { it.groupId in ids }.map { it.title }
         }
     }
 
@@ -860,6 +973,7 @@ class OrientReadCardViewModel(
         target: AnalyticsEvent.FinishReadTarget
     ) {
         unassignedChipReadRepository.delete(read.competitionId, read.chipNumber)
+        currentRead = read
         analytics.trackEvent(AnalyticsEvent.FinishReadAssigned(target, stateValue.assignSource))
         updateState { copy(assigningRead = null, createdGroupId = null, scanNotice = null) }
         val rawResult = read.toRawResult()
@@ -875,6 +989,89 @@ class OrientReadCardViewModel(
             return
         }
         computeParticipantResult(participant = participant, rawResult = rawResult, readAt = read.readAt)
+    }
+
+    /**
+     * «Изменить участника» на экране считывания: ФИО, команда, группа. При смене группы результат
+     * пересчитывается по дистанции новой группы из исходного считывания и сразу заменяет
+     * сохранённый (места пересчитываются в обеих группах).
+     */
+    private suspend fun updateParticipantFromRead(action: OrientReadCardAction.UpdateParticipantFromRead) {
+        val participant = stateValue.participant ?: return
+        val group = stateValue.assignGroups.firstOrNull { it.groupId == action.groupId } ?: return
+        val updated = participant.copy(
+            lastName = action.lastName.trim(),
+            firstName = action.firstName.trim(),
+            commandName = normalizeCommandName(action.commandName).orEmpty(),
+            groupId = group.groupId,
+            groupName = group.title
+        )
+        val groupChanged = updated.groupId != participant.groupId
+        orienteeringCompetitionInteractor.updateParticipantLocally(updated).onFailure {
+            updateState { copy(scanNotice = "Не удалось сохранить участника — попробуйте ещё раз") }
+            return
+        }
+        analytics.trackEvent(AnalyticsEvent.FinishParticipantEdited(groupChanged = groupChanged))
+        updateState { copy(isEditParticipantShown = false, createdGroupId = null, participant = updated) }
+        if (!groupChanged) return
+        val raw = currentRead?.toRawResult()
+            ?: stateValue.rawSplits?.let { ReadChipData.RawResult(chipNumber = updated.chipNumber.toIntOrNull() ?: 0, clearTime = 0L, splits = it) }
+            ?: return
+        val readAt = currentRead?.readAt ?: stateValue.participantResult?.readAt
+        computeParticipantResult(participant = updated, rawResult = raw, readAt = readAt, replaceExisting = true)
+    }
+
+    /**
+     * «Отвязать чип»: считывание возвращается в очередь неразобранных и сразу открывается его
+     * карточка. Участник либо удаляется ([deleteParticipant] — внесён на финише по ошибке), либо
+     * остаётся без чипа и результата (заявлен заранее, чип считан не ему).
+     */
+    private suspend fun unlinkChip(deleteParticipant: Boolean) {
+        val cid = competitionId ?: return
+        val participant = stateValue.participant ?: return
+        val chipNumber = participant.chipNumber.toIntOrNull()
+        val read = currentRead?.takeIf { it.chipNumber == chipNumber }
+            ?: chipNumber?.let {
+                UnassignedChipRead(
+                    competitionId = cid,
+                    chipNumber = it,
+                    readAt = stateValue.participantResult?.readAt ?: System.currentTimeMillis(),
+                    clearTime = 0L,
+                    splits = stateValue.rawSplits.orEmpty()
+                )
+            }
+        if (deleteParticipant) {
+            orienteeringCompetitionInteractor.deleteParticipantAtFinish(participant).onFailure { e ->
+                updateState { copy(scanNotice = e.message ?: "Не удалось удалить участника") }
+                return
+            }
+        } else {
+            orienteeringCompetitionInteractor.getResultByParticipantId(participant.id)?.let {
+                orienteeringCompetitionInteractor.clearParticipantResult(it)
+            }
+            val unlinked = participant.copy(chipNumber = "", isChipGiven = false, startTime = 0L)
+            orienteeringCompetitionInteractor.updateParticipantLocally(unlinked).onFailure {
+                updateState { copy(scanNotice = "Не удалось отвязать чип — попробуйте ещё раз") }
+                return
+            }
+        }
+        analytics.trackEvent(AnalyticsEvent.FinishChipUnlinked(participantDeleted = deleteParticipant))
+        currentRead = null
+        updateState {
+            copy(
+                participant = null,
+                participantResult = null,
+                rawSplits = null,
+                isPendingSave = false,
+                statusMessage = null,
+                groupRank = null,
+                scanNotice = null
+            )
+        }
+        if (read != null) {
+            unassignedChipReadRepository.save(read)
+            openAssign(read, AnalyticsEvent.FinishReadSource.QUEUE)
+        }
     }
 
     /** Новая группа прямо из карточки участника (без дистанции — результат по времени). */

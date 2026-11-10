@@ -35,6 +35,8 @@
 | `participant_dns_marked` | Участник отмечен «Не стартовал» | `ParticipantListViewModel.kt` |
 | `finish_read_assigned` | «Регистрация на финише»: считывание незнакомого чипа привязано к участнику (`target`: new_participant / existing_participant; `source`: on_read / queue) | `OrientReadCardViewModel.kt` |
 | `result_status_changed_manually` | «Регистрация на финише»: организатор вручную снял или засчитал результат (`status`: finished / dsq) | `OrientReadCardViewModel.kt` |
+| `finish_participant_edited` | «Регистрация на финише»: организатор исправил участника на экране считывания (`group_changed`: true / false) | `OrientReadCardViewModel.kt` |
+| `finish_chip_unlinked` | «Регистрация на финише»: организатор отвязал чип — считывание вернулось в неразобранные (`participant_deleted`: true / false) | `OrientReadCardViewModel.kt` |
 
 ### Анти-паттерны
 

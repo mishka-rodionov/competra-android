@@ -278,6 +278,14 @@ sealed class AnalyticsEvent(
     class ResultStatusChangedManually(status: ManualResultStatus) :
         AnalyticsEvent("result_status_changed_manually", mapOf("status" to status.name.lowercase()))
 
+    /** Организатор исправил участника на экране считывания (режим «Регистрация на финише»). */
+    class FinishParticipantEdited(groupChanged: Boolean) :
+        AnalyticsEvent("finish_participant_edited", mapOf("group_changed" to groupChanged))
+
+    /** Организатор отвязал чип от участника — считывание вернулось в неразобранные. */
+    class FinishChipUnlinked(participantDeleted: Boolean) :
+        AnalyticsEvent("finish_chip_unlinked", mapOf("participant_deleted" to participantDeleted))
+
     /** Организатор добавил в группу сразу несколько людей из прошлых соревнований. */
     class ParticipantsBulkAdded(participantsCount: Int) :
         AnalyticsEvent("participants_bulk_added", mapOf("participants_count" to participantsCount))

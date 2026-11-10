@@ -118,9 +118,12 @@ class OrienteeringEventControlViewModel(
             orienteeringCompetitionInteractor.tryAutoStartFromRegistration(id)
 
             orienteeringCompetitionInteractor.getCompetitionWithDetails(id).onSuccess { details ->
-                val allChipsDistributed = details.groupsWithParticipants.all { group ->
-                    group.participants.all { it.isChipGiven }
-                }
+                // В режиме «Регистрация на финише» чип привязывается к участнику при считывании
+                // на финише — заранее заявленные без чипа не должны блокировать «Открыть старт».
+                val allChipsDistributed = details.competition.isFinishRegistration ||
+                    details.groupsWithParticipants.all { group ->
+                        group.participants.all { it.isChipGiven }
+                    }
                 val competition = restoreLostStartTime(
                     competition = details.competition,
                     participants = details.groupsWithParticipants.flatMap { it.participants }

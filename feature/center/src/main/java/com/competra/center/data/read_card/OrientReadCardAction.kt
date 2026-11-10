@@ -16,6 +16,14 @@ sealed class OrientReadCardAction : BaseAction {
     data class CreditMissedCp(val cpNumber: Int, val distanceOrdinal: Int) : OrientReadCardAction()
     /** Явное сохранение DSQ-результата в БД после проверки организатором. */
     data object SaveResult : OrientReadCardAction()
+    /** «Назад» при несохранённом результате — показать предупреждение о выходе. */
+    data object BackPressedWithPendingSave : OrientReadCardAction()
+    /** Остаться на экране — закрыть предупреждение о выходе. */
+    data object DismissLeaveConfirm : OrientReadCardAction()
+    /** Сохранить результат и закрыть экран. */
+    data object SaveAndLeave : OrientReadCardAction()
+    /** Закрыть экран без сохранения результата. */
+    data object LeaveWithoutSaving : OrientReadCardAction()
 
     // --- Режим «Регистрация на финише» ---
 
@@ -49,4 +57,26 @@ sealed class OrientReadCardAction : BaseAction {
     data class SetManualStatus(val finished: Boolean) : OrientReadCardAction()
     /** Нет отметки финиша — засчитать финиш по времени считывания чипа. */
     data object CreditFinishByReadTime : OrientReadCardAction()
+    /** Открыть карточку «Изменить участника» для участника на экране. */
+    data object ShowEditParticipant : OrientReadCardAction()
+    /** Закрыть карточку «Изменить участника» без изменений. */
+    data object DismissEditParticipant : OrientReadCardAction()
+    /** Сохранить ФИО, команду и группу участника; при смене группы результат пересчитывается. */
+    data class UpdateParticipantFromRead(
+        val lastName: String,
+        val firstName: String,
+        val commandName: String,
+        val groupId: Long,
+    ) : OrientReadCardAction()
+    /** Открыть диалог «Отвязать чип». */
+    data object ShowUnlinkChip : OrientReadCardAction()
+    /** Закрыть диалог «Отвязать чип». */
+    data object DismissUnlinkChip : OrientReadCardAction()
+    /**
+     * Отвязать чип от участника на экране — считывание возвращается в очередь неразобранных.
+     *
+     * @param deleteParticipant true — удалить участника (внесён на финише по ошибке); false —
+     *   оставить его без чипа и результата.
+     */
+    data class UnlinkChip(val deleteParticipant: Boolean) : OrientReadCardAction()
 }

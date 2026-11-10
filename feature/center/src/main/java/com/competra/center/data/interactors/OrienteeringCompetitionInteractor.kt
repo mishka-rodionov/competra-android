@@ -252,6 +252,67 @@ class OrienteeringCompetitionInteractor(
     }
 
     /**
+     * Удаляет участника, ошибочно внесённого при разборе считывания (режим «Регистрация на финише»).
+     *
+     * В этом режиме участников заводят прямо на финише, поэтому запрет удаления после старта
+     * ([isParticipantDeletionLocked]) не действует — сервер разрешает то же самое. Результат
+     * участника, если он был, помечается на удаление, места в группе пересчитываются.
+     *
+     * @return failure, если соревнование не в режиме «Регистрация на финише».
+     */
+    suspend fun deleteParticipantAtFinish(participant: OrienteeringParticipant): Result<Unit> {
+        val competition = localRepository.getCompetition(participant.competitionId).getOrNull()
+        if (competition?.isFinishRegistration != true) {
+            return Result.failure(IllegalStateException("Удалять участников на финише можно только в режиме «Регистрация на финише»"))
+        }
+        localRepository.getResultByParticipant(participant.id).getOrNull()?.let { result ->
+            localRepository.updateResults(listOf(result.cleared().copy(isDeleted = true)))
+            recalculateGroupRanks(result.competitionId, result.groupId)
+        }
+        return localRepository.markParticipantDeleted(participant.id).also { touch() }
+    }
+
+    /**
+     * Сбрасывает результат участника в «зарегистрирован, без результата» (статус REGISTERED) —
+     * например, когда организатор отвязал чип, считанный не тому участнику. Места в группе
+     * пересчитываются.
+     */
+    suspend fun clearParticipantResult(result: OrienteeringResult) {
+        applyConflictResult(result, result.cleared())
+    }
+
+    /**
+     * Пересчитывает места в группе по уже сохранённым результатам — например, после того как
+     * участник с результатом ушёл из группы (сменил группу или удалён).
+     */
+    suspend fun recalculateGroupRanks(competitionId: String, groupId: Long) {
+        val results = localRepository.getResultForGroup(competitionId, groupId).getOrNull().orEmpty()
+        if (results.isEmpty()) return
+        val competition = localRepository.getCompetition(competitionId).getOrNull()
+        val updated = results.withRecalculatedRanks(
+            direction = competition?.direction ?: OrienteeringDirection.FORWARD,
+            byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
+        )
+        localRepository.updateResults(updated)
+        touch()
+    }
+
+    /** Результат без времени, отметок и места — участник просто зарегистрирован. */
+    private fun OrienteeringResult.cleared(): OrienteeringResult = copy(
+        status = ResultStatus.REGISTERED,
+        startTime = null,
+        finishTime = null,
+        totalTime = null,
+        rank = null,
+        splits = emptyList(),
+        totalScore = null,
+        scorePenalty = 0,
+        isStatusManual = false,
+        isEdited = false,
+        readAt = null
+    )
+
+    /**
      * Ставит или снимает участнику статус «Не стартовал» (DNS) и пересчитывает места в группе.
      *
      * DNS ставится только участнику без результата или со статусом REGISTERED/DNF
