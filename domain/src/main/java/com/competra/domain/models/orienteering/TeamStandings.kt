@@ -76,6 +76,8 @@ data class OverallTeamGroup(
  * загруженных с сервера результатов.
  *
  * - Команда — подпись участника без учёта регистра и пробелов ([normalizeCommandName]); без подписи — не участвует.
+ * - Участник вне конкурса ([OrienteeringParticipant.isOutOfCompetition]) не участвует и не занимает
+ *   место среди N результатов команды.
  * - В группе: POINTS — сумма очков за места ([placePoints]) N лучших; TIME — сумма времени N лучших,
  *   финишировавших меньше N — вне зачёта. N — своё у группы ([ParticipantGroup.teamCountedResults]), иначе у соревнования.
  * - Общие зачёты: сумма баллов за командные места в группах по той же таблице.
@@ -87,7 +89,8 @@ fun computeTeamStandings(settings: TeamScoring, groups: List<GroupWithParticipan
 
     val groupStandings = groups.mapNotNull { group ->
         val entries = group.participants.filter { pw ->
-            pw.result != null && normalizeCommandName(pw.participant.commandName) != null
+            pw.result != null && !pw.participant.isOutOfCompetition &&
+                normalizeCommandName(pw.participant.commandName) != null
         }
         if (entries.isEmpty()) return@mapNotNull null
         val groupCounted = group.group.teamCountedResults?.takeIf { it > 0 } ?: counted

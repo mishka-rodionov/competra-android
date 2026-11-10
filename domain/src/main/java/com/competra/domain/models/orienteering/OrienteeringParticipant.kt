@@ -26,6 +26,8 @@ import com.competra.domain.models.Participant
  * @property comment дополнительный комментарий
  *     Может содержать информацию о разряде, статусе или особые отметки
  * @property isChipGiven Флаг, указывающий, выдан ли чип участнику.
+ * @property isOutOfCompetition Участник вне конкурса (ВК): результат показывается в протоколе,
+ *     но не получает места и не идёт в командный зачёт и рейтинг (docs/specs/out-of-competition.md).
  *
  * @constructor Создает участника соревнований по спортивному ориентированию.
  *
@@ -51,6 +53,7 @@ data class OrienteeringParticipant(
     val chipNumber: String,
     val comment: String,
     val isChipGiven: Boolean,
+    val isOutOfCompetition: Boolean = false,
     val isSynced: Boolean = false,
     val remoteId: String? = null,   // ID участника на сервере (null = не синхронизирован)
     val isDeleted: Boolean = false,

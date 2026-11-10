@@ -1,5 +1,6 @@
 package com.competra.eventdetails.presentation.results
 
+import com.competra.domain.models.orienteering.placeLabel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -413,7 +414,7 @@ private fun ResultItem(
             )
         }
         Text(
-            text = item.result?.displayPlace?.toString() ?: "-",
+            text = item.placeLabel ?: "-",
             modifier = Modifier.weight(0.1f)
         )
     }

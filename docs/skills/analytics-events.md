@@ -29,7 +29,8 @@
 | `create_competition_standard_groups_added` | В мастере добавлены стандартные группы (`groups_count`) | `OrienteeringCreatorViewModel.kt`, web `CreateCompetitionPage.tsx` |
 | `create_competition_finished` | Мастер создания прошёл до конца (`format`: forward / marking / by_choice_score / by_choice_min_controls; `team_scoring`: none / groups / both; `is_finish_registration`) | `OrienteeringCreatorViewModel.kt` |
 | `team_standings_opened` | Открыт командный зачёт в результатах (`competition_id`) | `OrienteeringCompetitionResultsViewModel.kt`, `EventResultsViewModel.kt` |
-| `participant_added` | Организатор добавил участника в диалоге «Новый участник» (`method`: manual / history — из подсказки по прошлым соревнованиям) | `ParticipantListViewModel.kt` |
+| `participant_added` | Организатор добавил участника в диалоге «Новый участник» (`method`: manual / history — из подсказки по прошлым соревнованиям; `out_of_competition`: участник добавлен вне конкурса) | `ParticipantListViewModel.kt`, `OrientReadCardViewModel.kt`, web `ParticipantEditorDialog.tsx` |
+| `participant_out_of_competition_changed` | Организатор поставил или снял отметку «Вне конкурса» у существующего участника (`enabled`: true / false; `source`: participant_list / finish_read) | `ParticipantListViewModel.kt`, `OrientReadCardViewModel.kt`, web `ParticipantEditorDialog.tsx` |
 | `participants_bulk_added` | Организатор добавил в группу сразу несколько людей из прошлых соревнований (`participants_count`) | `ParticipantListViewModel.kt` |
 | `participant_drawn` | Прошла жеребьёвка | `DrawViewModel.kt` |
 | `participant_dns_marked` | Участник отмечен «Не стартовал» | `ParticipantListViewModel.kt` |

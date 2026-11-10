@@ -169,7 +169,8 @@ class CyclicEventDetailsRepositoryImpl(
             startTime = startTime,
             chipNumber = chipNumber.toString(),
             comment = comment ?: "",
-            isChipGiven = isChipGiven
+            isChipGiven = isChipGiven,
+            isOutOfCompetition = isOutOfCompetition ?: false
         )
     }
 

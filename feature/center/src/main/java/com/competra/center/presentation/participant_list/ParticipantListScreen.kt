@@ -1,5 +1,9 @@
 package com.competra.center.presentation.participant_list
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Switch
 import com.competra.designsystem.components.ExposedDropdownMenuOutlined
 import com.competra.center.data.participant_list.LinkToAccountState
 import androidx.compose.material3.TextButton
@@ -509,6 +513,9 @@ fun CreateParticipantDialogContent(
     var firstName by remember(editingParticipant) { mutableStateOf(editingParticipant?.firstName ?: "") }
     var secondName by remember(editingParticipant) { mutableStateOf(editingParticipant?.lastName ?: "") }
     var commandName by remember(editingParticipant) { mutableStateOf(editingParticipant?.commandName ?: "") }
+    var isOutOfCompetition by remember(editingParticipant) {
+        mutableStateOf(editingParticipant?.isOutOfCompetition ?: false)
+    }
     var startTimeInput by remember(editingParticipant) {
         mutableStateOf(
             if (editingParticipant != null && isValidTimestamp(editingParticipant.startTime))
@@ -676,6 +683,9 @@ fun CreateParticipantDialogContent(
             }
         }
 
+        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+        OutOfCompetitionSwitch(checked = isOutOfCompetition, onCheckedChange = { isOutOfCompetition = it })
+
         // Дозаявка после жеребьёвки: организатор выбирает, куда поставить участника в протоколе.
         if (editingParticipant == null && lateEntry != null) {
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
@@ -774,7 +784,8 @@ fun CreateParticipantDialogContent(
                                 commandName = commandName,
                                 placement = placement,
                                 manualStartTime = manualStartTime,
-                                fromHistory = isPickedNameIntact
+                                fromHistory = isPickedNameIntact,
+                                isOutOfCompetition = isOutOfCompetition
                             )
                         )
                         // Команду не сбрасываем: участников одной команды обычно вносят подряд.
@@ -782,6 +793,8 @@ fun CreateParticipantDialogContent(
                         secondName = ""
                         pickedFromHistory = null
                         startTimeInput = ""
+                        // «Вне конкурса» — свойство конкретного человека, на следующего не переносим.
+                        isOutOfCompetition = false
                         focusRequester.requestFocus()
                     } else {
                         val parsedStartTime = if (startTimeInput.isNotEmpty()) {
@@ -801,7 +814,8 @@ fun CreateParticipantDialogContent(
                                     commandName = normalizeCommandName(commandName).orEmpty(),
                                     startTime = parsedStartTime ?: editingParticipant.startTime,
                                     groupId = selectedGroup?.groupId ?: editingParticipant.groupId,
-                                    groupName = selectedGroup?.title ?: editingParticipant.groupName
+                                    groupName = selectedGroup?.title ?: editingParticipant.groupName,
+                                    isOutOfCompetition = isOutOfCompetition
                                 )
                             )
                         )
@@ -816,6 +830,34 @@ fun CreateParticipantDialogContent(
         }
 
         Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+    }
+}
+
+/**
+ * Переключатель «Вне конкурса» в диалоге участника: результат такого участника показывается
+ * в протоколе, но не получает места и не идёт в командный зачёт и рейтинг.
+ *
+ * @param checked Участник отмечен как вне конкурса.
+ * @param onCheckedChange Смена отметки.
+ */
+@Composable
+internal fun OutOfCompetitionSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = "Вне конкурса", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = "Результат показывается в протоколе, но не получает места и не идёт в командный зачёт и рейтинг",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(Dimens.SIZE_HALF.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -1238,6 +1280,14 @@ fun ParticipantCard(
                         text = participant.commandName,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (participant.isOutOfCompetition) {
+                    Text(
+                        text = "Вне конкурса",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.tertiary
                     )
                 }
                 if (participant.userId.isNotBlank()) {

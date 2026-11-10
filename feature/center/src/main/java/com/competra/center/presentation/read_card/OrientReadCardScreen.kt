@@ -188,9 +188,11 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 matchingGroupIds = state.assignMatchingGroupIds,
                 startStationCode = state.defaultStartStationCode,
                 finishStationCode = state.defaultFinishStationCode,
-                onCreate = { lastName, firstName, commandName, groupId, fromHistory ->
+                onCreate = { lastName, firstName, commandName, groupId, fromHistory, isOutOfCompetition ->
                     viewModel.onAction(
-                        OrientReadCardAction.CreateParticipantFromRead(lastName, firstName, commandName, groupId, fromHistory)
+                        OrientReadCardAction.CreateParticipantFromRead(
+                            lastName, firstName, commandName, groupId, fromHistory, isOutOfCompetition
+                        )
                     )
                 },
                 onAssign = { id -> viewModel.onAction(OrientReadCardAction.AssignReadToParticipant(id)) },
@@ -206,8 +208,10 @@ fun OrientReadCardScreen(viewModel: OrientReadCardViewModel = koinViewModel()) {
                 groups = state.assignGroups,
                 createdGroupId = state.createdGroupId,
                 matchingGroupIds = state.assignMatchingGroupIds,
-                onSave = { lastName, firstName, commandName, groupId ->
-                    viewModel.onAction(OrientReadCardAction.UpdateParticipantFromRead(lastName, firstName, commandName, groupId))
+                onSave = { lastName, firstName, commandName, groupId, isOutOfCompetition ->
+                    viewModel.onAction(
+                        OrientReadCardAction.UpdateParticipantFromRead(lastName, firstName, commandName, groupId, isOutOfCompetition)
+                    )
                 },
                 onCreateGroup = { title -> viewModel.onAction(OrientReadCardAction.CreateGroupForRead(title)) },
                 onDismiss = { viewModel.onAction(OrientReadCardAction.DismissEditParticipant) }

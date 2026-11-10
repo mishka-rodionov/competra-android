@@ -95,6 +95,38 @@ class SplitsTableBuilderTest {
     }
 
     @Test
+    fun `out of competition participant gets no leg ranks and does not take the best leg`() {
+        val outOfCompetition = ParticipantWithResult(
+            participant = participant("A").copy(isOutOfCompetition = true),
+            result = result(
+                "A", ResultStatus.FINISHED, totalTime = 150,
+                splits = listOf(SplitTime(31, 50_000), SplitTime(32, 150_000)),
+            ),
+        )
+        val b = ParticipantWithResult(
+            participant = participant("B"),
+            result = result(
+                "B", ResultStatus.FINISHED, totalTime = 260,
+                splits = listOf(SplitTime(31, 150_000), SplitTime(32, 260_000)),
+            ),
+        )
+
+        val table = buildSplitsTable(group(listOf(outOfCompetition, b)))
+
+        val rowA = table.rows[0]
+        assertEquals(50L, rowA.cells[0].deltaSeconds)
+        assertNull(rowA.cells[0].deltaRank)
+        assertNull(rowA.cells[0].cumulativeRank)
+        assertFalse(rowA.cells[0].isBestLeg)
+        assertEquals(1, table.rows[1].cells[0].deltaRank)
+        assertTrue(table.rows[1].cells[0].isBestLeg)
+
+        val graph = buildRaceGraphData(table)
+        assertEquals(-100L, graph.series.first { it.participant.id == "A" }.points[0].deltaSeconds)
+        assertEquals(0L, graph.series.first { it.participant.id == "B" }.points[0].deltaSeconds)
+    }
+
+    @Test
     fun `fastest leg is ranked first and marked as best`() {
         val a = ParticipantWithResult(
             participant = participant("A"),

@@ -1,5 +1,6 @@
 package com.competra.center.presentation.results
 
+import com.competra.domain.models.orienteering.placeLabel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.compose.foundation.background
@@ -468,7 +469,7 @@ fun ResultParticipantCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Место или статус
-            val rankText = result.result?.displayPlace?.toString() ?: result.result?.status?.name ?: "-"
+            val rankText = result.placeLabel ?: result.result?.status?.name ?: "-"
             Box(
                 modifier = Modifier
                     .size(36.dp)

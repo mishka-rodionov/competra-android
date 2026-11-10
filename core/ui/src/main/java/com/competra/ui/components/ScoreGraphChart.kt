@@ -267,9 +267,11 @@ private fun ScoreGraphLegendRow(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal,
             )
-            series.result?.rank?.let { rank ->
+            // Участник вне конкурса места не имеет (rank = null) — подписываем «Вне конкурса».
+            val placeText = if (series.participant.isOutOfCompetition) "Вне конкурса" else series.result?.rank?.let { "Место $it" }
+            placeText?.let { text ->
                 Text(
-                    text = "Место $rank",
+                    text = text,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

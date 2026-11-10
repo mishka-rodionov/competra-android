@@ -110,6 +110,7 @@ fun OrienteeringParticipant.toRequest(): OrienteeringParticipantRequest {
         chipNumber = chipNumber.toLongOrNull() ?: 0L,
         comment = comment.ifEmpty { null },
         isChipGiven = isChipGiven,
+        isOutOfCompetition = isOutOfCompetition,
         serverUpdatedAt = serverUpdatedAt
     )
 }

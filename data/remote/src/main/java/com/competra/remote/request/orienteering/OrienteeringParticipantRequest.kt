@@ -14,5 +14,7 @@ data class OrienteeringParticipantRequest(
     val chipNumber: Long,
     val comment: String?,
     val isChipGiven: Boolean,
+    /** Участник вне конкурса (ВК). Клиент шлёт всегда; null на сервере — «не менять» для старых версий. */
+    val isOutOfCompetition: Boolean,
     val serverUpdatedAt: Long? = null
 )

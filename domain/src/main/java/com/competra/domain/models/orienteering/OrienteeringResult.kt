@@ -57,3 +57,20 @@ data class OrienteeringResult(
  */
 val OrienteeringResult.displayPlace: Int?
     get() = rank?.takeIf { it > 0 && status == ResultStatus.FINISHED }
+
+/** Текст графы «Место» у финишировавшего участника вне конкурса. */
+const val OUT_OF_COMPETITION_PLACE = "ВК"
+
+/**
+ * Текст графы «Место» в протоколах: место, «ВК» у финишировавшего участника вне конкурса
+ * ([OrienteeringParticipant.isOutOfCompetition]), иначе null — вместо места показывают статус.
+ */
+fun placeLabel(participant: OrienteeringParticipant, result: OrienteeringResult?): String? = when {
+    result == null -> null
+    participant.isOutOfCompetition -> OUT_OF_COMPETITION_PLACE.takeIf { result.status == ResultStatus.FINISHED }
+    else -> result.displayPlace?.toString()
+}
+
+/** Текст графы «Место» для участника с результатом — см. [placeLabel]. */
+val ParticipantWithResult.placeLabel: String?
+    get() = placeLabel(participant, result)

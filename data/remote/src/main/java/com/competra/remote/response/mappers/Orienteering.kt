@@ -146,6 +146,7 @@ fun OrienteeringParticipantResponse.toDomain(): OrienteeringParticipant {
         chipNumber = chipNumber.orEmpty(),
         comment = comment.orEmpty(),
         isChipGiven = isChipGiven ?: false,
+        isOutOfCompetition = isOutOfCompetition ?: false,
         isSynced = true,
         remoteId = id,    // server id сохраняем для последующего upsert
         serverUpdatedAt = updatedAt.takeIf { it > 0L }

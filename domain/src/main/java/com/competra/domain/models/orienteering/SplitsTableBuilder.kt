@@ -279,9 +279,13 @@ fun buildSplitsTable(
         return split.timestamp - prevTimestamp(matched, i, startTs) >= MIN_RANKABLE_LEG_MS
     }
 
-    /** Ранги на позиции [i] среди участников, для которых [measure] вернула время (> 0). */
+    /**
+     * Ранги на позиции [i] среди участников, для которых [measure] вернула время (> 0).
+     * Участники вне конкурса мест на перегонах не получают и лучший перегон не забирают.
+     */
     fun ranksAt(i: Int, measure: (matched: List<SplitTime?>, startTs: Long) -> Long?): Map<String, Int> =
         participants
+            .filterNot { it.participant.isOutOfCompetition }
             .mapNotNull { pw ->
                 val matched = matchedByParticipant.getValue(pw.participant.id)
                 val value = measure(matched, anchorStartTime(pw))?.takeIf { it > 0 } ?: return@mapNotNull null
@@ -413,12 +417,15 @@ data class RaceGraphData(
  * уже посчитанной [SplitsTable]: для каждого КП лидер — участник с минимальным
  * [SplitsTableCell.cumulativeSeconds], отставание остальных считается относительно него.
  * Не финишировавшие (DNS/DNF/DSQ/REGISTERED/STARTED) исключаются — их кривая не имеет смысла.
+ * Лидер выбирается среди участников в зачёте: кривая участника вне конкурса рисуется, но
+ * отсчёт от него не ведётся (если в группе только ВК — от лучшего из них).
  */
 fun buildRaceGraphData(table: SplitsTable): RaceGraphData {
     val finishedRows = table.rows.filter { it.result?.status == ResultStatus.FINISHED }
+    val leaderRows = finishedRows.filterNot { it.participant.isOutOfCompetition }.ifEmpty { finishedRows }
 
     val leaderCumulativeByColumn = table.columns.indices.map { i ->
-        finishedRows.mapNotNull { it.cells.getOrNull(i)?.cumulativeSeconds }.minOrNull()
+        leaderRows.mapNotNull { it.cells.getOrNull(i)?.cumulativeSeconds }.minOrNull()
     }
 
     val series = finishedRows.map { row ->

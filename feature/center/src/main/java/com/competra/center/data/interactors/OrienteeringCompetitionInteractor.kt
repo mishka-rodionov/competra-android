@@ -4,6 +4,7 @@ import android.util.Log
 import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.NO_DISTANCE_ID
+import com.competra.domain.models.orienteering.competitionRanks
 import com.competra.domain.models.orienteering.ranksByScore
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.ParticipantGroup
@@ -291,7 +292,8 @@ class OrienteeringCompetitionInteractor(
         val competition = localRepository.getCompetition(competitionId).getOrNull()
         val updated = results.withRecalculatedRanks(
             direction = competition?.direction ?: OrienteeringDirection.FORWARD,
-            byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
+            byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+            outOfCompetitionIds = outOfCompetitionIds(competitionId)
         )
         localRepository.updateResults(updated)
         touch()
@@ -363,7 +365,16 @@ class OrienteeringCompetitionInteractor(
      * @return Result операции локального сохранения
      */
     suspend fun updateParticipantLocally(participant: OrienteeringParticipant): Result<Any> {
-        return localRepository.updateParticipants(listOf(participant)).also { touch() }
+        val previous = localRepository.getParticipants(participant.competitionId).getOrNull()
+            ?.find { it.id == participant.id }
+        val saved = localRepository.updateParticipants(listOf(participant))
+        // Участник ВК не получает места, поэтому смена флага сдвигает места всей группы.
+        if (saved.isSuccess && previous != null && previous.isOutOfCompetition != participant.isOutOfCompetition) {
+            localRepository.getResultByParticipant(participant.id).getOrNull()?.let { result ->
+                recalculateGroupRanks(result.competitionId, result.groupId)
+            }
+        }
+        return saved.also { touch() }
     }
 
     /**
@@ -453,7 +464,15 @@ class OrienteeringCompetitionInteractor(
                 }
             }
             // Ничего не поменялось — не трогаем БД: функция вызывается при каждом сохранении настроек.
-            if (derived == results) emptyList() else derived.withRecalculatedRanks(competition.direction, competition.byChoiceMode)
+            if (derived == results) {
+                emptyList()
+            } else {
+                derived.withRecalculatedRanks(
+                    competition.direction,
+                    competition.byChoiceMode,
+                    groupData.participants.filter { it.participant.isOutOfCompetition }.mapTo(mutableSetOf()) { it.participant.id }
+                )
+            }
         }
 
         if (updated.isNotEmpty()) {
@@ -572,16 +591,25 @@ class OrienteeringCompetitionInteractor(
      * Тай-брейк BY_CHOICE использует [OrienteeringResult.totalTime] (finish - start участника),
      * а не [OrienteeringResult.finishTime] (абсолютное время по часам) — при разных/интервальных
      * стартах абсолютное время финиша не отражает, кто пробежал быстрее.
+     *
+     * Участники вне конкурса ([outOfCompetitionIds]) места не получают (rank = null) и места
+     * остальных не сдвигают. Равные результаты делят место по [competitionRanks] (1, 1, 3).
+     * Та же логика на сервере — ResultRanking.recalculateGroup в eSport.
+     *
+     * @param outOfCompetitionIds id участников вне конкурса ([OrienteeringParticipant.isOutOfCompetition]).
      */
     fun recalculateRanksV2(
         results: List<OrienteeringResult>,
         direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
-        byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT
+        byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+        outOfCompetitionIds: Set<String> = emptySet()
     ): List<OrienteeringResult> {
-        val (finished, others) = results.partition { it.status == ResultStatus.FINISHED }
+        val (allFinished, others) = results.partition { it.status == ResultStatus.FINISHED }
+        val (outOfCompetition, finished) = allFinished.partition { it.participantId in outOfCompetitionIds }
         val byScore = ranksByScore(direction, byChoiceMode)
+        val unranked = outOfCompetition.map { it.copy(rank = null) }
 
-        if (finished.isEmpty()) return results
+        if (finished.isEmpty()) return unranked + others
 
         val sortedFinished = if (byScore) {
             finished.sortedWith(
@@ -601,22 +629,10 @@ class OrienteeringCompetitionInteractor(
             (result.totalTime ?: Long.MAX_VALUE) + result.penaltyTime
         }
 
-        var rank = 1
-        var prevKey: Any? = null
-        var skipCount = 0
+        val ranks = competitionRanks(sortedFinished.map(::rankKey))
+        val rankedFinished = sortedFinished.mapIndexed { index, result -> result.copy(rank = ranks[index]) }
 
-        val rankedFinished = sortedFinished.mapIndexed { index, result ->
-            val key = rankKey(result)
-            if (prevKey != null && key == prevKey) {
-                skipCount++
-            } else {
-                rank = index + 1 - skipCount
-                prevKey = key
-            }
-            result.copy(rank = rank)
-        }
-
-        return rankedFinished + others
+        return rankedFinished + unranked + others
     }
 
     /**
@@ -624,10 +640,17 @@ class OrienteeringCompetitionInteractor(
      */
     fun List<OrienteeringResult>.withRecalculatedRanks(
         direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
-        byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT
+        byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+        outOfCompetitionIds: Set<String> = emptySet()
     ): List<OrienteeringResult> {
-        return recalculateRanksV2(this, direction, byChoiceMode).sortedBy { it.rank ?: Int.MAX_VALUE }
+        return recalculateRanksV2(this, direction, byChoiceMode, outOfCompetitionIds).sortedBy { it.rank ?: Int.MAX_VALUE }
     }
+
+    /** id участников соревнования вне конкурса — для пересчёта мест по локальной БД. */
+    private suspend fun outOfCompetitionIds(competitionId: String): Set<String> =
+        localRepository.getParticipants(competitionId).getOrNull().orEmpty()
+            .filter { it.isOutOfCompetition }
+            .mapTo(mutableSetOf()) { it.id }
 
     /**
      * Пример использования в Interactor/Repository:
@@ -649,7 +672,8 @@ class OrienteeringCompetitionInteractor(
         // Пересчитываем места
         val updatedResults = allResults.withRecalculatedRanks(
             direction = competition?.direction ?: OrienteeringDirection.FORWARD,
-            byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
+            byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+            outOfCompetitionIds = outOfCompetitionIds(newResults.competitionId)
         )
 
         // Сохраняем обновленные результаты
@@ -752,7 +776,8 @@ class OrienteeringCompetitionInteractor(
                 localRepository.updateResults(
                     currentResults.withRecalculatedRanks(
                         direction = competition?.direction ?: OrienteeringDirection.FORWARD,
-                        byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
+                        byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                        outOfCompetitionIds = outOfCompetitionIds(competitionId)
                     )
                 )
             }

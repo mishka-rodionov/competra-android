@@ -937,7 +937,8 @@ class OrientReadCardViewModel(
             startTime = 0L,
             chipNumber = read.chipNumber.toString(),
             comment = "",
-            isChipGiven = true
+            isChipGiven = true,
+            isOutOfCompetition = action.isOutOfCompetition
         )
         val saved = orienteeringCompetitionInteractor.saveParticipant(participant)
         if (saved == null) {
@@ -947,7 +948,8 @@ class OrientReadCardViewModel(
         analytics.trackEvent(
             AnalyticsEvent.ParticipantAdded(
                 if (action.fromHistory) AnalyticsEvent.ParticipantAddMethod.HISTORY
-                else AnalyticsEvent.ParticipantAddMethod.NFC
+                else AnalyticsEvent.ParticipantAddMethod.NFC,
+                outOfCompetition = action.isOutOfCompetition
             )
         )
         finishAssignment(saved, read, AnalyticsEvent.FinishReadTarget.NEW_PARTICIPANT)
@@ -1004,16 +1006,34 @@ class OrientReadCardViewModel(
             firstName = action.firstName.trim(),
             commandName = normalizeCommandName(action.commandName).orEmpty(),
             groupId = group.groupId,
-            groupName = group.title
+            groupName = group.title,
+            isOutOfCompetition = action.isOutOfCompetition
         )
         val groupChanged = updated.groupId != participant.groupId
+        val outOfCompetitionChanged = updated.isOutOfCompetition != participant.isOutOfCompetition
         orienteeringCompetitionInteractor.updateParticipantLocally(updated).onFailure {
             updateState { copy(scanNotice = "Не удалось сохранить участника — попробуйте ещё раз") }
             return
         }
         analytics.trackEvent(AnalyticsEvent.FinishParticipantEdited(groupChanged = groupChanged))
+        if (outOfCompetitionChanged) {
+            analytics.trackEvent(
+                AnalyticsEvent.ParticipantOutOfCompetitionChanged(
+                    enabled = updated.isOutOfCompetition,
+                    source = AnalyticsEvent.OutOfCompetitionSource.FINISH_READ
+                )
+            )
+        }
         updateState { copy(isEditParticipantShown = false, createdGroupId = null, participant = updated) }
-        if (!groupChanged) return
+        if (!groupChanged) {
+            // Места группы пересчитаны при сохранении — показываем результат с новым местом / «ВК».
+            if (outOfCompetitionChanged) {
+                orienteeringCompetitionInteractor.getResultByParticipantId(updated.id)?.let { result ->
+                    updateState { copy(participantResult = result) }
+                }
+            }
+            return
+        }
         val raw = currentRead?.toRawResult()
             ?: stateValue.rawSplits?.let { ReadChipData.RawResult(chipNumber = updated.chipNumber.toIntOrNull() ?: 0, clearTime = 0L, splits = it) }
             ?: return

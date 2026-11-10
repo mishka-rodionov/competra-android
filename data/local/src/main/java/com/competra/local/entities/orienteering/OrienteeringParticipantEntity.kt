@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
  * Сущность участника соревнований по ориентированию для базы данных Room.
  * 
  * @property isChipGiven Флаг выдачи чипа.
+ * @property isOutOfCompetition Участник вне конкурса (ВК) — без места, вне командного зачёта и рейтинга.
  */
 @Entity(
     tableName = "orienteering_participants",
@@ -38,6 +39,8 @@ data class OrienteeringParticipantEntity(
     val chipNumber: String,
     val comment: String,
     val isChipGiven: Boolean,
+    @ColumnInfo(defaultValue = "0")
+    val isOutOfCompetition: Boolean = false,
     val isSynced: Boolean = false,
     val remoteId: String? = null,   // ID участника на сервере
     @ColumnInfo(defaultValue = "0")

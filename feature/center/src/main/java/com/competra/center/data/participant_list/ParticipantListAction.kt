@@ -42,7 +42,9 @@ sealed class ParticipantListAction : BaseAction {
         /** Стартовое время для [LateEntryPlacement.MANUAL]. */
         val manualStartTime: Long? = null,
         /** Участник выбран из подсказок по прошлым соревнованиям (для аналитики). */
-        val fromHistory: Boolean = false
+        val fromHistory: Boolean = false,
+        /** Участник вне конкурса (ВК): без места, вне командного зачёта и рейтинга. */
+        val isOutOfCompetition: Boolean = false
     ) : ParticipantListAction()
 
     /**

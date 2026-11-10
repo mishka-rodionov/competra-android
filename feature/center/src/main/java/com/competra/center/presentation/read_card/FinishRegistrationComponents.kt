@@ -1,5 +1,6 @@
 package com.competra.center.presentation.read_card
 
+import com.competra.center.presentation.participant_list.OutOfCompetitionSwitch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -225,7 +226,7 @@ internal fun AssignReadSheet(
     matchingGroupIds: Set<Long>,
     startStationCode: Int?,
     finishStationCode: Int?,
-    onCreate: (lastName: String, firstName: String, commandName: String, groupId: Long, fromHistory: Boolean) -> Unit,
+    onCreate: (lastName: String, firstName: String, commandName: String, groupId: Long, fromHistory: Boolean, isOutOfCompetition: Boolean) -> Unit,
     onAssign: (participantId: String) -> Unit,
     onCreateGroup: (title: String) -> Unit,
     onDismiss: () -> Unit,
@@ -279,7 +280,7 @@ internal fun AssignReadSheet(
 
 /**
  * Форма участника: ФИО (с подсказками из [history]), группа (+ «новая группа», с пометкой
- * подходящих по отметкам [matchingGroupIds]) и команда. Общая для «Нового участника» и
+ * подходящих по отметкам [matchingGroupIds]), команда и отметка «Вне конкурса». Общая для «Нового участника» и
  * «Изменить участника» ([initial] — текущие данные участника).
  *
  * @param formKey Ключ сохраняемого состояния полей — своя форма на каждый чип / участника.
@@ -292,13 +293,14 @@ private fun ParticipantForm(
     createdGroupId: Long?,
     matchingGroupIds: Set<Long>,
     submitText: String,
-    onSubmit: (lastName: String, firstName: String, commandName: String, groupId: Long, fromHistory: Boolean) -> Unit,
+    onSubmit: (lastName: String, firstName: String, commandName: String, groupId: Long, fromHistory: Boolean, isOutOfCompetition: Boolean) -> Unit,
     onCreateGroup: (title: String) -> Unit,
     initial: OrienteeringParticipant? = null,
 ) {
     var lastName by rememberSaveable(formKey) { mutableStateOf(initial?.lastName.orEmpty()) }
     var firstName by rememberSaveable(formKey) { mutableStateOf(initial?.firstName.orEmpty()) }
     var commandName by rememberSaveable(formKey) { mutableStateOf(initial?.commandName.orEmpty()) }
+    var isOutOfCompetition by rememberSaveable(formKey) { mutableStateOf(initial?.isOutOfCompetition ?: false) }
     var groupId by rememberSaveable(formKey) { mutableStateOf(initial?.groupId) }
     var fromHistory by rememberSaveable(formKey) { mutableStateOf(initial != null) }
     var isNewGroupInput by rememberSaveable(formKey) { mutableStateOf(false) }
@@ -407,10 +409,13 @@ private fun ParticipantForm(
             label = { Text("Команда (необязательно)") },
             singleLine = true
         )
+        OutOfCompetitionSwitch(checked = isOutOfCompetition, onCheckedChange = { isOutOfCompetition = it })
         val selectedGroupId = groupId
         Button(
             onClick = {
-                if (selectedGroupId != null) onSubmit(lastName, firstName, commandName, selectedGroupId, fromHistory)
+                if (selectedGroupId != null) {
+                    onSubmit(lastName, firstName, commandName, selectedGroupId, fromHistory, isOutOfCompetition)
+                }
             },
             enabled = lastName.isNotBlank() && firstName.isNotBlank() && selectedGroupId != null,
             modifier = Modifier
@@ -543,7 +548,7 @@ internal fun EditParticipantSheet(
     groups: List<ParticipantGroup>,
     createdGroupId: Long?,
     matchingGroupIds: Set<Long>,
-    onSave: (lastName: String, firstName: String, commandName: String, groupId: Long) -> Unit,
+    onSave: (lastName: String, firstName: String, commandName: String, groupId: Long, isOutOfCompetition: Boolean) -> Unit,
     onCreateGroup: (title: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -571,8 +576,8 @@ internal fun EditParticipantSheet(
                     createdGroupId = createdGroupId,
                     matchingGroupIds = matchingGroupIds,
                     submitText = "Сохранить",
-                    onSubmit = { lastName, firstName, commandName, groupId, _ ->
-                        onSave(lastName, firstName, commandName, groupId)
+                    onSubmit = { lastName, firstName, commandName, groupId, _, isOutOfCompetition ->
+                        onSave(lastName, firstName, commandName, groupId, isOutOfCompetition)
                     },
                     onCreateGroup = onCreateGroup,
                     initial = participant

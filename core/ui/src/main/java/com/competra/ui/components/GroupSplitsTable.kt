@@ -1,5 +1,6 @@
 package com.competra.ui.components
 
+import com.competra.domain.models.orienteering.placeLabel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
@@ -143,9 +144,9 @@ private fun ParticipantCell(row: SplitsTableRow, isByChoice: Boolean, showsScore
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        row.result?.displayPlace?.let { rank ->
+        placeLabel(row.participant, row.result)?.let { place ->
             Text(
-                text = "Место $rank",
+                text = if (row.participant.isOutOfCompetition) "Вне конкурса" else "Место $place",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

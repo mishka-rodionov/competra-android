@@ -66,7 +66,7 @@ class ParticipantListViewModel(
                     commandName = action.commandName,
                     placement = action.placement,
                     manualStartTime = action.manualStartTime
-                ) ?: return
+                )?.copy(isOutOfCompetition = action.isOutOfCompetition) ?: return
                 viewModelScope.launch(Dispatchers.IO) {
                     loadingRepository.emit(true)
                     val savedParticipant = competitionInteractor.saveParticipant(participant)
@@ -74,7 +74,8 @@ class ParticipantListViewModel(
                         analytics.trackEvent(
                             AnalyticsEvent.ParticipantAdded(
                                 if (action.fromHistory) AnalyticsEvent.ParticipantAddMethod.HISTORY
-                                else AnalyticsEvent.ParticipantAddMethod.MANUAL
+                                else AnalyticsEvent.ParticipantAddMethod.MANUAL,
+                                outOfCompetition = action.isOutOfCompetition
                             )
                         )
                         getCompetitionDetails()
@@ -86,10 +87,19 @@ class ParticipantListViewModel(
                 addParticipantsFromHistory(action)
             }
             is ParticipantListAction.UpdateParticipant -> {
+                val wasOutOfCompetition = stateValue.editingParticipant?.isOutOfCompetition
                 onAction(ParticipantListAction.HideCreateParticipantDialog)
                 viewModelScope.launch(Dispatchers.IO) {
                     loadingRepository.emit(true)
                     competitionInteractor.updateParticipantLocally(action.participant).onSuccess {
+                        if (wasOutOfCompetition != null && wasOutOfCompetition != action.participant.isOutOfCompetition) {
+                            analytics.trackEvent(
+                                AnalyticsEvent.ParticipantOutOfCompetitionChanged(
+                                    enabled = action.participant.isOutOfCompetition,
+                                    source = AnalyticsEvent.OutOfCompetitionSource.PARTICIPANT_LIST
+                                )
+                            )
+                        }
                         getCompetitionDetails()
                         competitionInteractor.syncParticipantWithServer(action.participant)
                     }

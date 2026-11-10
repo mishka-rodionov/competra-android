@@ -39,6 +39,7 @@ sealed class OrientReadCardAction : BaseAction {
      * Создать участника по считыванию и посчитать его результат.
      *
      * @param fromHistory ФИО взято из подсказки по прошлым соревнованиям.
+     * @param isOutOfCompetition Участник вне конкурса (ВК).
      */
     data class CreateParticipantFromRead(
         val lastName: String,
@@ -46,6 +47,7 @@ sealed class OrientReadCardAction : BaseAction {
         val commandName: String,
         val groupId: Long,
         val fromHistory: Boolean,
+        val isOutOfCompetition: Boolean = false,
     ) : OrientReadCardAction()
     /** Привязать считывание к уже заведённому участнику без результата. */
     data class AssignReadToParticipant(val participantId: String) : OrientReadCardAction()
@@ -61,12 +63,16 @@ sealed class OrientReadCardAction : BaseAction {
     data object ShowEditParticipant : OrientReadCardAction()
     /** Закрыть карточку «Изменить участника» без изменений. */
     data object DismissEditParticipant : OrientReadCardAction()
-    /** Сохранить ФИО, команду и группу участника; при смене группы результат пересчитывается. */
+    /**
+     * Сохранить ФИО, команду, группу и отметку «Вне конкурса»; при смене группы результат
+     * пересчитывается, при смене отметки — места группы.
+     */
     data class UpdateParticipantFromRead(
         val lastName: String,
         val firstName: String,
         val commandName: String,
         val groupId: Long,
+        val isOutOfCompetition: Boolean = false,
     ) : OrientReadCardAction()
     /** Открыть диалог «Отвязать чип». */
     data object ShowUnlinkChip : OrientReadCardAction()

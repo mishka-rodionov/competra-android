@@ -114,6 +114,21 @@ class TeamStandingsTest {
     }
 
     @Test
+    fun `out of competition participant is not counted by time`() {
+        val outOfCompetition = finished(m16, "Азимут", 1, 20).let {
+            ParticipantWithResult(it.participant.copy(isOutOfCompetition = true), it.result!!.copy(rank = null))
+        }
+        val standings = computeTeamStandings(
+            TeamScoring(TeamScoringMethod.TIME, 1, emptySet()),
+            groups(outOfCompetition, finished(m16, "Азимут", 1, 30), finished(m16, "Компас", 2, 32))
+        )
+
+        val teams = standings.groupStandings.single().teams
+        assertEquals(listOf("Азимут" to 1800L, "Компас" to 1920L), teams.map { it.teamName to it.timeSeconds })
+        assertEquals(false, teams.flatMap { it.members }.any { it.participant.id == outOfCompetition.participant.id })
+    }
+
+    @Test
     fun `overall - sums points for team places in groups of the scope`() {
         val standings = computeTeamStandings(
             points(n = 1, scopes = TeamOverallScope.entries.toSet()),

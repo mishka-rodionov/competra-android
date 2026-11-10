@@ -255,9 +255,25 @@ sealed class AnalyticsEvent(
     /** Способ добавления участника; HISTORY — выбран из подсказок по прошлым соревнованиям организатора. */
     enum class ParticipantAddMethod { MANUAL, HISTORY, NFC, IMPORT }
 
-    /** Добавлен участник в соревнование. */
-    class ParticipantAdded(method: ParticipantAddMethod) :
-        AnalyticsEvent("participant_added", mapOf("method" to method.name.lowercase()))
+    /**
+     * Добавлен участник в соревнование.
+     * @param outOfCompetition участник сразу добавлен вне конкурса (ВК).
+     */
+    class ParticipantAdded(method: ParticipantAddMethod, outOfCompetition: Boolean = false) :
+        AnalyticsEvent(
+            "participant_added",
+            mapOf("method" to method.name.lowercase(), "out_of_competition" to outOfCompetition)
+        )
+
+    /** Откуда организатор поменял отметку «Вне конкурса». */
+    enum class OutOfCompetitionSource { PARTICIPANT_LIST, FINISH_READ }
+
+    /** Организатор поставил или снял отметку «Вне конкурса» у существующего участника. */
+    class ParticipantOutOfCompetitionChanged(enabled: Boolean, source: OutOfCompetitionSource) :
+        AnalyticsEvent(
+            "participant_out_of_competition_changed",
+            mapOf("enabled" to enabled, "source" to source.name.lowercase())
+        )
 
     /** К кому привязано считывание незнакомого чипа в режиме «Регистрация на финише». */
     enum class FinishReadTarget { NEW_PARTICIPANT, EXISTING_PARTICIPANT }

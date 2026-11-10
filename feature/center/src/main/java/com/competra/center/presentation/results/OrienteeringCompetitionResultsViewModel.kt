@@ -28,7 +28,7 @@ import com.competra.domain.models.orienteering.ParticipantWithResult
 import com.competra.domain.models.orienteering.ResultsStatus
 import com.competra.domain.models.orienteering.SplitsTableCell
 import com.competra.domain.models.orienteering.buildSplitsTable
-import com.competra.domain.models.orienteering.displayPlace
+import com.competra.domain.models.orienteering.placeLabel
 import com.competra.domain.models.orienteering.sortedForResults
 import com.competra.domain.repository.UploadRepository
 import com.competra.ui.BaseAction
@@ -291,7 +291,7 @@ class OrienteeringCompetitionResultsViewModel(
             sb.appendLine("Место;Фамилия;Имя;Команда;Старт;Финиш;Результат;Статус$headerSuffix")
 
             group.participants.zip(table.rows).forEach { (pw, row) ->
-                val rank = pw.result?.displayPlace?.toString() ?: ""
+                val rank = pw.placeLabel ?: ""
                 val start = DateTimeFormat.transformLongToTime(pw.result?.startTime) ?: ""
                 val finish = DateTimeFormat.transformLongToTime(pw.result?.finishTime) ?: ""
                 val total = pw.result?.totalTime?.toRaceTime() ?: ""
@@ -397,7 +397,7 @@ class OrienteeringCompetitionResultsViewModel(
             group.participants.zip(table.rows).forEach { (pw, row) ->
                 ensureSpace(lineH + if (cpOrder.isNotEmpty()) smallLineH else 0f)
 
-                val rank   = (pw.result?.displayPlace?.toString() ?: "-").padEnd(3)
+                val rank   = (pw.placeLabel ?: "-").padEnd(3)
                 val name   = "${pw.participant.lastName} ${pw.participant.firstName}".take(20).padEnd(20)
                 val team   = pw.participant.commandName.take(18).padEnd(18)
                 val start  = (DateTimeFormat.transformLongToTime(pw.result?.startTime) ?: "").padEnd(10)
@@ -566,8 +566,10 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
                 ?.associate { it.number to it.score }
                 ?: emptyMap()
 
+            // Лидер — лучший участник в зачёте: участник вне конкурса, пробежавший быстрее,
+            // получает отрицательное отставание.
             val leaderTotalTime = group.participants
-                .filter { it.result?.status == ResultStatus.FINISHED }
+                .filter { it.result?.status == ResultStatus.FINISHED && !it.participant.isOutOfCompetition }
                 .minByOrNull { it.result?.totalTime ?: Long.MAX_VALUE }
                 ?.result?.totalTime
 
@@ -627,7 +629,7 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
                     else                  -> ""
                 }
                 sb.append("<td><nobr>$statusText</td>")
-                sb.append("<td><nobr>${pw.result?.displayPlace?.toString() ?: ""}</td>")
+                sb.append("<td><nobr>${pw.placeLabel ?: ""}</td>")
 
                 val gap = if (showsScore) {
                     // Отставание считаем только внутри группы участников с одинаковыми очками —
@@ -640,7 +642,11 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
                     } else ""
                 } else if (pw.result?.status == ResultStatus.FINISHED && leaderTotalTime != null) {
                     val diff = (pw.result?.totalTime ?: 0L) - leaderTotalTime
-                    if (diff <= 0L) "" else "+${formatGap(diff)}"
+                    when {
+                        diff > 0L -> "+${formatGap(diff)}"
+                        diff < 0L -> "−${formatGap(-diff)}"
+                        else -> ""
+                    }
                 } else ""
                 sb.append("<td><nobr>$gap</td>")
 

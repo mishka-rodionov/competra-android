@@ -14,5 +14,7 @@ data class OrienteeringParticipantResponse(
     val chipNumber: String?,
     val comment: String?,
     val isChipGiven: Boolean?,
+    /** Участник вне конкурса (ВК); null — старый сервер без поля. */
+    val isOutOfCompetition: Boolean? = null,
     val updatedAt: Long = 0L
 )

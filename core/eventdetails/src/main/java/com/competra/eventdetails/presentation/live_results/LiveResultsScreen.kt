@@ -1,5 +1,6 @@
 package com.competra.eventdetails.presentation.live_results
 
+import com.competra.domain.models.orienteering.placeLabel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -281,7 +282,7 @@ private fun LiveResultRow(
             )
         }
         Text(
-            text = item.result?.displayPlace?.toString() ?: "—",
+            text = item.placeLabel ?: "—",
             modifier = Modifier.weight(0.15f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (item.result?.displayPlace == 1) FontWeight.Bold else FontWeight.Normal,

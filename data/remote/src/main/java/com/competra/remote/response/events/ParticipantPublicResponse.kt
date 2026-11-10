@@ -15,5 +15,7 @@ data class ParticipantPublicResponse(
     @SerializedName("startTime") val startTime: Long,
     @SerializedName("chipNumber") val chipNumber: Long,
     @SerializedName("comment") val comment: String?,
-    @SerializedName("isChipGiven") val isChipGiven: Boolean
+    @SerializedName("isChipGiven") val isChipGiven: Boolean,
+    /** Участник вне конкурса (ВК); null — старый сервер без поля. */
+    @SerializedName("isOutOfCompetition") val isOutOfCompetition: Boolean? = null
 )

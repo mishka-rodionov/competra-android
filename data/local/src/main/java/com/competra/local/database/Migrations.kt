@@ -499,3 +499,13 @@ val MIGRATION_59_60 = object : Migration(59, 60) {
         )
     }
 }
+
+/**
+ * Миграция с версии 60 на 61.
+ * Участник вне конкурса (ВК): результат без места, не идёт в командный зачёт и рейтинг.
+ */
+val MIGRATION_60_61 = object : Migration(60, 61) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE orienteering_participants ADD COLUMN isOutOfCompetition INTEGER NOT NULL DEFAULT 0")
+    }
+}
