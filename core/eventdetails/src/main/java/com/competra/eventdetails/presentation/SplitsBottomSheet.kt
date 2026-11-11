@@ -1,6 +1,7 @@
 package com.competra.eventdetails.presentation
 
 import androidx.compose.foundation.layout.Arrangement
+import com.competra.domain.models.orienteering.withRaceStart
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -117,7 +118,9 @@ internal fun SplitsBottomSheet(
                 }
 
                 // Отметки до старта (например, финишной станции в стартовом городке) в сплиты не входят.
-                val splits = result.splits?.let { punchesAfterStart(it, participant.startTime) }
+                // Сплиты — от фактического старта из результата (при старте по станции его нет в карточке).
+                val raceParticipant = participant.withRaceStart(result)
+                val splits = result.splits?.let { punchesAfterStart(it, raceParticipant.startTime) }
                 if (!splits.isNullOrEmpty()) {
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
@@ -127,7 +130,7 @@ internal fun SplitsBottomSheet(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = Dimens.SIZE_HALF.dp)
                     )
-                    SplitsTable(participant = participant, splits = splits)
+                    SplitsTable(participant = raceParticipant, splits = splits)
                 } else {
                     Text(
                         text = "Сплиты отсутствуют",

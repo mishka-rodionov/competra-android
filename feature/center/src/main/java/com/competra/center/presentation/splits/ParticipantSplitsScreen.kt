@@ -1,6 +1,7 @@
 package com.competra.center.presentation.splits
 
 import androidx.compose.foundation.layout.*
+import com.competra.domain.models.orienteering.withRaceStart
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -62,7 +63,10 @@ fun ParticipantSplitsScreen(
                 item { ParticipantInfoCard(participant) }
 
                 if (result != null) {
-                    item { RaceSummaryCard(participant, result) }
+                    // Старт и сплиты — от фактического старта из результата: при старте по станции
+                    // у участника с сервера старт пустой.
+                    val raceParticipant = participant.withRaceStart(result)
+                    item { RaceSummaryCard(raceParticipant, result) }
 
                     result.splits?.let { splits ->
                         item {
@@ -74,7 +78,7 @@ fun ParticipantSplitsScreen(
                                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                             )
                         }
-                        item { SplitsCard(participant, splits) }
+                        item { SplitsCard(raceParticipant, splits) }
                     }
 
                     if (result.splits.isNullOrEmpty()) {

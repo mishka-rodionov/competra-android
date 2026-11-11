@@ -39,3 +39,17 @@ fun unsyncedStationControlPoints(
     toleranceMs: Long = STATION_CLOCK_TOLERANCE_MS,
 ): List<Int> =
     splits.filter { it.timestamp > readAt + toleranceMs }.map { it.controlPoint }.distinct()
+
+/**
+ * Время старта, от которого считаются сплиты участника: фактическое из результата
+ * ([OrienteeringResult.startTime]), иначе — плановое из карточки участника. При старте по стартовой
+ * станции фактический старт известен только из результата: в карточке участника его правят лишь на
+ * судейском телефоне, а с сервера приходит пустое (0) — сплиты от него получились бы огромными.
+ * Тот же анкер у таблицы сплитов группы (SplitsTableBuilder).
+ */
+fun raceStartTime(participant: OrienteeringParticipant, result: OrienteeringResult?): Long =
+    result?.startTime?.takeIf { it > 0L } ?: participant.startTime
+
+/** Участник с фактическим временем старта из [result] — для экранов сплитов (см. [raceStartTime]). */
+fun OrienteeringParticipant.withRaceStart(result: OrienteeringResult?): OrienteeringParticipant =
+    copy(startTime = raceStartTime(this, result))
