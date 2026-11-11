@@ -690,12 +690,13 @@ internal fun RaceSummaryCard(
     }
 }
 
-private sealed class SplitDisplayItem {
+internal sealed class SplitDisplayItem {
     /**
      * Фактическая отметка с чипа.
      *
      * @param chipIndex Индекс отметки в хронологическом порядке чипа (фактический порядок взятия).
-     * @param isExtra true — КП нет в дистанции участника (лишняя отметка).
+     * @param isExtra true — отметка не учитывается: КП нет в дистанции участника (лишняя отметка) или
+     * это повтор КП дистанции сверх нужного ([isRepeat]).
      * @param distanceOrdinal Порядковый номер этого КП по дистанции (1-based), либо null, если КП
      * не из дистанции (лишний) или не был сопоставлен с ожидаемой позицией.
      * @param isOutOfOrder true — сопоставленная отметка взята не в том порядке (нарушает возрастание
@@ -706,6 +707,9 @@ private sealed class SplitDisplayItem {
      * @param isPreStart true — отметка сделана раньше времени старта (например, финишной станции в
      * стартовом городке). В результат не входит (см. punchesAfterStart) и не сопоставляется с КП
      * дистанции — иначе она «занимала» бы КП, а настоящая отметка выглядела бы лишней.
+     * @param isRepeat true — неучтённая отметка ([isExtra]) КП, который в дистанции есть: участник
+     * отметился на нём ещё раз (например, в «по выбору» повторно на уже взятом КП — очки за него
+     * не начисляются второй раз).
      */
     data class Actual(
         val split: SplitTime,
@@ -715,6 +719,7 @@ private sealed class SplitDisplayItem {
         val isOutOfOrder: Boolean = false,
         val isStartPunch: Boolean = false,
         val isPreStart: Boolean = false,
+        val isRepeat: Boolean = false,
     ) : SplitDisplayItem()
 
     /** @param distanceOrdinal Порядковый номер пропущенного КП по дистанции (1-based). */
@@ -728,12 +733,17 @@ private sealed class SplitDisplayItem {
  * чтобы судья мог увидеть нарушение порядка: если значения «Дист.» не растут 1, 2, 3…, КП взяты не по
  * порядку. Пропущенные КП дистанции (не отмеченные на чипе) добавляются отдельными строками в конец.
  *
+ * Позиции дистанции сопоставляются с отметками, взятыми по порядку (см. [alignInCourseOrder]), — у
+ * пройденной дистанции это ровно засчитанные отметки. КП дистанции, взятый вне этого порядка (раньше
+ * времени или повторно), подсвечивается как «взят не в том порядке»; «лишняя» — только отметка КП,
+ * которого в дистанции нет.
+ *
  * Для формата «по выбору» ([isByChoice]) порядок посещения КП не регламентирован, поэтому:
  * - строка «ПРОПУЩЕН» показывается только для обязательных КП ([requiredCpNumbers]) — остальные КП
  *   дистанции опциональны, участник вправе их не брать, это не ошибка;
  * - подсветка «взят не в том порядке» не вычисляется вовсе.
  */
-private fun buildSplitDisplayItems(
+internal fun buildSplitDisplayItems(
     rawSplits: List<SplitTime>,
     expectedCpOrder: List<Int>,
     requiredCpNumbers: Set<Int> = emptySet(),
@@ -758,47 +768,76 @@ private fun buildSplitDisplayItems(
     val distanceOrdinalByIndex = HashMap<Int, Int>()
     val missed = mutableListOf<SplitDisplayItem.Missed>()
 
-    // Сопоставляем каждую позицию дистанции (с учётом повторов одного КП — бабочки/петли) с самой
-    // ранней ещё не занятой отметкой того же номера. Так каждое вхождение повторяющегося КП получает
-    // свою позицию, а отметки сверх нужного количества остаются несопоставленными (лишними).
-    expectedCpOrder.forEachIndexed { orderIndex, expectedCp ->
-        val ordinal = orderIndex + 1
-        val visitedIdx = rawSplits.indices.firstOrNull {
-            it !in shownIndices && rawSplits[it].controlPoint == expectedCp
+    val outOfOrderIndices = HashSet<Int>()
+    if (isByChoice) {
+        // Порядок не регламентирован: каждой позиции дистанции (с учётом повторов одного КП) — самая
+        // ранняя ещё не занятая отметка того же номера; отметки сверх нужного количества — лишние.
+        expectedCpOrder.forEachIndexed { orderIndex, expectedCp ->
+            val ordinal = orderIndex + 1
+            val visitedIdx = rawSplits.indices.firstOrNull {
+                it !in shownIndices && rawSplits[it].controlPoint == expectedCp
+            }
+            if (visitedIdx != null) {
+                distanceOrdinalByIndex[visitedIdx] = ordinal
+                shownIndices.add(visitedIdx)
+            } else if (expectedCp in requiredCpNumbers) {
+                missed.add(SplitDisplayItem.Missed(expectedCp, ordinal))
+            }
         }
-        if (visitedIdx != null) {
-            distanceOrdinalByIndex[visitedIdx] = ordinal
-            shownIndices.add(visitedIdx)
-        } else if (!isByChoice || expectedCp in requiredCpNumbers) {
-            missed.add(SplitDisplayItem.Missed(expectedCp, ordinal))
-        }
-    }
-
-    // Отметки, взятые не в том порядке: сопоставленные отметки, не входящие в наибольшую возрастающую
-    // подпоследовательность их позиций по дистанции (хронологический порядок).
-    // Для BY_CHOICE порядок не регламентирован — не считаем вовсе.
-    val outOfOrderIndices = if (isByChoice) {
-        emptySet()
     } else {
-        computeOutOfOrderIndices(
-            matchedOrdinalsChronological = rawSplits.indices
-                .mapNotNull { i -> distanceOrdinalByIndex[i]?.let { i to it } }
-        )
+        // 1. Отметки, взятые по порядку дистанции: наибольшее совпадение по порядку с самыми ранними
+        //    отметками. Если дистанция пройдена, это ровно те отметки, по которым засчитан результат
+        //    (checkControlPointOrderPro) и строится таблица сплитов группы (matchToCourse).
+        val candidates = rawSplits.indices.filter { it !in shownIndices }
+        alignInCourseOrder(expectedCpOrder, candidates.map { rawSplits[it].controlPoint })
+            .forEach { (orderIndex, candidatePos) ->
+                val idx = candidates[candidatePos]
+                distanceOrdinalByIndex[idx] = orderIndex + 1
+                shownIndices.add(idx)
+            }
+        // 2. Позиции дистанции, не взятые по порядку: если КП есть на чипе в другом месте — это он,
+        //    взятый не в том порядке; иначе КП пропущен.
+        val matchedOrdinals = distanceOrdinalByIndex.values.toSet()
+        expectedCpOrder.forEachIndexed { orderIndex, expectedCp ->
+            val ordinal = orderIndex + 1
+            if (ordinal in matchedOrdinals) return@forEachIndexed
+            val visitedIdx = rawSplits.indices.firstOrNull {
+                it !in shownIndices && rawSplits[it].controlPoint == expectedCp
+            }
+            if (visitedIdx != null) {
+                distanceOrdinalByIndex[visitedIdx] = ordinal
+                shownIndices.add(visitedIdx)
+                outOfOrderIndices.add(visitedIdx)
+            } else {
+                missed.add(SplitDisplayItem.Missed(expectedCp, ordinal))
+            }
+        }
+        // 3. Оставшиеся отметки КП дистанции (повтор не к месту: участник вернулся и взял КП ещё раз
+        //    по порядку) — тоже «не в том порядке», а не лишние: такой КП в дистанции есть.
+        val courseCps = expectedCpOrder.toSet()
+        rawSplits.indices
+            .filter { it !in shownIndices && rawSplits[it].controlPoint in courseCps }
+            .forEach { outOfOrderIndices.add(it) }
     }
 
     // Все отметки в фактическом (хронологическом) порядке + пропущенные КП в конце.
-    // «Лишняя» — отметка, которой не нашлось места в дистанции: чужой КП либо повтор сверх нужного.
+    // «Лишняя» — отметка, которой не нашлось места в дистанции: чужой КП либо повтор сверх нужного
+    // (повтор — [SplitDisplayItem.Actual.isRepeat], у него своя подпись в легенде).
+    val courseCpNumbers = expectedCpOrder.toSet()
     val actualItems = rawSplits.indices.map { i ->
         val ordinal = distanceOrdinalByIndex[i]
         val isPreStart = i in preStartIndices
         val isStartPunch = !isPreStart && ordinal == null && startControlPoint != null &&
             rawSplits[i].controlPoint == startControlPoint
+        val isOutOfOrder = i in outOfOrderIndices && !isPreStart
+        val isExtra = ordinal == null && !isOutOfOrder && !isStartPunch && !isPreStart
         SplitDisplayItem.Actual(
             split = rawSplits[i],
             chipIndex = i,
-            isExtra = ordinal == null && !isStartPunch && !isPreStart,
+            isExtra = isExtra,
+            isRepeat = isExtra && rawSplits[i].controlPoint in courseCpNumbers,
             distanceOrdinal = ordinal,
-            isOutOfOrder = i in outOfOrderIndices,
+            isOutOfOrder = isOutOfOrder,
             isStartPunch = isStartPunch,
             isPreStart = isPreStart,
         )
@@ -808,40 +847,43 @@ private fun buildSplitDisplayItems(
 }
 
 /**
- * Возвращает индексы отметок (`chipIndex`), взятых не в том порядке.
+ * Наибольшее совпадение отметок [punches] с порядком дистанции [course] (наибольшая общая
+ * подпоследовательность). Из равных вариантов берутся самые ранние отметки — тот же выбор, что у
+ * последовательного поиска при проверке дистанции, поэтому у пройденной дистанции сопоставление
+ * совпадает с засчитанным результатом.
  *
- * На вход — сопоставленные отметки в хронологическом порядке как пары `(chipIndex, distanceOrdinal)`.
- * Вычисляется наибольшая возрастающая подпоследовательность позиций по дистанции; отметки, не вошедшие
- * в неё, и есть нарушающие порядок (минимальный набор «мешающих» отметок).
+ * @return пары (позиция в [course], позиция в [punches]) по возрастанию
  */
-private fun computeOutOfOrderIndices(
-    matchedOrdinalsChronological: List<Pair<Int, Int>>
-): Set<Int> {
-    val n = matchedOrdinalsChronological.size
-    if (n < 2) return emptySet()
-    val ords = IntArray(n) { matchedOrdinalsChronological[it].second }
-    val lisLen = IntArray(n) { 1 }
-    val prev = IntArray(n) { -1 }
-    var bestEnd = 0
-    for (i in 0 until n) {
-        for (j in 0 until i) {
-            if (ords[j] < ords[i] && lisLen[j] + 1 > lisLen[i]) {
-                lisLen[i] = lisLen[j] + 1
-                prev[i] = j
+internal fun alignInCourseOrder(course: List<Int>, punches: List<Int>): List<Pair<Int, Int>> {
+    val n = course.size
+    val m = punches.size
+    // lcs[i][j] — длина наибольшего совпадения course[i..] и punches[j..].
+    val lcs = Array(n + 1) { IntArray(m + 1) }
+    for (i in n - 1 downTo 0) {
+        for (j in m - 1 downTo 0) {
+            lcs[i][j] = if (course[i] == punches[j]) {
+                lcs[i + 1][j + 1] + 1
+            } else {
+                maxOf(lcs[i + 1][j], lcs[i][j + 1])
             }
         }
-        if (lisLen[i] > lisLen[bestEnd]) bestEnd = i
     }
-    val keep = HashSet<Int>()
-    var k = bestEnd
-    while (k != -1) {
-        keep.add(k)
-        k = prev[k]
+    val result = mutableListOf<Pair<Int, Int>>()
+    var i = 0
+    var j = 0
+    while (i < n && j < m) {
+        when {
+            course[i] == punches[j] && lcs[i][j] == lcs[i + 1][j + 1] + 1 -> {
+                result.add(i to j)
+                i++
+                j++
+            }
+            // Пропускаем отметку, пока позиция дистанции ещё может совпасть с более поздней.
+            lcs[i][j + 1] == lcs[i][j] -> j++
+            else -> i++
+        }
     }
-    return (0 until n)
-        .filter { it !in keep }
-        .map { matchedOrdinalsChronological[it].first }
-        .toSet()
+    return result
 }
 
 /**
@@ -1107,7 +1149,9 @@ internal fun SplitsCard(
 
             // Легенда подсветки — показываем только встретившиеся в таблице маркеры.
             val hasOutOfOrder = displayItems.any { it is SplitDisplayItem.Actual && it.isOutOfOrder }
-            val hasExtra = displayItems.any { it is SplitDisplayItem.Actual && it.isExtra }
+            val hasForeign = displayItems.any { it is SplitDisplayItem.Actual && it.isExtra && !it.isRepeat }
+            val hasRepeat = displayItems.any { it is SplitDisplayItem.Actual && it.isRepeat }
+            val hasExtra = hasForeign || hasRepeat
             val hasMissed = displayItems.any { it is SplitDisplayItem.Missed }
             val hasPreStart = displayItems.any { it is SplitDisplayItem.Actual && it.isPreStart }
             if (hasOutOfOrder || hasExtra || hasMissed || hasPreStart) {
@@ -1120,7 +1164,13 @@ internal fun SplitsCard(
                         SplitsLegendItem(Color(0xFFFF9800).copy(alpha = 0.5f), "Взят не в том порядке")
                     }
                     if (hasExtra) {
-                        SplitsLegendItem(Color(0xFFFFEB3B).copy(alpha = 0.6f), "Лишняя отметка (нет в дистанции)")
+                        // Чужой КП и повтор КП дистанции подсвечиваются одинаково: оба не учитываются.
+                        val label = when {
+                            hasForeign && hasRepeat -> "Лишняя или повторная отметка (не учитывается)"
+                            hasRepeat -> "Повторная отметка (не учитывается)"
+                            else -> "Лишняя отметка (нет в дистанции)"
+                        }
+                        SplitsLegendItem(Color(0xFFFFEB3B).copy(alpha = 0.6f), label)
                     }
                     if (hasMissed) {
                         SplitsLegendItem(MaterialTheme.colorScheme.errorContainer, "Пропущенный КП")
