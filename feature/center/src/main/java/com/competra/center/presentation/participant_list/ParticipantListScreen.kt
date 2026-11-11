@@ -74,6 +74,8 @@ import java.util.Calendar
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import com.competra.domain.models.orienteering.KnownParticipant
@@ -550,171 +552,204 @@ fun CreateParticipantDialogContent(
 
     Column(
         modifier = Modifier
+            .imePadding()
             .padding(Dimens.SIZE_BASE.dp)
             .fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        // Поля прокручиваются, а кнопка добавления — под ними, вне прокрутки: при открытой клавиатуре
+        // шторка ужимается, и кнопка остаётся видна над клавиатурой.
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
         ) {
-            Text(
-                text = if (editingParticipant == null) "Новый участник" else "Редактирование",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            // Сброс всех полей разом — например, если выбрали не ту подсказку.
-            if (editingParticipant == null) {
-                TextButton(
-                    enabled = secondName.isNotEmpty() || firstName.isNotEmpty() ||
-                        commandName.isNotEmpty() || startTimeInput.isNotEmpty(),
-                    onClick = {
-                        secondName = ""
-                        firstName = ""
-                        commandName = ""
-                        startTimeInput = ""
-                        startTimeError = false
-                        pickedFromHistory = null
-                        focusRequester.requestFocus()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (editingParticipant == null) "Новый участник" else "Редактирование",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                // Сброс всех полей разом — например, если выбрали не ту подсказку.
+                if (editingParticipant == null) {
+                    TextButton(
+                        enabled = secondName.isNotEmpty() || firstName.isNotEmpty() ||
+                            commandName.isNotEmpty() || startTimeInput.isNotEmpty(),
+                        onClick = {
+                            secondName = ""
+                            firstName = ""
+                            commandName = ""
+                            startTimeInput = ""
+                            startTimeError = false
+                            pickedFromHistory = null
+                            focusRequester.requestFocus()
+                        }
+                    ) {
+                        Text("Очистить")
                     }
-                ) {
-                    Text("Очистить")
                 }
             }
-        }
 
-        if (groupChange != null && !groupChange.isLocked) {
-            ExposedDropdownMenuOutlined(
+            if (groupChange != null && !groupChange.isLocked) {
+                ExposedDropdownMenuOutlined(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Dimens.SIZE_HALF.dp),
+                    label = "Группа",
+                    items = groupChange.groups,
+                    selectedItem = selectedGroup,
+                    onItemSelected = { selectedGroup = it },
+                    itemToString = { it.title }
+                )
+            } else {
+                Text(
+                    text = "Группа: $groupName",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(vertical = Dimens.SIZE_HALF.dp)
+                )
+                if (groupChange?.isLocked == true) {
+                    Text(
+                        text = "У участника есть результат — группу меняйте на экране считывания: приложите чип → " +
+                            "«Изменить участника», результат пересчитается по дистанции новой группы.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (editingParticipant == null && participantHistory.isNotEmpty()) {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { isBulkMode = true }
+                ) {
+                    Text("Выбрать из прошлых соревнований")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+
+            DSTextInput(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = Dimens.SIZE_HALF.dp),
-                label = "Группа",
-                items = groupChange.groups,
-                selectedItem = selectedGroup,
-                onItemSelected = { selectedGroup = it },
-                itemToString = { it.title }
+                    .focusRequester(focusRequester),
+                label = { Text(text = "Фамилия") },
+                text = secondName,
+                onValueChanged = { secondName = it },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
-        } else {
-            Text(
-                text = "Группа: $groupName",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(vertical = Dimens.SIZE_HALF.dp)
-            )
-            if (groupChange?.isLocked == true) {
-                Text(
-                    text = "У участника есть результат — группу меняйте на экране считывания: приложите чип → " +
-                        "«Изменить участника», результат пересчитается по дистанции новой группы.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
 
-        if (editingParticipant == null && participantHistory.isNotEmpty()) {
-            OutlinedButton(
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+            DSTextInput(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = { isBulkMode = true }
-            ) {
-                Text("Выбрать из прошлых соревнований")
-            }
-        }
+                label = { Text(text = "Имя") },
+                text = firstName,
+                onValueChanged = { firstName = it },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+            )
 
-        Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
-
-        DSTextInput(
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
-            label = { Text(text = "Фамилия") },
-            text = secondName,
-            onValueChanged = { secondName = it },
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-        )
-
-        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-
-        DSTextInput(
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(text = "Имя") },
-            text = firstName,
-            onValueChanged = { firstName = it },
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-        )
-
-        // Подсказки из прошлых соревнований организатора: ищем по началу фамилии и имени сразу
-        // в обоих полях; тап заполняет фамилию, имя и команду.
-        if (editingParticipant == null && !isPickedNameIntact) {
-            val historySuggestions = remember(participantHistory, firstName, secondName) {
-                ParticipantHistory.search(participantHistory, "$secondName $firstName")
-            }
-            if (historySuggestions.isNotEmpty()) {
-                ParticipantHistorySuggestions(
-                    suggestions = historySuggestions,
-                    onPick = { known ->
-                        firstName = known.firstName
-                        secondName = known.lastName
-                        commandName = known.commandName.take(COMMAND_NAME_MAX_LENGTH)
-                        pickedFromHistory = known
-                    }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-
-        // Команда — подпись в протоколе, по ней считается командный зачёт. Подсказки из протокола
-        // помогают писать одну команду одинаково.
-        DSTextInput(
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(text = "Команда (необязательно)") },
-            text = commandName,
-            onValueChanged = { commandName = it.take(COMMAND_NAME_MAX_LENGTH) },
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-        )
-        val teamSuggestions = remember(protocolTeams, commandName) {
-            protocolCommandSuggestions(protocolTeams, commandName, limit = 4)
-        }
-        if (teamSuggestions.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)) {
-                teamSuggestions.forEach { suggestion ->
-                    SuggestionChip(onClick = { commandName = suggestion }, label = { Text(suggestion) })
+            // Подсказки из прошлых соревнований организатора: ищем по началу фамилии и имени сразу
+            // в обоих полях; тап заполняет фамилию, имя и команду.
+            if (editingParticipant == null && !isPickedNameIntact) {
+                val historySuggestions = remember(participantHistory, firstName, secondName) {
+                    ParticipantHistory.search(participantHistory, "$secondName $firstName")
+                }
+                if (historySuggestions.isNotEmpty()) {
+                    ParticipantHistorySuggestions(
+                        suggestions = historySuggestions,
+                        onPick = { known ->
+                            firstName = known.firstName
+                            secondName = known.lastName
+                            commandName = known.commandName.take(COMMAND_NAME_MAX_LENGTH)
+                            pickedFromHistory = known
+                        }
+                    )
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-        OutOfCompetitionSwitch(checked = isOutOfCompetition, onCheckedChange = { isOutOfCompetition = it })
-
-        // Дозаявка после жеребьёвки: организатор выбирает, куда поставить участника в протоколе.
-        if (editingParticipant == null && lateEntry != null) {
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-            Text(
-                text = "Стартовое время",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
+
+            // Команда — подпись в протоколе, по ней считается командный зачёт. Подсказки из протокола
+            // помогают писать одну команду одинаково.
+            DSTextInput(
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(text = "Команда (необязательно)") },
+                text = commandName,
+                onValueChanged = { commandName = it.take(COMMAND_NAME_MAX_LENGTH) },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)) {
-                FilterChip(
-                    selected = placement == LateEntryPlacement.FREE_SLOT,
-                    onClick = { placement = LateEntryPlacement.FREE_SLOT },
-                    label = { Text("Свободная минута · ${formatStartTime(lateEntry.freeSlotTime)}") }
-                )
-                FilterChip(
-                    selected = placement == LateEntryPlacement.END,
-                    onClick = { placement = LateEntryPlacement.END },
-                    label = { Text("В конец · ${formatStartTime(lateEntry.endTime)}") }
-                )
-                FilterChip(
-                    selected = placement == LateEntryPlacement.MANUAL,
-                    onClick = { placement = LateEntryPlacement.MANUAL },
-                    label = { Text("Вручную") }
-                )
+            val teamSuggestions = remember(protocolTeams, commandName) {
+                protocolCommandSuggestions(protocolTeams, commandName, limit = 4)
             }
-            if (placement == LateEntryPlacement.MANUAL) {
+            if (teamSuggestions.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)) {
+                    teamSuggestions.forEach { suggestion ->
+                        SuggestionChip(onClick = { commandName = suggestion }, label = { Text(suggestion) })
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+            OutOfCompetitionSwitch(checked = isOutOfCompetition, onCheckedChange = { isOutOfCompetition = it })
+
+            // Дозаявка после жеребьёвки: организатор выбирает, куда поставить участника в протоколе.
+            if (editingParticipant == null && lateEntry != null) {
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                Text(
+                    text = "Стартовое время",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.SIZE_QUARTER.dp)) {
+                    FilterChip(
+                        selected = placement == LateEntryPlacement.FREE_SLOT,
+                        onClick = { placement = LateEntryPlacement.FREE_SLOT },
+                        label = { Text("Свободная минута · ${formatStartTime(lateEntry.freeSlotTime)}") }
+                    )
+                    FilterChip(
+                        selected = placement == LateEntryPlacement.END,
+                        onClick = { placement = LateEntryPlacement.END },
+                        label = { Text("В конец · ${formatStartTime(lateEntry.endTime)}") }
+                    )
+                    FilterChip(
+                        selected = placement == LateEntryPlacement.MANUAL,
+                        onClick = { placement = LateEntryPlacement.MANUAL },
+                        label = { Text("Вручную") }
+                    )
+                }
+                if (placement == LateEntryPlacement.MANUAL) {
+                    DSTextInput(
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(text = "Стартовое время (ЧЧ:ММ или ЧЧ:ММ:СС)") },
+                        text = startTimeInput,
+                        onValueChanged = {
+                            startTimeInput = it
+                            startTimeError = false
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        isError = startTimeError
+                    )
+                    if (startTimeError) {
+                        Text(
+                            text = "Введите время в формате ЧЧ:ММ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(start = Dimens.SIZE_HALF.dp, top = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            if (editingParticipant != null) {
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
                 DSTextInput(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(text = "Стартовое время (ЧЧ:ММ или ЧЧ:ММ:СС)") },
+                    label = { Text(text = "Стартовое время (ЧЧ:ММ или ЧЧ:ММ:СС или ММ:СС)") },
                     text = startTimeInput,
                     onValueChanged = {
                         startTimeInput = it
@@ -723,6 +758,7 @@ fun CreateParticipantDialogContent(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     isError = startTimeError
                 )
+
                 if (startTimeError) {
                     Text(
                         text = "Введите время в формате ЧЧ:ММ",
@@ -734,32 +770,7 @@ fun CreateParticipantDialogContent(
             }
         }
 
-        if (editingParticipant != null) {
-            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-
-            DSTextInput(
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(text = "Стартовое время (ЧЧ:ММ или ЧЧ:ММ:СС или ММ:СС)") },
-                text = startTimeInput,
-                onValueChanged = {
-                    startTimeInput = it
-                    startTimeError = false
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                isError = startTimeError
-            )
-
-            if (startTimeError) {
-                Text(
-                    text = "Введите время в формате ЧЧ:ММ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(start = Dimens.SIZE_HALF.dp, top = 2.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(Dimens.SIZE_DOUBLE.dp))
+        Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
 
         Button(
             modifier = Modifier

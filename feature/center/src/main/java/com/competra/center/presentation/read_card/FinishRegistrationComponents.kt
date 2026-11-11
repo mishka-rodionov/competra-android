@@ -2,6 +2,9 @@ package com.competra.center.presentation.read_card
 
 import com.competra.center.presentation.participant_list.OutOfCompetitionSwitch
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -237,7 +240,7 @@ internal fun AssignReadSheet(
         sheetState = sheetState,
         onDismiss = onDismiss,
         sheetContent = {
-            Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
+            val header: @Composable () -> Unit = {
                 Text(
                     text = "Чип №${read.chipNumber}",
                     style = MaterialTheme.typography.titleLarge,
@@ -258,8 +261,12 @@ internal fun AssignReadSheet(
                     }
                     Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
                 }
-                if (tab == 0 || candidates.isEmpty()) {
+            }
+            if (tab == 0 || candidates.isEmpty()) {
+                Column(modifier = Modifier.imePadding().padding(Dimens.SIZE_BASE.dp)) {
                     ParticipantForm(
+                        modifier = Modifier.weight(1f, fill = false),
+                        header = header,
                         formKey = "new-${read.chipNumber}",
                         groups = groups,
                         history = history,
@@ -269,10 +276,13 @@ internal fun AssignReadSheet(
                         onSubmit = onCreate,
                         onCreateGroup = onCreateGroup
                     )
-                } else {
-                    ExistingParticipantPicker(candidates = candidates, onAssign = onAssign)
                 }
-                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+            } else {
+                Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
+                    header()
+                    ExistingParticipantPicker(candidates = candidates, onAssign = onAssign)
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
+                }
             }
         }
     )
@@ -283,7 +293,12 @@ internal fun AssignReadSheet(
  * подходящих по отметкам [matchingGroupIds]), команда и отметка «Вне конкурса». Общая для «Нового участника» и
  * «Изменить участника» ([initial] — текущие данные участника).
  *
+ * Поля (вместе с [header]) прокручиваются, а кнопка [submitText] закреплена под ними, вне
+ * прокрутки: при открытой клавиатуре шторка ужимается, и кнопка остаётся видна над клавиатурой.
+ * Для этого родитель передаёт в [modifier] `weight(1f, fill = false)` и учитывает клавиатуру (`imePadding`).
+ *
  * @param formKey Ключ сохраняемого состояния полей — своя форма на каждый чип / участника.
+ * @param header Шапка шторки над полями — прокручивается вместе с ними.
  */
 @Composable
 private fun ParticipantForm(
@@ -296,6 +311,8 @@ private fun ParticipantForm(
     onSubmit: (lastName: String, firstName: String, commandName: String, groupId: Long, fromHistory: Boolean, isOutOfCompetition: Boolean) -> Unit,
     onCreateGroup: (title: String) -> Unit,
     initial: OrienteeringParticipant? = null,
+    modifier: Modifier = Modifier,
+    header: @Composable () -> Unit = {},
 ) {
     var lastName by rememberSaveable(formKey) { mutableStateOf(initial?.lastName.orEmpty()) }
     var firstName by rememberSaveable(formKey) { mutableStateOf(initial?.firstName.orEmpty()) }
@@ -324,92 +341,101 @@ private fun ParticipantForm(
         if (fromHistory) emptyList() else ParticipantHistory.search(history, "$lastName $firstName", limit = 5)
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_HALF.dp)) {
-        DSTextInput(
-            modifier = Modifier.fillMaxWidth(),
-            text = lastName,
-            onValueChanged = {
-                lastName = it
-                fromHistory = false
-            },
-            label = { Text("Фамилия") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
-        )
-        DSTextInput(
-            modifier = Modifier.fillMaxWidth(),
-            text = firstName,
-            onValueChanged = {
-                firstName = it
-                fromHistory = false
-            },
-            label = { Text("Имя") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
-        )
-        suggestions.forEach { known ->
-            val extra = listOf(known.lastGroupName, known.commandName).filter { it.isNotBlank() }.joinToString(" · ")
-            Text(
-                text = "${known.lastName} ${known.firstName}" + if (extra.isNotEmpty()) " · $extra" else "",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        lastName = known.lastName
-                        firstName = known.firstName
-                        if (commandName.isBlank()) commandName = known.commandName
-                        if (groupId == null) {
-                            groupId = groups.firstOrNull {
-                                ParticipantHistory.normalizeGroupName(it.title) ==
-                                    ParticipantHistory.normalizeGroupName(known.lastGroupName)
-                            }?.groupId
-                        }
-                        fromHistory = true
-                    }
-                    .padding(vertical = 6.dp)
-            )
-        }
-        if (isNewGroupInput) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                DSTextInput(
-                    modifier = Modifier.weight(1f),
-                    text = newGroupTitle,
-                    onValueChanged = { newGroupTitle = it },
-                    label = { Text("Новая группа") },
-                    singleLine = true
-                )
-                TextButton(
-                    onClick = { onCreateGroup(newGroupTitle) },
-                    enabled = newGroupTitle.isNotBlank()
-                ) { Text("Создать") }
-            }
-        } else {
-            ExposedDropdownMenuOutlined(
+    Column(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(Dimens.SIZE_HALF.dp)
+        ) {
+            Column { header() }
+            DSTextInput(
                 modifier = Modifier.fillMaxWidth(),
-                label = "Группа",
-                items = groups,
-                selectedItem = groups.firstOrNull { it.groupId == groupId },
-                onItemSelected = { groupId = it.groupId },
-                itemToString = { if (it.groupId in matchingGroupIds) "${it.title} · по отметкам" else it.title }
+                text = lastName,
+                onValueChanged = {
+                    lastName = it
+                    fromHistory = false
+                },
+                label = { Text("Фамилия") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
             )
-            if (matchingTitles.isNotEmpty()) {
+            DSTextInput(
+                modifier = Modifier.fillMaxWidth(),
+                text = firstName,
+                onValueChanged = {
+                    firstName = it
+                    fromHistory = false
+                },
+                label = { Text("Имя") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
+            )
+            suggestions.forEach { known ->
+                val extra = listOf(known.lastGroupName, known.commandName).filter { it.isNotBlank() }.joinToString(" · ")
                 Text(
-                    text = "По отметкам подходит: ${matchingTitles.joinToString()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    text = "${known.lastName} ${known.firstName}" + if (extra.isNotEmpty()) " · $extra" else "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            lastName = known.lastName
+                            firstName = known.firstName
+                            if (commandName.isBlank()) commandName = known.commandName
+                            if (groupId == null) {
+                                groupId = groups.firstOrNull {
+                                    ParticipantHistory.normalizeGroupName(it.title) ==
+                                        ParticipantHistory.normalizeGroupName(known.lastGroupName)
+                                }?.groupId
+                            }
+                            fromHistory = true
+                        }
+                        .padding(vertical = 6.dp)
                 )
             }
-            TextButton(onClick = { isNewGroupInput = true }) { Text("+ новая группа") }
+            if (isNewGroupInput) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DSTextInput(
+                        modifier = Modifier.weight(1f),
+                        text = newGroupTitle,
+                        onValueChanged = { newGroupTitle = it },
+                        label = { Text("Новая группа") },
+                        singleLine = true
+                    )
+                    TextButton(
+                        onClick = { onCreateGroup(newGroupTitle) },
+                        enabled = newGroupTitle.isNotBlank()
+                    ) { Text("Создать") }
+                }
+            } else {
+                ExposedDropdownMenuOutlined(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = "Группа",
+                    items = groups,
+                    selectedItem = groups.firstOrNull { it.groupId == groupId },
+                    onItemSelected = { groupId = it.groupId },
+                    itemToString = { if (it.groupId in matchingGroupIds) "${it.title} · по отметкам" else it.title }
+                )
+                if (matchingTitles.isNotEmpty()) {
+                    Text(
+                        text = "По отметкам подходит: ${matchingTitles.joinToString()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                TextButton(onClick = { isNewGroupInput = true }) { Text("+ новая группа") }
+            }
+            DSTextInput(
+                modifier = Modifier.fillMaxWidth(),
+                text = commandName,
+                onValueChanged = { commandName = it },
+                label = { Text("Команда (необязательно)") },
+                singleLine = true
+            )
+            OutOfCompetitionSwitch(checked = isOutOfCompetition, onCheckedChange = { isOutOfCompetition = it })
         }
-        DSTextInput(
-            modifier = Modifier.fillMaxWidth(),
-            text = commandName,
-            onValueChanged = { commandName = it },
-            label = { Text("Команда (необязательно)") },
-            singleLine = true
-        )
-        OutOfCompetitionSwitch(checked = isOutOfCompetition, onCheckedChange = { isOutOfCompetition = it })
+        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
         val selectedGroupId = groupId
         Button(
             onClick = {
@@ -557,19 +583,22 @@ internal fun EditParticipantSheet(
         sheetState = sheetState,
         onDismiss = onDismiss,
         sheetContent = {
-            Column(modifier = Modifier.padding(Dimens.SIZE_BASE.dp)) {
-                Text(
-                    text = "Изменить участника",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "При смене группы результат пересчитается по её дистанции",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+            Column(modifier = Modifier.imePadding().padding(Dimens.SIZE_BASE.dp)) {
                 ParticipantForm(
+                    modifier = Modifier.weight(1f, fill = false),
+                    header = {
+                        Text(
+                            text = "Изменить участника",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "При смене группы результат пересчитается по её дистанции",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                    },
                     formKey = "edit-${participant.id}",
                     groups = groups,
                     history = emptyList(),
@@ -582,7 +611,6 @@ internal fun EditParticipantSheet(
                     onCreateGroup = onCreateGroup,
                     initial = participant
                 )
-                Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
             }
         }
     )
