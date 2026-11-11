@@ -1,6 +1,7 @@
 package com.competra.core.sync
 
 import android.util.Log
+import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.competra.domain.repository.orienteering.OrienteeringCompetitionLocalRepository
@@ -47,11 +48,27 @@ class ConflictResolver(
         localRepository.updateDistance(domain, markUnsynced = false)
     }
 
-    suspend fun applyParticipantConflict(competitionId: String, localGroupId: Long, payload: String?) {
+    /**
+     * Server-wins для участника из пачки [batch]: в payload — серверная версия того участника, на
+     * котором случился конфликт (не обязательно первого в пачке). Его серверная группа переводится в
+     * локальную; если такой группы на телефоне нет — остаётся локальная группа участника.
+     */
+    suspend fun applyParticipantConflict(batch: List<OrienteeringParticipant>, payload: String?) {
         val response = parseResult(payload, OrienteeringParticipantResponse::class.java) ?: return
-        val domain = response.toDomain().copy(
-            competitionId = competitionId,
-            groupId = localGroupId
+        val server = response.toDomain()
+        val local = batch.firstOrNull { it.id == server.id } ?: return
+        val localGroupId = localRepository.getCompetitionWithDetails(local.competitionId).getOrNull()
+            ?.groupsWithParticipants
+            ?.map { it.group }
+            ?.firstOrNull { it.remoteId != null && it.remoteId == server.groupId }
+            ?.groupId
+            ?: local.groupId
+        val domain = server.copy(
+            competitionId = local.competitionId,
+            groupId = localGroupId,
+            // Сервер не источник истины для выдачи чипа — как и при обычной загрузке с сервера.
+            isChipGiven = local.isChipGiven,
+            remoteId = local.remoteId ?: local.id
         )
         localRepository.updateParticipants(listOf(domain), markUnsynced = false)
     }

@@ -331,23 +331,31 @@ class SyncOrchestrator(
             result = result,
             entityDescription = "participants batch",
             onSuccess = { serverParticipants ->
-                ready.zip(serverParticipants) { local, server ->
-                    local.copy(
-                        isSynced = true,
+                // Пока шла отправка, участника могли изменить (например, при считывании чипа записать
+                // фактический старт со стартовой станции). Записывать поверх отправленный снимок
+                // нельзя — правка потерялась бы, а участник считался бы отправленным. Такого
+                // оставляем неотправленным с текущими данными: уйдёт следующим проходом.
+                val currentById = ready.map { it.competitionId }.distinct()
+                    .flatMap { localRepository.getParticipantsIncludingDeleted(it).getOrNull().orEmpty() }
+                    .associateBy { it.id }
+                ready.zip(serverParticipants) { snapshot, server ->
+                    val current = currentById[snapshot.id]
+                    val changedDuringUpload = current != null && current.lastModified != snapshot.lastModified
+                    (if (changedDuringUpload) current!! else snapshot).copy(
+                        isSynced = !changedDuringUpload,
                         syncError = null,
                         serverUpdatedAt = server.serverUpdatedAt,
                         // server-id == client-id: фиксируем, что запись есть на сервере,
                         // иначе последующее удаление не дошло бы до сервера
-                        remoteId = local.remoteId ?: local.id
+                        remoteId = snapshot.remoteId ?: snapshot.id
                     )
                 }.forEach {
                     localRepository.updateParticipants(listOf(it), markUnsynced = false)
                 }
             },
             onConflict = { payload ->
-                ready.firstOrNull()?.let {
-                    conflictResolver.applyParticipantConflict(it.competitionId, it.groupId, payload)
-                }
+                // Конфликт — у того участника пачки, чья серверная версия пришла в payload.
+                conflictResolver.applyParticipantConflict(ready, payload)
             },
             onPermanentError = { msg ->
                 ready.forEach {
@@ -390,8 +398,20 @@ class SyncOrchestrator(
                 result = response,
                 entityDescription = "result ${result.id}",
                 onSuccess = { server ->
+                    // Результат могли изменить, пока шла отправка (правка отметок, повторное
+                    // считывание) — тогда не затираем правку отправленным снимком, а оставляем его
+                    // неотправленным с текущими данными (см. syncParticipants).
+                    val current = localRepository.getResultByParticipant(result.participantId).getOrNull()
+                        ?.takeIf { it.id == result.id }
+                    val changedDuringUpload = current != null && current.lastModified != result.lastModified
                     localRepository.updateResults(
-                        listOf(withRemoteId.copy(isSynced = true, syncError = null, serverUpdatedAt = server.serverUpdatedAt)),
+                        listOf(
+                            (if (changedDuringUpload) current!!.copy(remoteId = resultId) else withRemoteId).copy(
+                                isSynced = !changedDuringUpload,
+                                syncError = null,
+                                serverUpdatedAt = server.serverUpdatedAt
+                            )
+                        ),
                         markUnsynced = false
                     )
                 },
