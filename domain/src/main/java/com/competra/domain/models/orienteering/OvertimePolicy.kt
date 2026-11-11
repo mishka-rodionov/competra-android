@@ -3,7 +3,9 @@ package com.competra.domain.models.orienteering
 /**
  * Что делать с результатом, превысившим контрольное время (КВ).
  *
- * Политика задаётся один раз на всё соревнование, само КВ — на уровне соревнования
+ * Политика задаётся на соревновании отдельно для дистанций по времени и по баллам
+ * ([OrienteeringCompetition.timeOvertimePolicy] / [OrienteeringCompetition.scoreOvertimePolicy],
+ * см. [overtimePolicyFor]), само КВ — на уровне соревнования
  * ([OrienteeringCompetition.controlTimeMinutes]) с переопределением на уровне группы
  * ([com.competra.domain.models.ParticipantGroup.timeLimitMinutes]).
  */

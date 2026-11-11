@@ -1,17 +1,15 @@
 package com.competra.center.data.results
 
-import com.competra.domain.models.orienteering.ByChoiceMode
+import com.competra.domain.models.orienteering.GroupFormats
 import com.competra.domain.models.orienteering.TeamStandings
 import com.competra.domain.models.orienteering.GroupWithParticipantsAndResults
-import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.ResultsStatus
 import com.competra.ui.BaseState
 
 data class OrienteeringCompetitionResultsState(
     val groupsWithParticipantsAndResults: List<GroupWithParticipantsAndResults> = emptyList(),
-    val direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
-    /** Итог формата «по выбору»: по баллам или по минимуму КП (места по времени, баллов нет). */
-    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+    /** Форматы групп (у каждой — по её дистанции): от них зависят сортировка, баллы и вид карточек. */
+    val formats: GroupFormats = GroupFormats(),
     /** Командный зачёт, посчитанный из текущих результатов; null — зачёт в соревновании не включён. */
     val teamStandings: TeamStandings? = null,
     /** Показывается командный зачёт вместо личных результатов. */

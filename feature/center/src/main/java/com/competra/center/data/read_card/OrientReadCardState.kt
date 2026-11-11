@@ -19,9 +19,13 @@ data class OrientReadCardState(
     val participantResult: OrienteeringResult? = null,
     val rawSplits: List<SplitTime>? = null,
     val isCompetitionFinished: Boolean = false,
-    /** Формат соревнования (FORWARD/BY_CHOICE/MARKING) — определяет алгоритм проверки отметок. */
+    /**
+     * Формат (FORWARD/BY_CHOICE/MARKING) дистанции текущего участника — определяет алгоритм проверки
+     * отметок и вид карточки. До считывания — формат соревнования по умолчанию; при считывании
+     * берётся у дистанции группы участника (см. CourseFormat).
+     */
     val competitionDirection: OrienteeringDirection = OrienteeringDirection.FORWARD,
-    /** Итог формата «по выбору»: по баллам (score-О) или по минимуму КП — выбирает алгоритм проверки BY_CHOICE. */
+    /** Итог формата «по выбору» дистанции текущего участника: по баллам (score-О) или по минимуму КП. */
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     /**
      * Режим определения времени старта соревнования. При [StartTimeMode.BY_START_STATION]
@@ -32,8 +36,10 @@ data class OrientReadCardState(
     val startTimeMode: StartTimeMode = StartTimeMode.STRICT,
     /** КВ соревнования в минутах — умолчание для групп без своего значения. */
     val competitionControlTimeMinutes: Int? = null,
-    /** Политика применения КВ, выбранная организатором для всего соревнования. */
-    val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
+    /** Политика КВ соревнования для дистанций, где места по времени. */
+    val timeOvertimePolicy: OvertimePolicy = OvertimePolicy.IGNORE,
+    /** Политика КВ соревнования для дистанций с баллами. */
+    val scoreOvertimePolicy: OvertimePolicy = OvertimePolicy.SCORE_PENALTY,
     val editingSplitIndex: Int? = null,
     val groupRank: Int? = null,
     val groupTotalFinished: Int = 0,

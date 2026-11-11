@@ -19,7 +19,7 @@ data class EventParticipantGroup(
     val distanceDescription: String? = null,
     /** Контрольное время группы в минутах (итоговое, с учётом умолчания соревнования). */
     val controlTimeMinutes: Int? = null,
-    /** Политика применения КВ, выбранная для соревнования: IGNORE / DISQUALIFY / SCORE_PENALTY. */
+    /** Политика применения КВ для формата дистанции группы: IGNORE / DISQUALIFY / SCORE_PENALTY. */
     val overtimePolicy: String? = null,
     /** Пол группы как пришёл с сервера ("M"/"F" или "MALE"/"FEMALE"/"MIXED") — см. [groupGenderRestriction]. */
     val gender: String? = null,

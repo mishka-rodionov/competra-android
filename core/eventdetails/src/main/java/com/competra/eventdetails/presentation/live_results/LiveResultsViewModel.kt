@@ -1,6 +1,8 @@
 package com.competra.eventdetails.presentation.live_results
 
 import androidx.lifecycle.viewModelScope
+import com.competra.domain.models.orienteering.GroupFormats
+import com.competra.domain.models.orienteering.remoteGroupFormats
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.computeTeamStandings
 import com.competra.domain.models.orienteering.TeamStandings
@@ -26,8 +28,8 @@ data class LiveResultsState(
     val isLoading: Boolean = true,
     val lastUpdated: Long? = null,
     val selectedParticipant: ParticipantWithResult? = null,
-    val direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
-    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+    /** Форматы групп по серверному id группы (у каждой — по её дистанции). */
+    val formats: GroupFormats = GroupFormats(),
     /** Командный зачёт из загруженных результатов; null — зачёт в соревновании не включён. */
     val teamStandings: TeamStandings? = null,
     /** Показывается командный зачёт вместо личных результатов. */
@@ -80,9 +82,14 @@ class LiveResultsViewModel(
             remoteRepository.getResultsByCompetition(eventId).getOrNull() ?: emptyList()
         }
 
+        val distancesDeferred = viewModelScope.async(Dispatchers.IO) {
+            remoteRepository.getDistancesForCompetition(eventId).getOrNull() ?: emptyList()
+        }
+
         val competition = competitionDeferred.await()
-        val direction = competition?.direction ?: OrienteeringDirection.FORWARD
         val groups = groupsDeferred.await()
+        // Формат — у каждой группы свой (по её дистанции).
+        val formats = remoteGroupFormats(competition, groups, distancesDeferred.await())
         val participants = participantsDeferred.await()
         val results = resultsDeferred.await()
 
@@ -96,7 +103,7 @@ class LiveResultsViewModel(
                     participant = participant,
                     result = resultsByParticipant[participant.id]
                 )
-            }.sortedForResults(direction)
+            }.sortedForResults(formats.of(group.remoteId ?: 0L))
             GroupWithParticipantsAndResults(group = group, participants = participantsWithResults)
         }
 
@@ -105,8 +112,7 @@ class LiveResultsViewModel(
                 groupsWithResults = groupsWithResults,
                 isLoading = false,
                 lastUpdated = System.currentTimeMillis(),
-                direction = direction,
-                byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                formats = formats,
                 teamStandings = competition?.teamScoring?.let { computeTeamStandings(it, groupsWithResults) }
             )
         }

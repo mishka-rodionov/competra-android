@@ -1,6 +1,7 @@
 package com.competra.eventdetails.presentation.score_graph
 
 import androidx.lifecycle.viewModelScope
+import com.competra.domain.models.orienteering.effectiveFormat
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.domain.models.ParticipantGroup
@@ -34,9 +35,7 @@ class EventScoreGraphViewModel(
             val participantsDeferred = async { remoteRepository.getParticipantsForCompetition(eventId).getOrNull() ?: emptyList() }
             val resultsDeferred = async { remoteRepository.getResultsByCompetition(eventId).getOrNull() ?: emptyList() }
             val distancesDeferred = async { remoteRepository.getDistancesForCompetition(eventId).getOrNull() ?: emptyList() }
-            val directionDeferred = async {
-                remoteRepository.getCompetitionById(eventId).getOrNull()?.direction ?: OrienteeringDirection.FORWARD
-            }
+            val competitionDeferred = async { remoteRepository.getCompetitionById(eventId).getOrNull() }
 
             val group = groupsDeferred.await().firstOrNull { it.remoteId == groupId }
             if (group == null) {
@@ -47,10 +46,11 @@ class EventScoreGraphViewModel(
             val participants = participantsDeferred.await()
             val results = resultsDeferred.await()
             val distances = distancesDeferred.await()
-            val direction = directionDeferred.await()
             // distanceId группы — это серверный id дистанции, а он хранится в domain-модели
             // Distance.remoteId (см. DistanceResponse.toDomain), а не в Distance.id.
             val distance = distances.firstOrNull { it.remoteId == group.distanceId }
+            // Формат группы — по её дистанции, иначе соревнования.
+            val direction = distance.effectiveFormat(competitionDeferred.await()).direction
 
             val resultsByParticipant = results.associateBy { it.participantId }
             val groupParticipants = participants.filter { it.groupId == group.remoteId }

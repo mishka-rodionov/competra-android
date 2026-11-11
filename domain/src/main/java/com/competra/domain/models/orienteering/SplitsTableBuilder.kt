@@ -376,10 +376,18 @@ fun List<ParticipantWithResult>.sortedForResults(
         sortedWith(
             compareBy(
                 { p -> statusSortOrder(p.result?.status) },
-                { p -> p.result?.totalTime ?: Long.MAX_VALUE },
+                // Время со штрафным — как у мест (recalculateRanksV2, ResultRanking на сервере).
+                { p -> p.result?.totalTime?.plus(p.result.penaltyTime) ?: Long.MAX_VALUE },
             )
         )
     }
+
+/**
+ * Сортировка по формату группы [format]: по баллам — только score-О ([CourseFormat.ranksByScore]);
+ * «по выбору» с минимумом КП, как и остальные форматы, — по времени со штрафным, как и места.
+ */
+fun List<ParticipantWithResult>.sortedForResults(format: CourseFormat): List<ParticipantWithResult> =
+    sortedForResults(if (format.ranksByScore) OrienteeringDirection.BY_CHOICE else OrienteeringDirection.FORWARD)
 
 private fun statusSortOrder(status: ResultStatus?): Int = when (status) {
     ResultStatus.FINISHED -> 0

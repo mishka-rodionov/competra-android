@@ -14,6 +14,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.competra.center.presentation.common.GroupsWithoutDistanceBanner
 import com.competra.center.presentation.common.NoDistanceBadge
+import com.competra.center.presentation.common.NoControlTimeBadge
+import com.competra.center.presentation.common.GroupsWithoutControlTimeBanner
+import com.competra.center.data.creator.groupsWithoutControlTime
 import com.competra.designsystem.theme.Dimens
 import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
@@ -141,6 +144,9 @@ private fun CreateParticipantGroupContent(
                                 } else {
                                     NoDistanceBadge(modifier = Modifier.padding(top = 2.dp))
                                 }
+                                if (state.groupsWithoutControlTime.any { it === group }) {
+                                    NoControlTimeBadge(modifier = Modifier.padding(top = 2.dp))
+                                }
                             }
                             IconButton(onClick = { onAction(OrienteeringCreatorAction.DeleteGroup(index)) }) {
                                 Icon(
@@ -157,6 +163,11 @@ private fun CreateParticipantGroupContent(
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
 
             GroupsWithoutDistanceBanner(titles = state.participantGroups.withoutDistance(state.distances).map { it.title })
+            GroupsWithoutControlTimeBanner(
+                titles = state.groupsWithoutControlTime.map { it.title },
+                modifier = Modifier.padding(top = Dimens.SIZE_HALF.dp),
+                hint = "Откройте группу и задайте КВ или задайте КВ соревнования на первом шаге — без этого мастер не завершить."
+            )
 
             Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 

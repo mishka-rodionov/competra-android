@@ -41,7 +41,9 @@ import com.competra.domain.models.orienteering.Distance
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.StartTimeMode
-import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.center.data.creator.DistanceFormatOption
+import com.competra.center.data.creator.defaultFormat
+import com.competra.designsystem.components.ExposedDropdownMenuOutlined
 import com.competra.resources.R
 
 /**
@@ -74,9 +76,13 @@ fun DistanceEditor(
     var controlPointsList by remember {
         mutableStateOf<List<ControlPoint>>(initialDistance?.controlPoints.orEmpty())
     }
-    val isByChoice = state.competitionDirection == OrienteeringDirection.BY_CHOICE
+    // Формат дистанции: у новой — как у соревнования. От него зависят баллы КП и минимум КП.
+    val competitionFormat = state.defaultFormat
+    var formatOption by remember { mutableStateOf(DistanceFormatOption.of(initialDistance, competitionFormat)) }
+    val format = formatOption.format
+    val isByChoice = format.direction == OrienteeringDirection.BY_CHOICE
     // Баллы у КП есть только в score-О; «по выбору» с минимумом КП вместо них задаёт минимум.
-    val hasScores = ranksByScore(state.competitionDirection, state.byChoiceMode)
+    val hasScores = format.ranksByScore
     val hasMinControls = isByChoice && !hasScores
     var minControlsInput by remember {
         mutableStateOf(initialDistance?.minControlsCount?.toString() ?: "")
@@ -243,6 +249,25 @@ fun DistanceEditor(
 //                    text = controlsCount,
 //                    onValueChanged = { controlsCount = it }
 //                )
+
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+                // Формат дистанции
+                ExposedDropdownMenuOutlined(
+                    label = "Формат дистанции",
+                    items = DistanceFormatOption.selectable(formatOption),
+                    selectedItem = formatOption,
+                    onItemSelected = { formatOption = it },
+                    itemToString = { it.label }
+                )
+                FieldDescription(
+                    if (format.ranksByScore != competitionFormat.ranksByScore) {
+                        "Места на этой дистанции — " + (if (format.ranksByScore) "по баллам" else "по времени") +
+                            ", не как у формата соревнования. Политика КВ для таких дистанций задаётся в общих настройках"
+                    } else {
+                        "Можно задать дистанции свой формат — например, «по выбору» для младших групп"
+                    }
+                )
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
 
@@ -556,7 +581,9 @@ fun DistanceEditor(
                                     controlPoints = points,
                                     finishControlPoint = finishCp,
                                     startControlPoint = startCp,
-                                    minControlsCount = minControls
+                                    minControlsCount = minControls,
+                                    direction = formatOption.toDistanceFields(competitionFormat).first,
+                                    byChoiceMode = formatOption.toDistanceFields(competitionFormat).second
                                 ),
                                 index = state.editDistanceIndex
                             )

@@ -1,6 +1,7 @@
 package com.competra.eventdetails.presentation.group_splits
 
 import androidx.lifecycle.viewModelScope
+import com.competra.domain.models.orienteering.effectiveFormat
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.domain.models.ParticipantGroup
@@ -50,11 +51,13 @@ class EventGroupSplitsTableViewModel(
             val results = resultsDeferred.await()
             val distances = distancesDeferred.await()
             val competition = competitionDeferred.await()
-            val direction = competition?.direction ?: OrienteeringDirection.FORWARD
-            val byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT
             // distanceId группы — это серверный id дистанции, а он хранится в domain-модели
             // Distance.remoteId (см. DistanceResponse.toDomain), а не в Distance.id.
             val distance = distances.firstOrNull { it.remoteId == group.distanceId }
+            // Формат группы — по её дистанции, иначе соревнования.
+            val format = distance.effectiveFormat(competition)
+            val direction = format.direction
+            val byChoiceMode = format.byChoiceMode
 
             val resultsByParticipant = results.associateBy { it.participantId }
             val groupParticipants = participants.filter { it.groupId == group.remoteId }
@@ -63,7 +66,7 @@ class EventGroupSplitsTableViewModel(
                     participant = participant,
                     result = resultsByParticipant[participant.id]
                 )
-            }.sortedForResults(direction)
+            }.sortedForResults(format)
 
             val table = buildSplitsTable(
                 GroupWithParticipantsAndResults(group = group, participants = participantsWithResults),

@@ -19,6 +19,7 @@ import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.orienteering.OrienteeringParticipant
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.orienteering.withoutDistance
+import com.competra.domain.models.orienteering.withoutRequiredControlTime
 import com.competra.domain.repository.LoadingRepository
 import com.competra.domain.repository.NetworkAvailabilityRepository
 import com.competra.domain.repository.NetworkErrorRepository
@@ -143,7 +144,13 @@ class OrienteeringEventControlViewModel(
                     .map { it.group }
                     .withoutDistance(distances)
                     .map { it.title }
-                updateState { copy(groupsWithoutDistance = groupsWithoutDistance) }
+                val groupsWithoutControlTime = details.groupsWithParticipants
+                    .map { it.group }
+                    .withoutRequiredControlTime(distances, competition)
+                    .map { it.title }
+                updateState {
+                    copy(groupsWithoutDistance = groupsWithoutDistance, groupsWithoutControlTime = groupsWithoutControlTime)
+                }
                 applyCompetitionState(
                     title = competition.competition.title,
                     competition = competition,

@@ -153,11 +153,12 @@ fun EventResultsScreen(
                                     // во времени (победитель определяется по сумме баллов, а не по
                                     // времени на перегонах). В «по выбору» с минимумом КП нет ни
                                     // баллов, ни общего порядка — графика нет.
-                                    if (state.direction != OrienteeringDirection.BY_CHOICE ||
-                                        state.byChoiceMode == ByChoiceMode.SCORE
+                                    val groupFormat = state.formats.of(groupRemoteId ?: 0L)
+                                    if (groupFormat.direction != OrienteeringDirection.BY_CHOICE ||
+                                        groupFormat.byChoiceMode == ByChoiceMode.SCORE
                                     ) TextButton(
                                         onClick = {
-                                            val action = if (state.direction == OrienteeringDirection.BY_CHOICE) {
+                                            val action = if (groupFormat.direction == OrienteeringDirection.BY_CHOICE) {
                                                 EventResultsAction.OpenScoreGraph(eventId = eventId, groupId = groupRemoteId)
                                             } else {
                                                 EventResultsAction.OpenRaceGraph(eventId = eventId, groupId = groupRemoteId)
@@ -171,8 +172,8 @@ fun EventResultsScreen(
                             }
                             ResultsList(
                                 participants = groups[page].participants,
-                                direction = state.direction,
-                                byChoiceMode = state.byChoiceMode,
+                                direction = state.formats.of(groupRemoteId ?: 0L).direction,
+                                byChoiceMode = state.formats.of(groupRemoteId ?: 0L).byChoiceMode,
                                 onParticipantClick = { viewModel.onAction(EventResultsAction.ShowSplits(it)) }
                             )
                         }

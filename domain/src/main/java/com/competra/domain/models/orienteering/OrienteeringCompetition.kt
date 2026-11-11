@@ -17,8 +17,12 @@ import com.competra.domain.models.Competition
  * @property startTime Фактическое время старта соревнования (timestamp)
  * @property controlTimeMinutes Контрольное время соревнования в минутах — умолчание для групп
  * без своего КВ (группа переопределяет его через ParticipantGroup.timeLimitMinutes)
- * @property overtimePolicy Что делать с результатами, превысившими КВ
- * @property byChoiceMode Итог формата «по выбору»: по баллам или по минимуму КП (только для [OrienteeringDirection.BY_CHOICE])
+ * @property timeOvertimePolicy Что делать с результатами, превысившими КВ, на дистанциях, где места
+ * считаются по времени ([OvertimePolicy.IGNORE] / [OvertimePolicy.DISQUALIFY])
+ * @property scoreOvertimePolicy То же для дистанций с баллами (score-О), по умолчанию — штраф очками
+ * (см. [overtimePolicyFor])
+ * @property direction Направление по умолчанию; дистанция может задать своё ([Distance.direction], см. [CourseFormat])
+ * @property byChoiceMode Итог формата «по выбору» по умолчанию: по баллам или по минимуму КП (только для [OrienteeringDirection.BY_CHOICE])
  * @property teamScoring Настройки командного зачёта; `null` — зачёта нет
  * @property isFinishRegistration Режим «Регистрация на финише»: участники заводятся организатором при
  * считывании незнакомого чипа на финише; старт — только по стартовой станции
@@ -36,7 +40,8 @@ data class OrienteeringCompetition(
     val startTime: Long? = null,
     val startIntervalSeconds: Int? = null,
     val controlTimeMinutes: Int? = null,
-    val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
+    val timeOvertimePolicy: OvertimePolicy = OvertimePolicy.IGNORE,
+    val scoreOvertimePolicy: OvertimePolicy = OvertimePolicy.SCORE_PENALTY,
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     val teamScoring: TeamScoring? = null,
     val isFinishRegistration: Boolean = false,

@@ -12,6 +12,7 @@ import com.competra.data.navigation.getArguments
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.ByChoiceMode
+import com.competra.domain.models.orienteering.CourseFormat
 import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.ControlPoint
 import com.competra.domain.models.orienteering.ControlPointRole
@@ -265,7 +266,8 @@ class OrientReadCardViewModel(
                 updateState {
                     copy(
                         competitionControlTimeMinutes = competition?.controlTimeMinutes,
-                        overtimePolicy = competition?.overtimePolicy ?: this.overtimePolicy
+                        timeOvertimePolicy = competition?.timeOvertimePolicy ?: this.timeOvertimePolicy,
+                        scoreOvertimePolicy = competition?.scoreOvertimePolicy ?: this.scoreOvertimePolicy
                     )
                 }
                 if (direction != null) {
@@ -284,10 +286,10 @@ class OrientReadCardViewModel(
                     // updateState — fire-and-forget (постит апдейт на Main.immediate и не ждёт его
                     // применения). Если чип уже лежит на ридере в момент открытия экрана (обычный
                     // рабочий процесс судьи), скан может дойти до subscribeToReadCard раньше, чем
-                    // competitionDirection фактически обновится в state, и computeCheckResult
-                    // ошибочно уйдёт в ветку checkControlPointOrderPro (без дедупликации повторных
-                    // отметок и без учёта баллов КП) вместо computeByChoiceResult. Дожидаемся
-                    // реального применения, чтобы гарантировать порядок.
+                    // настройки соревнования фактически обновятся в state (режим старта, «Регистрация
+                    // на финише», станции по умолчанию). Формат дистанции computeCheckResult берёт
+                    // сам по группе участника (courseFormat), но ждём и его умолчание — чтобы
+                    // карточка не мигала прежним форматом. Дожидаемся реального применения.
                     state.first {
                         it.competitionDirection == direction && it.byChoiceMode == byChoiceMode &&
                             it.isFinishRegistration == isFinishRegistration
@@ -551,15 +553,15 @@ class OrientReadCardViewModel(
         // иначе экран сканирования при первом же скане показывает пустое/старое время старта и
         // считает сплиты от него, выдавая гигантские значения; они «чинились» только со второго
         // скана этого же чипа, когда getParticipantByChipNumber уже отдавал обновлённого участника.
-        val resolvedParticipant = if (!stateValue.isCompetitionFinished &&
-            stateValue.startTimeMode == StartTimeMode.BY_START_STATION &&
+        // У завершённого соревнования (режим «только просмотр») в БД не пишем, но показываем тоже
+        // от фактического старта: участник приходит с сервера с пустым стартом (его правка выше
+        // только локальная), и сплиты от 0 получались огромными.
+        val hasRealStart = stateValue.startTimeMode == StartTimeMode.BY_START_STATION &&
             startTime != participant.startTime
-        ) {
+        if (hasRealStart && !stateValue.isCompetitionFinished) {
             orienteeringCompetitionInteractor.updateParticipantLocally(participant.copy(startTime = startTime))
-            participant.copy(startTime = startTime)
-        } else {
-            participant
         }
+        val resolvedParticipant = if (hasRealStart) participant.copy(startTime = startTime) else participant
 
         if (stateValue.isCompetitionFinished) {
             // Соревнование завершено — режим «только просмотр»: показываем данные,
@@ -752,7 +754,8 @@ class OrientReadCardViewModel(
 
     /**
      * Приводит статус к контрольному времени: КВ группы (или соревнования, если у группы своего
-     * нет) и политика соревнования. Та же логика, что на сервере — см. applyOvertimePolicy.
+     * нет) и политика соревнования для формата дистанции группы (по времени / по баллам). Та же
+     * логика, что на сервере — см. applyOvertimePolicy.
      */
     private suspend fun applyControlTime(
         groupId: Long,
@@ -767,11 +770,25 @@ class OrientReadCardViewModel(
                 groupLimitMinutes = group?.timeLimitMinutes,
                 competitionControlTimeMinutes = stateValue.competitionControlTimeMinutes
             ),
-            policy = stateValue.overtimePolicy
+            policy = if (courseFormat(groupId).ranksByScore) stateValue.scoreOvertimePolicy else stateValue.timeOvertimePolicy
         )
     }
 
-    /** Выбирает алгоритм проверки отметок в зависимости от формата соревнования. */
+    /**
+     * Формат дистанции группы участника (своё направление дистанции или соревнования). Заодно
+     * кладёт его в state ([OrientReadCardState.competitionDirection] / [OrientReadCardState.byChoiceMode]),
+     * чтобы карточка результата показывала баллы/время по формату именно этой дистанции.
+     */
+    private suspend fun courseFormat(groupId: Long): CourseFormat {
+        val cid = competitionId ?: return CourseFormat(stateValue.competitionDirection, stateValue.byChoiceMode)
+        val format = orienteeringCompetitionInteractor.groupFormat(cid, groupId)
+        if (format.direction != stateValue.competitionDirection || format.byChoiceMode != stateValue.byChoiceMode) {
+            updateState { copy(competitionDirection = format.direction, byChoiceMode = format.byChoiceMode) }
+        }
+        return format
+    }
+
+    /** Выбирает алгоритм проверки отметок в зависимости от формата дистанции группы. */
     private suspend fun computeCheckResult(
         groupId: Long,
         startTime: Long,
@@ -781,10 +798,11 @@ class OrientReadCardViewModel(
         if (expected.isEmpty() && stateValue.isFinishRegistration) {
             return finishOnlyCheck(actual, startTime)
         }
-        if (stateValue.competitionDirection != OrienteeringDirection.BY_CHOICE) {
+        val format = courseFormat(groupId)
+        if (format.direction != OrienteeringDirection.BY_CHOICE) {
             return checkControlPointOrderPro(expected, punchesAfterStart(actual, startTime))
         }
-        if (stateValue.byChoiceMode == ByChoiceMode.MIN_CONTROLS) {
+        if (format.byChoiceMode == ByChoiceMode.MIN_CONTROLS) {
             return computeMinControlsResult(expected, actual, startTime, getDistance(groupId)?.minControlsCount)
         }
         val group = orienteeringCompetitionInteractor.getParticipantGroup(groupId).getOrNull()

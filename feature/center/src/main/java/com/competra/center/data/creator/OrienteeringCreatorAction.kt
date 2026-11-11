@@ -45,7 +45,8 @@ sealed class OrienteeringCreatorAction : BaseAction {
     data class UpdatePunchingSystem(val punchingSystem: PunchingSystem): OrienteeringCreatorAction()
     data class UpdateStartInterval(val seconds: Int?): OrienteeringCreatorAction()
     data class UpdateControlTime(val minutes: Int?): OrienteeringCreatorAction()
-    data class UpdateOvertimePolicy(val policy: OvertimePolicy): OrienteeringCreatorAction()
+    /** Политика КВ для дистанций с баллами ([forScoreCourses] = true) или по времени. */
+    data class UpdateOvertimePolicy(val policy: OvertimePolicy, val forScoreCourses: Boolean): OrienteeringCreatorAction()
     data class UpdateByChoiceMode(val mode: ByChoiceMode): OrienteeringCreatorAction()
     /** Настройки командного зачёта; null — выключить. */
     data class UpdateTeamScoring(val teamScoring: TeamScoring?): OrienteeringCreatorAction()

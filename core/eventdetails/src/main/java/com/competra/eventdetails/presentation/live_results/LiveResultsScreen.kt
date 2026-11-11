@@ -130,8 +130,8 @@ fun LiveResultsScreen(
                         ) { page ->
                             LiveResultsList(
                                 participants = groups[page].participants,
-                                direction = state.direction,
-                                byChoiceMode = state.byChoiceMode,
+                                direction = state.formats.of(groups[page].group.remoteId ?: 0L).direction,
+                                byChoiceMode = state.formats.of(groups[page].group.remoteId ?: 0L).byChoiceMode,
                                 onParticipantClick = { viewModel.onAction(LiveResultsAction.ShowSplits(it)) }
                             )
                         }

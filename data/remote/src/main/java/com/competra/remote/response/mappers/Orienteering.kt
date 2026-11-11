@@ -20,6 +20,8 @@ import com.competra.remote.response.orienteering.ControlPointResponse
 import com.competra.remote.response.orienteering.DistanceResponse
 import com.competra.remote.response.orienteering.OrienteeringCompetitionResponse
 import com.competra.domain.models.orienteering.ByChoiceMode
+import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.resolveOvertimePolicies
 import com.competra.domain.models.orienteering.DrawMode
 import com.competra.domain.models.orienteering.DrawSettings
 import com.competra.remote.response.orienteering.OrienteeringParticipantResponse
@@ -31,18 +33,28 @@ import com.competra.remote.response.orienteering.ParticipantGroupResponse
  */
 fun OrienteeringCompetitionResponse.toDomain(): OrienteeringCompetition {
     val drawSettings = DrawMode.fromStringOrNull(drawMode)?.let { DrawSettings(it, drawCorridors, drawGap) }
+    val competitionDirection = OrienteeringDirection.valueOf(direction)
+    val competitionByChoiceMode = ByChoiceMode.fromString(byChoiceMode)
+    // Политики КВ по виду дистанции; у соревнований до формата на дистанции их нет — разбираем legacy.
+    val (timePolicy, scorePolicy) = resolveOvertimePolicies(
+        legacy = overtimePolicy?.let { OvertimePolicy.fromString(it) },
+        time = timeOvertimePolicy?.let { OvertimePolicy.fromString(it) },
+        score = scoreOvertimePolicy?.let { OvertimePolicy.fromString(it) },
+        competitionRanksByScore = ranksByScore(competitionDirection, competitionByChoiceMode)
+    )
     return OrienteeringCompetition(
         competitionId = competitionId,
         competition = competition.toDomain(),
-        direction = OrienteeringDirection.valueOf(direction),
+        direction = competitionDirection,
         punchingSystem = punchingSystem,
         startTimeMode = startTimeMode,
         countdownTimer = countdownTimer,
         startTime = startTime,
         startIntervalSeconds = startIntervalSeconds,
         controlTimeMinutes = controlTimeMinutes,
-        overtimePolicy = OvertimePolicy.fromString(overtimePolicy),
-        byChoiceMode = ByChoiceMode.fromString(byChoiceMode),
+        timeOvertimePolicy = timePolicy,
+        scoreOvertimePolicy = scorePolicy,
+        byChoiceMode = competitionByChoiceMode,
         teamScoring = teamScoring?.toDomain(),
         isFinishRegistration = isFinishRegistration ?: false,
         // Флаг жеребьёвки на сервере не хранится — восстанавливаем его по сохранённому режиму,
@@ -102,6 +114,8 @@ fun DistanceResponse.toDomain(competitionId: String): Distance {
         startPosition = coordinatesOrNull(startLatitude, startLongitude),
         finishPosition = coordinatesOrNull(finishLatitude, finishLongitude),
         minControlsCount = minControlsCount,
+        direction = OrienteeringDirection.entries.firstOrNull { it.name == direction },
+        byChoiceMode = byChoiceMode?.let { ByChoiceMode.fromString(it) },
         map = DistanceMap.fromFields(
             url = mapUrl,
             topLeftLat = mapTopLeftLat,

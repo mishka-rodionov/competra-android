@@ -15,6 +15,8 @@ import com.competra.remote.request.orienteering.OrienteeringResultRequest
 import com.competra.remote.request.orienteering.ParticipantGroupRequest
 import com.competra.remote.request.orienteering.SplitTimeRequest
 import com.competra.remote.request.orienteering.TeamScoringRequest
+import com.competra.remote.request.orienteering.INHERIT_FORMAT
+import com.competra.domain.models.orienteering.legacyOvertimePolicy
 
 fun OrienteeringCompetition.toRequest(): OrienteeringCompetitionRequest {
     return OrienteeringCompetitionRequest(
@@ -27,7 +29,9 @@ fun OrienteeringCompetition.toRequest(): OrienteeringCompetitionRequest {
         startTime = startTime,
         startIntervalSeconds = startIntervalSeconds,
         controlTimeMinutes = controlTimeMinutes,
-        overtimePolicy = overtimePolicy.name,
+        overtimePolicy = legacyOvertimePolicy.name,
+        timeOvertimePolicy = timeOvertimePolicy.name,
+        scoreOvertimePolicy = scoreOvertimePolicy.name,
         byChoiceMode = byChoiceMode.name,
         teamScoring = teamScoring?.let {
             TeamScoringRequest(
@@ -81,6 +85,9 @@ fun Distance.toRequest(): DistanceRequest {
         startControlPoint = startControlPoint,
         // Клиент поле знает, поэтому шлёт его всегда: 0 — «все КП» (null для сервера — «не менять»).
         minControlsCount = minControlsCount ?: 0,
+        // Всегда шлём явное значение: null на сервере значит «не менять».
+        direction = direction?.name ?: INHERIT_FORMAT,
+        byChoiceMode = byChoiceMode?.name ?: INHERIT_FORMAT,
         serverUpdatedAt = serverUpdatedAt
     )
 }

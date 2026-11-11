@@ -1,6 +1,8 @@
 package com.competra.eventdetails.presentation.results
 
 import androidx.lifecycle.viewModelScope
+import com.competra.domain.models.orienteering.GroupFormats
+import com.competra.domain.models.orienteering.remoteGroupFormats
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.data.navigation.EventsNavigation
@@ -33,8 +35,8 @@ data class EventResultsState(
     val isLoading: Boolean = true,
     val groupsWithResults: List<GroupWithParticipantsAndResults> = emptyList(),
     val selectedParticipant: ParticipantWithResult? = null,
-    val direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
-    val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+    /** Форматы групп по серверному id группы (у каждой — по её дистанции). */
+    val formats: GroupFormats = GroupFormats(),
     /** Командный зачёт из загруженных результатов; null — зачёт в соревновании не включён. */
     val teamStandings: TeamStandings? = null,
     /** Показывается командный зачёт вместо личных результатов. */
@@ -207,10 +209,12 @@ class EventResultsViewModel(
             val groupsDeferred = async { remoteRepository.getCompetitionParticipantsGroups(eventId).getOrNull() ?: emptyList() }
             val participantsDeferred = async { remoteRepository.getParticipantsForCompetition(eventId).getOrNull() ?: emptyList() }
             val resultsDeferred = async { remoteRepository.getResultsByCompetition(eventId).getOrNull() ?: emptyList() }
+            val distancesDeferred = async { remoteRepository.getDistancesForCompetition(eventId).getOrNull() ?: emptyList() }
 
             val competition = competitionDeferred.await()
-            val direction = competition?.direction ?: OrienteeringDirection.FORWARD
             val groups = groupsDeferred.await()
+            // Формат — у каждой группы свой (по её дистанции).
+            val formats = remoteGroupFormats(competition, groups, distancesDeferred.await())
             val participants = participantsDeferred.await()
             val results = resultsDeferred.await()
 
@@ -224,7 +228,7 @@ class EventResultsViewModel(
                         participant = participant,
                         result = resultsByParticipant[participant.id]
                     )
-                }.sortedForResults(direction)
+                }.sortedForResults(formats.of(group.remoteId ?: 0L))
                 GroupWithParticipantsAndResults(group = group, participants = participantsWithResults)
             }
 
@@ -237,8 +241,7 @@ class EventResultsViewModel(
                 copy(
                     isLoading = false,
                     groupsWithResults = groupsWithResults,
-                    direction = direction,
-                    byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                    formats = formats,
                     teamStandings = competition?.teamScoring?.let { computeTeamStandings(it, groupsWithResults) },
                     selectedParticipant = refreshedSelection
                 )

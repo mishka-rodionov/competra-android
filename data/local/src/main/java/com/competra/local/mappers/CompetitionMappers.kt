@@ -1,6 +1,8 @@
 package com.competra.local.mappers
 
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.DrawMode
+import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.DrawSettings
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.ParticipantGroup
@@ -29,7 +31,8 @@ fun OrienteeringCompetition.toEntity(): OrienteeringCompetitionEntity {
         startTime = this.startTime,
         startIntervalSeconds = this.startIntervalSeconds,
         controlTimeMinutes = this.controlTimeMinutes,
-        overtimePolicy = this.overtimePolicy,
+        timeOvertimePolicy = this.timeOvertimePolicy,
+        scoreOvertimePolicy = this.scoreOvertimePolicy,
         byChoiceMode = this.byChoiceMode,
         teamScoring = this.teamScoring,
         isFinishRegistration = this.isFinishRegistration,
@@ -65,7 +68,8 @@ fun OrienteeringCompetitionEntity.toDomain(): OrienteeringCompetition {
         startTime = this.startTime,
         startIntervalSeconds = this.startIntervalSeconds,
         controlTimeMinutes = this.controlTimeMinutes,
-        overtimePolicy = this.overtimePolicy,
+        timeOvertimePolicy = this.timeOvertimePolicy,
+        scoreOvertimePolicy = this.scoreOvertimePolicy,
         byChoiceMode = this.byChoiceMode,
         teamScoring = this.teamScoring,
         isFinishRegistration = this.isFinishRegistration,
@@ -285,6 +289,8 @@ fun Distance.toEntity(): DistanceEntity {
         finishLatitude = this.finishPosition?.latitude,
         finishLongitude = this.finishPosition?.longitude,
         minControlsCount = this.minControlsCount,
+        direction = this.direction?.name,
+        byChoiceMode = this.byChoiceMode?.name,
         mapUrl = this.map?.url,
         mapTopLeftLat = this.map?.topLeft?.latitude,
         mapTopLeftLng = this.map?.topLeft?.longitude,
@@ -319,6 +325,8 @@ fun DistanceEntity.toDomain(): Distance {
         startPosition = coordinatesOrNull(startLatitude, startLongitude),
         finishPosition = coordinatesOrNull(finishLatitude, finishLongitude),
         minControlsCount = this.minControlsCount,
+        direction = OrienteeringDirection.entries.firstOrNull { it.name == direction },
+        byChoiceMode = byChoiceMode?.let { ByChoiceMode.fromString(it) },
         map = DistanceMap.fromFields(
             url = mapUrl,
             topLeftLat = mapTopLeftLat,

@@ -47,6 +47,12 @@ data class OrienteeringCompetitionResponse(
 
     @SerializedName("overtimePolicy")
     val overtimePolicy: String? = null,
+    /** Политика КВ для дистанций по времени; null — сервер до формата на дистанции (разбираем legacy). */
+    @SerializedName("timeOvertimePolicy")
+    val timeOvertimePolicy: String? = null,
+    /** Политика КВ для дистанций с баллами; null — см. [timeOvertimePolicy]. */
+    @SerializedName("scoreOvertimePolicy")
+    val scoreOvertimePolicy: String? = null,
 
     @SerializedName("byChoiceMode")
     val byChoiceMode: String? = null,

@@ -26,7 +26,9 @@ import com.competra.local.converters.CompetitionConverters
  * @property countdownTimer Время отсчета перед стартом (в минутах)
  * @property startTime Фактическое время начала соревнования (timestamp)
  * @property controlTimeMinutes Контрольное время соревнования в минутах (умолчание для групп)
- * @property overtimePolicy Что делать с результатами, превысившими КВ
+ * @property timeOvertimePolicy Что делать с превысившими КВ на дистанциях, где места по времени
+ * (колонка `overtimePolicy` — до формата на дистанции была единственной политикой, MIGRATION_61_62)
+ * @property scoreOvertimePolicy То же для дистанций с баллами
  * @property byChoiceMode Итог формата «по выбору»: по баллам или по минимуму КП
  * @property teamScoring Настройки командного зачёта; null — зачёта нет
  * @property isFinishRegistration Режим «Регистрация на финише»
@@ -51,8 +53,10 @@ data class OrienteeringCompetitionEntity(
     val startTime: Long? = null,
     val startIntervalSeconds: Int? = null,
     val controlTimeMinutes: Int? = null,
-    @ColumnInfo(defaultValue = "IGNORE")
-    val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
+    @ColumnInfo(name = "overtimePolicy", defaultValue = "IGNORE")
+    val timeOvertimePolicy: OvertimePolicy = OvertimePolicy.IGNORE,
+    @ColumnInfo(defaultValue = "SCORE_PENALTY")
+    val scoreOvertimePolicy: OvertimePolicy = OvertimePolicy.SCORE_PENALTY,
     @ColumnInfo(defaultValue = "SCORE")
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     val teamScoring: TeamScoring? = null,

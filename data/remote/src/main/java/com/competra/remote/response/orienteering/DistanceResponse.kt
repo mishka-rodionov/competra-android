@@ -50,6 +50,12 @@ data class DistanceResponse(
     /** Минимум КП (формат «по выбору» с минимумом КП); null — все КП. */
     @SerializedName("minControlsCount")
     val minControlsCount: Int? = null,
+    /** Направление дистанции; null — как у соревнования. */
+    @SerializedName("direction")
+    val direction: String? = null,
+    /** Режим «по выбору» дистанции; null — как у соревнования. */
+    @SerializedName("byChoiceMode")
+    val byChoiceMode: String? = null,
     @SerializedName("mapUrl")
     val mapUrl: String? = null,
     @SerializedName("mapTopLeftLat")

@@ -49,7 +49,7 @@ import com.competra.local.entities.user.UserEntity
 // v53: координаты старта и финиша дистанции — темп на первом/последнем перегоне.
 // v59: сессия онлайн-трека создаётся телефоном (isRegistered, rejectMessage) + кэш my_starts.
 // v60: «Регистрация на финише» — флаг соревнования, isStatusManual/readAt результата, очередь unassigned_chip_reads.
-private const val DB_VERSION = 61
+private const val DB_VERSION = 62
 
 /**
  * Основной класс базы данных приложения (Room).

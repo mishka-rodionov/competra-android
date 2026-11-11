@@ -51,6 +51,9 @@ data class DistanceEntity(
     val finishLongitude: Double? = null,
     // Минимум КП для «по выбору» с минимумом КП; null — все КП.
     val minControlsCount: Int? = null,
+    // Формат дистанции (OrienteeringDirection / ByChoiceMode по имени); null — как у соревнования.
+    val direction: String? = null,
+    val byChoiceMode: String? = null,
     // Геопривязанная карта дистанции (см. DistanceMap): плоские колонки, как на сервере.
     val mapUrl: String? = null,
     val mapTopLeftLat: Double? = null,

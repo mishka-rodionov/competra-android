@@ -30,7 +30,9 @@ import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.orienteering.Distance
-import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.isGroupControlTimeRequired
+import com.competra.domain.models.orienteering.effectiveFormat
+import com.competra.center.data.creator.defaultFormat
 import com.competra.resources.R
 
 /**
@@ -59,8 +61,14 @@ fun ParticipantGroupEditor(
     // Последние пол/возраст, подставленные по названию: поле, которое организатор поменял сам,
     // при дальнейшем вводе названия не перетираем.
     var autoFilled by remember { mutableStateOf<GroupTitleInfo?>(null) }
-    // Штраф очками за опоздание есть только в score-О («по выбору» по баллам).
-    val isScoreO = ranksByScore(state.competitionDirection, state.byChoiceMode)
+    // Выбранная дистанция для группы
+    var selectedDistanceId by remember {
+        mutableLongStateOf(initialGroup?.distanceId ?: state.distances.firstOrNull()?.id ?: NO_DISTANCE_ID)
+    }
+    // Штраф очками за опоздание есть только на дистанциях с баллами («по выбору» по баллам) — формат
+    // берётся у выбранной дистанции группы, без дистанции — у соревнования.
+    val isScoreO = state.distances.firstOrNull { it.id == selectedDistanceId }
+        .effectiveFormat(state.defaultFormat).ranksByScore
     // Пусто = наследовать КВ соревнования. Дефолт для BY_CHOICE не подставляем: иначе
     // организатор случайно переопределит КВ во всех группах.
     var timeLimitMinutes by remember {
@@ -77,9 +85,21 @@ fun ParticipantGroupEditor(
         mutableStateOf(initialGroup?.teamCountedResults?.toString() ?: "")
     }
 
-    // Выбранная дистанция для группы
-    var selectedDistanceId by remember {
-        mutableLongStateOf(initialGroup?.distanceId ?: state.distances.firstOrNull()?.id ?: NO_DISTANCE_ID)
+    // На дистанции с баллами со штрафом за опоздание штраф считается от КВ — без КВ (своего или
+    // соревнования) он не начислится, поэтому тогда поле КВ группы обязательно.
+    val isControlTimeRequired = isGroupControlTimeRequired(
+        groupFormat = state.distances.firstOrNull { it.id == selectedDistanceId }.effectiveFormat(state.defaultFormat),
+        scoreOvertimePolicy = state.scoreOvertimePolicy,
+        competitionControlTimeMinutes = state.controlTimeMinutes
+    )
+    var showControlTimeError by remember { mutableStateOf(false) }
+
+    // Сменили дистанцию на дистанцию с баллами — подставляем умолчания штрафа, если поля пусты.
+    LaunchedEffect(isScoreO) {
+        if (isScoreO) {
+            if (scorePenaltyPerMinute.isEmpty()) scorePenaltyPerMinute = "1"
+            if (maxLatenessMinutes.isEmpty()) maxLatenessMinutes = "30"
+        }
     }
 
     // Реквизиторы фокуса
@@ -218,20 +238,26 @@ fun ParticipantGroupEditor(
 
                 DSTextInput(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Контрольное время (мин)") },
+                    label = { Text(if (isControlTimeRequired) "Контрольное время (мин) *" else "Контрольное время (мин)") },
                     supportingText = {
                         Text(
-                            if (state.controlTimeMinutes != null) {
-                                "Пусто — как у соревнования: ${state.controlTimeMinutes} мин"
-                            } else {
-                                "Через сколько минут после старта нужно финишировать"
+                            when {
+                                state.controlTimeMinutes != null ->
+                                    "Пусто — как у соревнования: ${state.controlTimeMinutes} мин"
+                                isControlTimeRequired ->
+                                    "Обязательно: на дистанции «по выбору» по баллам штраф начисляется после КВ"
+                                else -> "Через сколько минут после старта нужно финишировать"
                             }
                         )
                     },
+                    isError = showControlTimeError && isControlTimeRequired,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     text = timeLimitMinutes,
-                    onValueChanged = { timeLimitMinutes = it.filter { c -> c.isDigit() } }
+                    onValueChanged = {
+                        timeLimitMinutes = it.filter { c -> c.isDigit() }
+                        showControlTimeError = false
+                    }
                 )
 
                 state.teamScoring?.let { teamScoring ->
@@ -289,6 +315,10 @@ fun ParticipantGroupEditor(
                     shape = RoundedCornerShape(Dimens.SIZE_BASE.dp),
                     enabled = groupTitle.isNotBlank(),
                     onClick = {
+                        if (isControlTimeRequired && (timeLimitMinutes.toIntOrNull() ?: 0) <= 0) {
+                            showControlTimeError = true
+                            return@Button
+                        }
                         userAction.invoke(
                             OrienteeringCreatorAction.CreateParticipantGroup(
                                 participantGroup = ParticipantGroup(

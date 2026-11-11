@@ -25,6 +25,10 @@ import com.competra.domain.models.orienteering.PunchingSystem
 import com.competra.domain.models.orienteering.TeamScoring
 import com.competra.domain.models.orienteering.TeamScoringMethod
 import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.forTimeCourses
+import com.competra.center.data.creator.hasScoreCourses
+import com.competra.center.data.creator.groupsWithoutControlTime
+import com.competra.center.data.creator.isMixedFormat
 import com.competra.domain.models.orienteering.RegistrationEndMode
 import com.competra.domain.models.orienteering.StartTimeMode
 import com.competra.domain.models.user.User
@@ -130,7 +134,7 @@ class OrienteeringCreatorViewModel(
                 } else {
                     updatedDistances[action.index] = action.distance
                     viewModelScope.launch {
-                        orienteeringCompetitionInteractor.updateDistance(action.distance, silent = true)
+                        orienteeringCompetitionInteractor.updateDistanceAndRanks(action.distance, silent = true)
                             .onFailure { error ->
                                 Log.e("OrienteeringCreatorVM", "updateDistance failed", error)
                                 handleFailure(error)
@@ -141,7 +145,7 @@ class OrienteeringCreatorViewModel(
                     copy(
                         distances = updatedDistances,
                         isShowDistanceCreateDialog = false
-                    )
+                    ).withValidOvertimePolicy()
                 }
             }
 
@@ -306,7 +310,11 @@ class OrienteeringCreatorViewModel(
             }
 
             is OrienteeringCreatorAction.UpdateOvertimePolicy -> updateState {
-                copy(overtimePolicy = action.policy)
+                if (action.forScoreCourses) {
+                    copy(scoreOvertimePolicy = action.policy)
+                } else {
+                    copy(timeOvertimePolicy = action.policy.forTimeCourses())
+                }
             }
 
             is OrienteeringCreatorAction.UpdateStartInterval -> updateState {
@@ -451,7 +459,7 @@ class OrienteeringCreatorViewModel(
                     orienteeringCompetitionInteractor.saveDistance(course, silent = true)
                         .onSuccess { added++ }
                 } else {
-                    orienteeringCompetitionInteractor.updateDistance(
+                    orienteeringCompetitionInteractor.updateDistanceAndRanks(
                         course.copy(
                             id = existing.id,
                             remoteId = existing.remoteId,
@@ -639,7 +647,8 @@ class OrienteeringCreatorViewModel(
                     countdownTimer = comp.countdownTimer,
                     startIntervalSeconds = comp.startIntervalSeconds,
                     controlTimeMinutes = comp.controlTimeMinutes,
-                    overtimePolicy = comp.overtimePolicy,
+                    timeOvertimePolicy = comp.timeOvertimePolicy,
+                    scoreOvertimePolicy = comp.scoreOvertimePolicy,
                     byChoiceMode = comp.byChoiceMode,
                     teamScoring = comp.teamScoring,
                     isFinishRegistration = comp.isFinishRegistration,
@@ -823,6 +832,15 @@ class OrienteeringCreatorViewModel(
      * Выполняет переход на главный экран раздела "Центр" с очисткой навигационного стека.
      */
     fun finishCreation() {
+        // Без КВ штраф на дистанции «по выбору» по баллам не начислится — такие группы не пропускаем.
+        val withoutControlTime = stateValue.groupsWithoutControlTime
+        if (withoutControlTime.isNotEmpty()) {
+            updateState {
+                copy(message = "Задайте контрольное время ${if (withoutControlTime.size == 1) "группе" else "группам"} " +
+                    withoutControlTime.joinToString { it.title } + " или соревнованию")
+            }
+            return
+        }
         updateState { copy(isLoading = true) }
         viewModelScope.launch(Dispatchers.IO) {
             loadingRepository.emit(true)
@@ -853,6 +871,7 @@ class OrienteeringCreatorViewModel(
                             format = competition.analyticsFormat(),
                             teamScoring = competition.teamScoring.analyticsValue(),
                             isFinishRegistration = competition.isFinishRegistration,
+                            mixedFormat = stateValue.isMixedFormat,
                         )
                     )
                     // Загружаем дистанции из локальной БД и помечаем их unsynced —
@@ -1051,17 +1070,16 @@ class OrienteeringCreatorViewModel(
 }
 
 /**
- * Приводит зависящие от формата настройки к допустимым: штраф очками есть только в score-О, а
- * командный зачёт по времени в score-О недоступен (места там по баллам). Без этого при смене
- * направления или режима «по выбору» в состоянии остался бы выбор, невидимый в селекторе.
+ * Приводит зависящие от формата настройки к допустимым: штраф очками есть только у дистанций с
+ * баллами, а командный зачёт по времени недоступен, если хоть одна дистанция ранжируется по баллам.
+ * Без этого при смене формата соревнования или дистанции в состоянии остался бы выбор, невидимый
+ * в селекторе.
  */
 private fun OrienteeringCreatorState.withValidOvertimePolicy(): OrienteeringCreatorState {
-    val isScoreO = ranksByScore(competitionDirection, byChoiceMode)
-    val policy = if (overtimePolicy == OvertimePolicy.SCORE_PENALTY && !isScoreO) OvertimePolicy.DEFAULT else overtimePolicy
     val team = teamScoring?.let {
-        if (isScoreO && it.groupMethod == TeamScoringMethod.TIME) it.copy(groupMethod = TeamScoringMethod.POINTS) else it
+        if (hasScoreCourses && it.groupMethod == TeamScoringMethod.TIME) it.copy(groupMethod = TeamScoringMethod.POINTS) else it
     }
-    return copy(overtimePolicy = policy, teamScoring = team)
+    return copy(timeOvertimePolicy = timeOvertimePolicy.forTimeCourses(), teamScoring = team)
 }
 
 /** Командный зачёт для аналитики: none / groups / both (общие зачёты всегда строятся из зачётов в группах). */

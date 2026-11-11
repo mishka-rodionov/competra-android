@@ -1,6 +1,7 @@
 package com.competra.center.presentation.group_splits
 
 import androidx.lifecycle.viewModelScope
+import com.competra.domain.models.orienteering.effectiveFormat
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.center.data.group_splits.GroupSplitsTableState
@@ -33,16 +34,18 @@ class GroupSplitsTableViewModel(
                 return@launch
             }
 
-            val direction = competition?.direction ?: OrienteeringDirection.FORWARD
-            val sortedGroup = group.copy(participants = group.participants.sortedForResults(direction))
             val distance = interactor.getDistanceById(group.group.distanceId).getOrNull()
+            // Формат группы — по её дистанции, иначе соревнования.
+            val format = distance.effectiveFormat(competition)
+            val direction = format.direction
+            val sortedGroup = group.copy(participants = group.participants.sortedForResults(format))
             val table = buildSplitsTable(sortedGroup, distance, direction)
             updateState {
                 copy(
                     groupTitle = sortedGroup.group.title,
                     table = table,
                     direction = direction,
-                    byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                    byChoiceMode = format.byChoiceMode,
                     isLoading = false
                 )
             }

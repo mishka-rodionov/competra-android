@@ -104,8 +104,10 @@ data class OrienteeringCreatorState(
     val startIntervalSeconds: Int? = null,
     /** Контрольное время соревнования в минутах (null — не задано); умолчание для групп. */
     val controlTimeMinutes: Int? = null,
-    /** Что делать с результатами, превысившими КВ. */
-    val overtimePolicy: OvertimePolicy = OvertimePolicy.DEFAULT,
+    /** Что делать с превысившими КВ на дистанциях, где места по времени. */
+    val timeOvertimePolicy: OvertimePolicy = OvertimePolicy.IGNORE,
+    /** Что делать с превысившими КВ на дистанциях с баллами (score-О). */
+    val scoreOvertimePolicy: OvertimePolicy = OvertimePolicy.SCORE_PENALTY,
     /** Итог формата «по выбору»: по баллам или по минимуму КП (только для BY_CHOICE). */
     val byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
     /** Настройки командного зачёта; null — зачёта нет. */
@@ -195,7 +197,8 @@ data class OrienteeringCreatorState(
             startTime = loadedCompetition?.startTime,
             startIntervalSeconds = startIntervalSeconds,
             controlTimeMinutes = controlTimeMinutes,
-            overtimePolicy = overtimePolicy,
+            timeOvertimePolicy = timeOvertimePolicy,
+            scoreOvertimePolicy = scoreOvertimePolicy,
             byChoiceMode = byChoiceMode,
             teamScoring = teamScoring,
             isFinishRegistration = isFinishRegistration
@@ -207,3 +210,35 @@ data class OrienteeringCreatorState(
 private fun defaultStartDate(): Long =
     java.time.LocalDate.now().plusDays(1).atTime(10, 0)
         .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+/** Формат соревнования по умолчанию, выбранный в мастере. */
+val OrienteeringCreatorState.defaultFormat: CourseFormat
+    get() = CourseFormat(competitionDirection, byChoiceMode)
+
+/** Эффективные форматы соревнования: формат по умолчанию (для групп без дистанции) и форматы дистанций. */
+private val OrienteeringCreatorState.courseFormats: List<CourseFormat>
+    get() = listOf(defaultFormat) + distances.filterNot { it.isDeleted }.map { it.effectiveFormat(defaultFormat) }
+
+/** Есть ли дистанции (или формат по умолчанию), где места считаются по баллам. */
+val OrienteeringCreatorState.hasScoreCourses: Boolean
+    get() = courseFormats.any { it.ranksByScore }
+
+/** Есть ли дистанции (или формат по умолчанию), где места считаются по времени. */
+val OrienteeringCreatorState.hasTimeCourses: Boolean
+    get() = courseFormats.any { !it.ranksByScore }
+
+/** У какой-то дистанции формат отличается от формата соревнования — для аналитики и подписей. */
+val OrienteeringCreatorState.isMixedFormat: Boolean
+    get() = distances.filterNot { it.isDeleted }.isMixedFormat(defaultFormat)
+
+/**
+ * Группы, которым нужно своё КВ, а его нет: дистанция с баллами со штрафом очками при пустом КВ
+ * соревнования (см. withoutRequiredControlTime). С ними мастер не завершается.
+ */
+val OrienteeringCreatorState.groupsWithoutControlTime: List<ParticipantGroup>
+    get() = participantGroups.withoutRequiredControlTime(
+        distances = distances.filterNot { it.isDeleted },
+        competitionFormat = defaultFormat,
+        scoreOvertimePolicy = scoreOvertimePolicy,
+        competitionControlTimeMinutes = controlTimeMinutes
+    )

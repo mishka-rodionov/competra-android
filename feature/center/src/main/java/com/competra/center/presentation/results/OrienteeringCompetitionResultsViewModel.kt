@@ -17,7 +17,7 @@ import com.competra.domain.models.ResultStatus
 import com.competra.domain.models.orienteering.TeamStandings
 import com.competra.domain.models.orienteering.TeamOverallScope
 import com.competra.domain.models.orienteering.computeTeamStandings
-import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.GroupFormats
 import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.CompetitionStatus
 import com.competra.domain.models.orienteering.Distance
@@ -84,9 +84,14 @@ class OrienteeringCompetitionResultsViewModel(
                 val competition = orienteeringCompetitionInteractor.getCompetition(id)
                 val results = orienteeringCompetitionInteractor.getResultsByGroupsAuto(id)
 
-                val direction = competition?.direction ?: OrienteeringDirection.FORWARD
+                // Формат — у каждой группы свой (по её дистанции): от него зависят сортировка и вид строк.
+                val formats = GroupFormats.of(
+                    competition = competition,
+                    groups = results.map { it.group },
+                    distances = orienteeringCompetitionInteractor.getDistances(id).getOrNull().orEmpty()
+                )
                 val sortedResults = results.map { group ->
-                    group.copy(participants = group.participants.sortedForResults(direction))
+                    group.copy(participants = group.participants.sortedForResults(formats.of(group.group.groupId)))
                 }
                 val isApproved = sortedResults.isNotEmpty() &&
                     sortedResults.all { group -> group.participants.all { it.result?.isEditable == false } }
@@ -95,8 +100,7 @@ class OrienteeringCompetitionResultsViewModel(
                 updateState {
                     copy(
                         groupsWithParticipantsAndResults = sortedResults,
-                        direction = direction,
-                        byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                        formats = formats,
                         teamStandings = competition?.teamScoring?.let { computeTeamStandings(it, sortedResults) },
                         isApproved = isApproved,
                         isCompetitionFinished = isCompetitionFinished,
@@ -236,7 +240,7 @@ class OrienteeringCompetitionResultsViewModel(
         if (groups.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             val title = stateValue.competitionTitle
-            val csv = buildCsvContent(title, groups, stateValue.direction, loadDistancesByGroupId(groups))
+            val csv = buildCsvContent(title, groups, stateValue.formats, loadDistancesByGroupId(groups))
             val fileName = buildSafeFileName(title)
             _exportCsvEvent.emit(fileName to csv)
         }
@@ -247,7 +251,7 @@ class OrienteeringCompetitionResultsViewModel(
         if (groups.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             val title = stateValue.competitionTitle
-            val bytes = buildPdfBytes(title, groups, stateValue.direction, loadDistancesByGroupId(groups))
+            val bytes = buildPdfBytes(title, groups, stateValue.formats, loadDistancesByGroupId(groups))
             val fileName = buildSafeFileName(title).replace(".csv", ".pdf")
             _exportPdfEvent.emit(fileName to bytes)
         }
@@ -270,16 +274,21 @@ class OrienteeringCompetitionResultsViewModel(
     private fun buildCsvContent(
         title: String,
         groups: List<GroupWithParticipantsAndResults>,
-        direction: OrienteeringDirection,
+        formats: GroupFormats,
         distancesByGroupId: Map<Long, Distance?>,
     ): String {
-        val isByChoice = direction == OrienteeringDirection.BY_CHOICE
         val sb = StringBuilder("﻿") // UTF-8 BOM для корректного открытия в Excel
         if (title.isNotEmpty()) {
             sb.appendLine("Соревнование: $title")
             sb.appendLine()
         }
         groups.forEach { group ->
+            // Формат — у каждой группы свой (по её дистанции).
+            val direction = formats.of(group.group.groupId).direction
+            val isByChoice = direction == OrienteeringDirection.BY_CHOICE
+            // Баллы и отставание внутри равных по баллам — только в score-О; «по выбору» с минимумом
+            // КП, как и остальные форматы, — время и отставание от лидера.
+            val showsScore = formats.of(group.group.groupId).ranksByScore
             val table = buildSplitsTable(group, distancesByGroupId[group.group.groupId], direction)
             val cpOrder = table.columns.map { it.controlPoint }
 
@@ -346,10 +355,9 @@ class OrienteeringCompetitionResultsViewModel(
     private fun buildPdfBytes(
         title: String,
         groups: List<GroupWithParticipantsAndResults>,
-        direction: OrienteeringDirection,
+        formats: GroupFormats,
         distancesByGroupId: Map<Long, Distance?>,
     ): ByteArray {
-        val isByChoice = direction == OrienteeringDirection.BY_CHOICE
         val document = PdfDocument()
         val pW = 595; val pH = 842
         val margin = 36f
@@ -382,6 +390,12 @@ class OrienteeringCompetitionResultsViewModel(
         }
 
         groups.forEach { group ->
+            // Формат — у каждой группы свой (по её дистанции).
+            val direction = formats.of(group.group.groupId).direction
+            val isByChoice = direction == OrienteeringDirection.BY_CHOICE
+            // Баллы и отставание внутри равных по баллам — только в score-О; «по выбору» с минимумом
+            // КП, как и остальные форматы, — время и отставание от лидера.
+            val showsScore = formats.of(group.group.groupId).ranksByScore
             val table = buildSplitsTable(group, distancesByGroupId[group.group.groupId], direction)
             val cpOrder = table.columns.map { it.controlPoint }
 
@@ -457,7 +471,7 @@ class OrienteeringCompetitionResultsViewModel(
             // надёжно из totalScore/scorePenalty (при обнулении баллов за сильное опоздание
             // totalScore=0, а scorePenalty может быть больше фактически заработанных баллов).
             val distancesByGroupId = loadDistancesByGroupId(groups)
-            val html = buildHtmlContent(title, groups, stateValue.direction, stateValue.byChoiceMode, distancesByGroupId) +
+            val html = buildHtmlContent(title, groups, stateValue.formats, distancesByGroupId) +
                 stateValue.teamStandings?.let(::buildTeamStandingsHtml).orEmpty()
             val bytes = html.toByteArray(Charsets.UTF_8)
             uploadRepository.uploadFile(bytes, "results.html", "competition_results")
@@ -510,14 +524,9 @@ class OrienteeringCompetitionResultsViewModel(
     private fun buildHtmlContent(
         title: String,
         groups: List<GroupWithParticipantsAndResults>,
-        direction: OrienteeringDirection = OrienteeringDirection.FORWARD,
-        byChoiceMode: ByChoiceMode = ByChoiceMode.DEFAULT,
+        formats: GroupFormats = GroupFormats(),
         distancesByGroupId: Map<Long, Distance?> = emptyMap()
     ): String {
-        val isByChoice = direction == OrienteeringDirection.BY_CHOICE
-        // Баллы и отставание внутри равных по баллам — только в score-О; «по выбору» с минимумом
-        // КП, как и остальные форматы, — время и отставание от лидера.
-        val showsScore = ranksByScore(direction, byChoiceMode)
         val sb = StringBuilder()
         sb.append(
             """<!DOCTYPE html>
@@ -548,6 +557,12 @@ span.group  {font-family: 'Arial Narrow';font-size: 12pt;font-weight: bold;}
         }
 
         groups.forEachIndexed { groupIndex, group ->
+            // Формат — у каждой группы свой (по её дистанции).
+            val direction = formats.of(group.group.groupId).direction
+            val isByChoice = direction == OrienteeringDirection.BY_CHOICE
+            // Баллы и отставание внутри равных по баллам — только в score-О; «по выбору» с минимумом
+            // КП, как и остальные форматы, — время и отставание от лидера.
+            val showsScore = formats.of(group.group.groupId).ranksByScore
             val table = buildSplitsTable(group, distancesByGroupId[group.group.groupId], direction)
             // Для BY_CHOICE у каждого участника свой набор и порядок КП — общий cpOrder по
             // дистанции не имеет смысла. Колонки строятся по позиции (1..максимум сплитов

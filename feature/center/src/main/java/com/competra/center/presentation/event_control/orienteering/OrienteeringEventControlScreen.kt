@@ -29,6 +29,7 @@ import androidx.window.core.layout.WindowSizeClass
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import com.competra.center.presentation.common.GroupsWithoutDistanceBanner
+import com.competra.center.presentation.common.GroupsWithoutControlTimeBanner
 import com.competra.center.presentation.common.RefreshStatusBar
 import com.competra.designsystem.components.DSBottomDialog
 import com.competra.designsystem.components.DSTextInput
@@ -125,6 +126,14 @@ private fun OrienteeringEventControlScreenContent(
                 RefreshStatusBar(state = state.refresh)
 
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+
+                if (!state.isFinished && state.groupsWithoutControlTime.isNotEmpty()) {
+                    GroupsWithoutControlTimeBanner(
+                        titles = state.groupsWithoutControlTime,
+                        hint = "Задайте КВ в редактировании соревнования — у групп (шаг «Группы») или у всего соревнования."
+                    )
+                    Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                }
 
                 if (!state.isFinished && state.groupsWithoutDistance.isNotEmpty()) {
                     GroupsWithoutDistanceBanner(

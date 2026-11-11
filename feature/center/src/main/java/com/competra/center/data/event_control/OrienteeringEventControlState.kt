@@ -44,6 +44,8 @@ data class OrienteeringEventControlState(
     val isShowCloseRegistrationDialog: Boolean = false,
     val pendingLinkRequests: Int? = null,
     val groupsWithoutDistance: List<String> = emptyList(),
+    /** Группы, которым нужно своё КВ (дистанция с баллами со штрафом, у соревнования КВ нет). */
+    val groupsWithoutControlTime: List<String> = emptyList(),
     /** Неразобранные считывания незнакомых чипов (режим «Регистрация на финише»). */
     val unassignedReadsCount: Int = 0,
     val refresh: RemoteRefreshState = RemoteRefreshState()

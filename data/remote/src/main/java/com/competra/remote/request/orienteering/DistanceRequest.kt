@@ -41,6 +41,15 @@ data class DistanceRequest(
     /** Минимум КП: N > 0 — минимум, 0 — все КП, null — сервер значение не меняет. */
     @SerializedName("minControlsCount")
     val minControlsCount: Int? = null,
+    /** Направление дистанции (FORWARD / BY_CHOICE / MARKING), [INHERIT_FORMAT] — как у соревнования; null — не менять. */
+    @SerializedName("direction")
+    val direction: String? = null,
+    /** Режим «по выбору» дистанции (SCORE / MIN_CONTROLS), [INHERIT_FORMAT] — как у соревнования; null — не менять. */
+    @SerializedName("byChoiceMode")
+    val byChoiceMode: String? = null,
     @SerializedName("serverUpdatedAt")
     val serverUpdatedAt: Long? = null
 )
+
+/** Значение формата дистанции в запросе «как у соревнования» (на сервере — null). */
+const val INHERIT_FORMAT = "INHERIT"

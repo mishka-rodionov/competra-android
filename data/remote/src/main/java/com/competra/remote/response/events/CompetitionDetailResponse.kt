@@ -15,6 +15,10 @@ data class ParticipantGroupDetailResponse(
     @SerializedName("distanceDescription") val distanceDescription: String? = null,
     /** Итоговое КВ группы: своё значение группы либо унаследованное от соревнования. */
     @SerializedName("controlTimeMinutes") val controlTimeMinutes: Int? = null,
+    /** Эффективное направление группы (по её дистанции); null — сервер до формата на дистанции. */
+    @SerializedName("direction") val direction: String? = null,
+    /** Эффективный режим «по выбору» группы. */
+    @SerializedName("byChoiceMode") val byChoiceMode: String? = null,
     @SerializedName("gender") val gender: String? = null,
     @SerializedName("minAge") val minAge: Int? = null,
     @SerializedName("maxAge") val maxAge: Int? = null
@@ -52,6 +56,10 @@ data class CompetitionDetailResponse(
     @SerializedName("resultsStatus") val resultsStatus: String,
     /** IGNORE / DISQUALIFY / SCORE_PENALTY — как соревнование обходится с превышением КВ. */
     @SerializedName("overtimePolicy") val overtimePolicy: String? = null,
+    /** Политика КВ для дистанций по времени; null — сервер до формата на дистанции. */
+    @SerializedName("timeOvertimePolicy") val timeOvertimePolicy: String? = null,
+    /** Политика КВ для дистанций с баллами. */
+    @SerializedName("scoreOvertimePolicy") val scoreOvertimePolicy: String? = null,
     @SerializedName("participantGroups") val participantGroups: List<ParticipantGroupDetailResponse>,
     @SerializedName("isUserRegistered") val isUserRegistered: Boolean = false,
     /** Пользователь из Bearer-токена — организатор соревнования (любая роль). */

@@ -1,6 +1,7 @@
 package com.competra.center.presentation.race_graph
 
 import androidx.lifecycle.viewModelScope
+import com.competra.domain.models.orienteering.effectiveFormat
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
 import com.competra.center.data.interactors.OrienteeringCompetitionInteractor
@@ -34,7 +35,9 @@ class RaceGraphViewModel(
                 return@launch
             }
 
-            val direction = competition?.direction ?: OrienteeringDirection.FORWARD
+            // Формат группы — по её дистанции, иначе соревнования.
+            val format = interactor.getDistanceById(group.group.distanceId).getOrNull().effectiveFormat(competition)
+            val direction = format.direction
             val sortedGroup = group.copy(participants = group.participants.sortedForResults(direction))
             val table = buildSplitsTable(sortedGroup)
             val raceGraphData = buildRaceGraphData(table)

@@ -41,6 +41,8 @@ import com.competra.designsystem.components.TimePickerDialog
 import com.competra.designsystem.theme.Dimens
 import com.competra.center.data.creator.OrienteeringCreatorAction
 import com.competra.center.data.creator.OrienteeringCreatorState
+import com.competra.center.data.creator.hasScoreCourses
+import com.competra.center.data.creator.hasTimeCourses
 import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringDirection
 import com.competra.domain.models.orienteering.ranksByScore
@@ -334,7 +336,7 @@ private fun CommonCompetitionFieldContent(
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
 
             OrienteeringCompetitionDirection(state = state, userAction = onAction)
-            FieldDescription("Тип ориентирования: в заданном направлении, по выбору или маркированная трасса")
+            FieldDescription("Тип ориентирования: в заданном направлении или по выбору. Можно изменить для отдельной дистанции")
             if (state.competitionDirection == OrienteeringDirection.BY_CHOICE) {
                 Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
                 ByChoiceModeSelector(state = state, userAction = onAction)
@@ -363,7 +365,7 @@ private fun CommonCompetitionFieldContent(
             Spacer(modifier = Modifier.height(Dimens.SIZE_BASE.dp))
             TeamScoringBlock(
                 teamScoring = state.teamScoring,
-                isScoreO = ranksByScore(state.competitionDirection, state.byChoiceMode),
+                isScoreO = state.hasScoreCourses,
                 onChange = { onAction(OrienteeringCreatorAction.UpdateTeamScoring(it)) }
             )
 
@@ -501,7 +503,11 @@ private fun OrienteeringCompetitionDirection(
     val context = LocalContext.current
     ExposedDropdownMenuOutlined(
         label = stringResource(R.string.label_direction),
-        items = OrienteeringDirection.entries,
+        // Маркированная трасса пока не поддержана — предлагаем её, только если она уже выбрана
+        // (соревнование, созданное раньше).
+        items = OrienteeringDirection.entries.filter {
+            it != OrienteeringDirection.MARKING || it == state.competitionDirection
+        },
         selectedItem = state.competitionDirection,
         onItemSelected = {
             userAction.invoke(OrienteeringCreatorAction.UpdateCompetitionDirection(it))
@@ -679,21 +685,19 @@ private fun PunchingSystemSelector(
  * Контрольное время (КВ) соревнования и политика его применения.
  *
  * КВ здесь — умолчание для всех групп; группа может переопределить его своим значением
- * (см. ParticipantGroupCreator). Селектор политики показывается только когда КВ задано:
- * без КВ выбирать нечего.
+ * (см. ParticipantGroupCreator). Селектор политики для дистанций по времени показывается только
+ * когда КВ соревнования задано. Для дистанций с баллами — всегда: там КВ часто задают только у
+ * групп, а политика (штраф очками) нужна и им.
  */
 @Composable
 private fun ControlTimeBlock(
     state: OrienteeringCreatorState,
     userAction: (OrienteeringCreatorAction) -> Unit
 ) {
-    val policies = if (ranksByScore(state.competitionDirection, state.byChoiceMode)) {
-        OvertimePolicy.entries
-    } else {
-        // Штраф очками осмыслен только в score-О: в остальных форматах, в т.ч. «по выбору»
-        // с минимумом КП, очков нет.
-        OvertimePolicy.entries.filter { it != OvertimePolicy.SCORE_PENALTY }
-    }
+    // Политика — по виду дистанции: у дистанций по времени и с баллами она своя. Селектор каждого
+    // вида показывается, только если в соревновании есть дистанции этого вида (или он у формата
+    // по умолчанию); подпись уточняет вид, когда видны оба.
+    val showsBoth = state.hasTimeCourses && state.hasScoreCourses
 
     Column {
         DSTextInput(
@@ -710,33 +714,64 @@ private fun ControlTimeBlock(
         )
         FieldDescription("За сколько минут участник должен уложиться. Группа может задать своё КВ")
 
-        if (state.controlTimeMinutes != null) {
-            Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
-            ExposedDropdownMenuOutlined(
-                label = "При превышении КВ",
-                items = policies,
-                selectedItem = state.overtimePolicy,
-                onItemSelected = { userAction.invoke(OrienteeringCreatorAction.UpdateOvertimePolicy(it)) },
-                itemToString = {
-                    when (it) {
-                        OvertimePolicy.IGNORE -> "Не учитывать"
-                        OvertimePolicy.DISQUALIFY -> "Дисквалифицировать"
-                        OvertimePolicy.SCORE_PENALTY -> "Штраф очками"
-                    }
+        if (state.controlTimeMinutes != null || state.hasScoreCourses) {
+            if (state.hasTimeCourses && state.controlTimeMinutes != null) {
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                OvertimePolicySelector(
+                    label = if (showsBoth) "При превышении КВ — дистанции по времени" else "При превышении КВ",
+                    // Штраф очками осмыслен только у дистанций с баллами.
+                    policies = OvertimePolicy.entries.filter { it != OvertimePolicy.SCORE_PENALTY },
+                    selected = state.timeOvertimePolicy,
+                    onSelected = { userAction.invoke(OrienteeringCreatorAction.UpdateOvertimePolicy(it, forScoreCourses = false)) }
+                )
+            }
+            if (state.hasScoreCourses) {
+                Spacer(modifier = Modifier.height(Dimens.SIZE_HALF.dp))
+                if (state.controlTimeMinutes == null) {
+                    FieldDescription("Применяется к КВ групп. Со штрафом очками КВ нужно задать каждой группе на дистанции с баллами")
                 }
-            )
-            FieldDescription(
-                when (state.overtimePolicy) {
-                    OvertimePolicy.IGNORE ->
-                        "КВ показывается участникам, но результаты засчитываются всем"
-                    OvertimePolicy.DISQUALIFY ->
-                        "Превысившие КВ снимаются и не получают места"
-                    OvertimePolicy.SCORE_PENALTY ->
-                        "Опоздание штрафуется очками — настраивается у каждой группы"
-                }
-            )
+                OvertimePolicySelector(
+                    label = if (showsBoth) "При превышении КВ — дистанции с баллами" else "При превышении КВ",
+                    policies = OvertimePolicy.entries,
+                    selected = state.scoreOvertimePolicy,
+                    onSelected = { userAction.invoke(OrienteeringCreatorAction.UpdateOvertimePolicy(it, forScoreCourses = true)) }
+                )
+            }
         }
     }
+}
+
+/** Селектор политики превышения КВ с пояснением выбранного варианта. */
+@Composable
+private fun OvertimePolicySelector(
+    label: String,
+    policies: List<OvertimePolicy>,
+    selected: OvertimePolicy,
+    onSelected: (OvertimePolicy) -> Unit
+) {
+    ExposedDropdownMenuOutlined(
+        label = label,
+        items = policies,
+        selectedItem = selected,
+        onItemSelected = onSelected,
+        itemToString = {
+            when (it) {
+                OvertimePolicy.IGNORE -> "Не учитывать"
+                OvertimePolicy.DISQUALIFY -> "Дисквалифицировать"
+                OvertimePolicy.SCORE_PENALTY -> "Штраф очками"
+            }
+        }
+    )
+    FieldDescription(
+        when (selected) {
+            OvertimePolicy.IGNORE ->
+                "КВ показывается участникам, но результаты засчитываются всем"
+            OvertimePolicy.DISQUALIFY ->
+                "Превысившие КВ снимаются и не получают места"
+            OvertimePolicy.SCORE_PENALTY ->
+                "Опоздание штрафуется очками — настраивается у каждой группы"
+        }
+    )
 }
 
 @Composable

@@ -9,7 +9,12 @@ import com.competra.domain.models.cyclic_event.RegistrationTeamOption
 import com.competra.domain.models.cyclic_event.RegistrationTeamOptions
 import com.competra.domain.models.events.EventStatus
 import com.competra.domain.models.events.EventType
+import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.OrienteeringParticipant
+import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.OrienteeringDirection
+import com.competra.remote.response.events.CompetitionDetailResponse
+import com.competra.remote.response.events.ParticipantGroupDetailResponse
 import com.competra.domain.models.orienteering.ResultsStatus
 import com.competra.domain.repository.events.CyclicEventDetailsRepository
 import com.competra.remote.datasource.events.CyclicEventDetailsRemoteDataSource
@@ -68,7 +73,7 @@ class CyclicEventDetailsRepositoryImpl(
                                 distanceControlsCount = group.distanceControlsCount,
                                 distanceDescription = group.distanceDescription,
                                 controlTimeMinutes = group.controlTimeMinutes,
-                                overtimePolicy = dto.overtimePolicy,
+                                overtimePolicy = groupOvertimePolicy(dto, group),
                                 gender = group.gender,
                                 minAge = group.minAge,
                                 maxAge = group.maxAge
@@ -199,4 +204,14 @@ class CyclicEventDetailsRepositoryImpl(
     } catch (e: IllegalArgumentException) {
         ResultsStatus.NOT_PUBLISHED
     }
+}
+
+/**
+ * Политика КВ группы: у формата на дистанции она своя для дистанций по времени и по баллам. Старый
+ * сервер (без эффективного формата группы и новых политик) — политика соревнования.
+ */
+private fun groupOvertimePolicy(dto: CompetitionDetailResponse, group: ParticipantGroupDetailResponse): String? {
+    val direction = OrienteeringDirection.entries.firstOrNull { it.name == group.direction } ?: return dto.overtimePolicy
+    val byScore = ranksByScore(direction, ByChoiceMode.fromString(group.byChoiceMode))
+    return (if (byScore) dto.scoreOvertimePolicy else dto.timeOvertimePolicy) ?: dto.overtimePolicy
 }

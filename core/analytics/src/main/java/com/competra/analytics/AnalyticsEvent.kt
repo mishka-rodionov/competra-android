@@ -180,6 +180,7 @@ sealed class AnalyticsEvent(
         format: String,
         teamScoring: String,
         isFinishRegistration: Boolean,
+        mixedFormat: Boolean,
     ) : AnalyticsEvent(
         "create_competition_finished",
         mapOf(
@@ -188,6 +189,7 @@ sealed class AnalyticsEvent(
             "format" to format,
             "team_scoring" to teamScoring,
             "is_finish_registration" to isFinishRegistration,
+            "mixed_format" to mixedFormat,
         ),
     )
 

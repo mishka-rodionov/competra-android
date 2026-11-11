@@ -323,11 +323,12 @@ fun OrienteeringCompetitionResultsScreen(
                             // определяется по сумме баллов, а не по времени на перегонах).
                             // В «по выбору» с минимумом КП нет ни баллов, ни общего порядка —
                             // графика нет.
-                            if (state.direction != OrienteeringDirection.BY_CHOICE ||
-                                state.byChoiceMode == ByChoiceMode.SCORE
+                            val groupFormat = state.formats.of(groupWithResults.group.groupId)
+                            if (groupFormat.direction != OrienteeringDirection.BY_CHOICE ||
+                                groupFormat.byChoiceMode == ByChoiceMode.SCORE
                             ) TextButton(
                                 onClick = {
-                                    val action = if (state.direction == OrienteeringDirection.BY_CHOICE) {
+                                    val action = if (groupFormat.direction == OrienteeringDirection.BY_CHOICE) {
                                         OrienteeringCompetitionResultsViewModel.OrienteeringResultsAction.OpenScoreGraph(
                                             groupWithResults.group.groupId
                                         )
@@ -344,15 +345,16 @@ fun OrienteeringCompetitionResultsScreen(
                         }
                     }
                     items(groupWithResults.participants) { participantWithResult ->
+                        val groupFormat = state.formats.of(groupWithResults.group.groupId)
                         ResultParticipantCard(
                             result = participantWithResult,
-                            direction = state.direction,
-                            byChoiceMode = state.byChoiceMode,
+                            direction = groupFormat.direction,
+                            byChoiceMode = groupFormat.byChoiceMode,
                             onEditClick = {
                                 selectedParticipant = participantWithResult
                                 showBottomSheet = true
                             },
-                            onCardClick = if (state.direction == OrienteeringDirection.BY_CHOICE) {
+                            onCardClick = if (groupFormat.direction == OrienteeringDirection.BY_CHOICE) {
                                 null
                             } else {
                                 {

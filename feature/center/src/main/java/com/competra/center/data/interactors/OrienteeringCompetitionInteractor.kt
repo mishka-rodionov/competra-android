@@ -6,6 +6,11 @@ import com.competra.domain.models.orienteering.ByChoiceMode
 import com.competra.domain.models.orienteering.NO_DISTANCE_ID
 import com.competra.domain.models.orienteering.competitionRanks
 import com.competra.domain.models.orienteering.ranksByScore
+import com.competra.domain.models.orienteering.CourseFormat
+import com.competra.domain.models.orienteering.NO_DISTANCE_ID
+import com.competra.domain.models.orienteering.defaultFormat
+import com.competra.domain.models.orienteering.effectiveFormat
+import com.competra.domain.models.orienteering.overtimePolicyFor
 import com.competra.domain.models.orienteering.OrienteeringCompetition
 import com.competra.domain.models.ParticipantGroup
 import com.competra.domain.models.ResultStatus
@@ -289,10 +294,8 @@ class OrienteeringCompetitionInteractor(
     suspend fun recalculateGroupRanks(competitionId: String, groupId: Long) {
         val results = localRepository.getResultForGroup(competitionId, groupId).getOrNull().orEmpty()
         if (results.isEmpty()) return
-        val competition = localRepository.getCompetition(competitionId).getOrNull()
         val updated = results.withRecalculatedRanks(
-            direction = competition?.direction ?: OrienteeringDirection.FORWARD,
-            byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+            format = groupFormat(competitionId, groupId),
             outOfCompetitionIds = outOfCompetitionIds(competitionId)
         )
         localRepository.updateResults(updated)
@@ -441,9 +444,12 @@ class OrienteeringCompetitionInteractor(
     suspend fun applyControlTimeToStoredResults(competitionId: String) {
         val competition = localRepository.getCompetition(competitionId).getOrNull() ?: return
         val groups = localRepository.getResultByGroups(competitionId).getOrNull() ?: return
+        val distances = localRepository.getDistances(competitionId).getOrNull().orEmpty()
 
         val updated = groups.flatMap { groupData ->
             val controlTimeMinutes = effectiveControlTimeMinutes(groupData.group, competition)
+            // Формат и политика КВ — по дистанции группы (у соревнования может быть несколько форматов).
+            val format = groupData.group.effectiveFormat(distances, competition.defaultFormat)
             val results = groupData.participants.mapNotNull { it.result }
             val derived = results.map { result ->
                 // Ручной статус организатора («Снят» / «Засчитать») контрольное время не перетирает.
@@ -452,7 +458,7 @@ class OrienteeringCompetitionInteractor(
                     status = result.status,
                     totalTimeSeconds = result.totalTime,
                     controlTimeMinutes = controlTimeMinutes,
-                    policy = competition.overtimePolicy
+                    policy = competition.overtimePolicyFor(format)
                 )
                 if (status == result.status) {
                     result
@@ -463,16 +469,13 @@ class OrienteeringCompetitionInteractor(
                     )
                 }
             }
+            // Места пересчитываем всегда: смена формата дистанции меняет их и без смены статусов.
+            val reranked = derived.withRecalculatedRanks(
+                format,
+                groupData.participants.filter { it.participant.isOutOfCompetition }.mapTo(mutableSetOf()) { it.participant.id }
+            )
             // Ничего не поменялось — не трогаем БД: функция вызывается при каждом сохранении настроек.
-            if (derived == results) {
-                emptyList()
-            } else {
-                derived.withRecalculatedRanks(
-                    competition.direction,
-                    competition.byChoiceMode,
-                    groupData.participants.filter { it.participant.isOutOfCompetition }.mapTo(mutableSetOf()) { it.participant.id }
-                )
-            }
+            if (reranked.sortedBy { it.id } == results.sortedBy { it.id }) emptyList() else reranked
         }
 
         if (updated.isNotEmpty()) {
@@ -635,6 +638,24 @@ class OrienteeringCompetitionInteractor(
         return rankedFinished + unranked + others
     }
 
+    /** Обновляет места по формату [format] группы и возвращает отсортированный список. */
+    fun List<OrienteeringResult>.withRecalculatedRanks(
+        format: CourseFormat,
+        outOfCompetitionIds: Set<String> = emptySet()
+    ): List<OrienteeringResult> = withRecalculatedRanks(format.direction, format.byChoiceMode, outOfCompetitionIds)
+
+    /**
+     * Эффективный формат группы — по её дистанции, иначе формат соревнования (см. [CourseFormat]).
+     * Места и проверка отметок в группе считаются по нему.
+     */
+    suspend fun groupFormat(competitionId: String, groupId: Long): CourseFormat {
+        val competition = localRepository.getCompetition(competitionId).getOrNull()
+        val group = localRepository.getParticipantGroup(groupId).getOrNull()
+        val distance = group?.distanceId?.takeIf { it != NO_DISTANCE_ID }
+            ?.let { localRepository.getDistanceById(it).getOrNull() }
+        return distance.effectiveFormat(competition)
+    }
+
     /**
      * Расширение для списка OrienteeringResult - обновляет ранги и возвращает отсортированный список
      */
@@ -667,12 +688,9 @@ class OrienteeringCompetitionInteractor(
         // Объединяем с новыми
         val allResults = (currentResults + newResults).distinctBy { it.participantId }
 
-        val competition = localRepository.getCompetition(newResults.competitionId).getOrNull()
-
-        // Пересчитываем места
+        // Пересчитываем места — по формату дистанции группы
         val updatedResults = allResults.withRecalculatedRanks(
-            direction = competition?.direction ?: OrienteeringDirection.FORWARD,
-            byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+            format = groupFormat(newResults.competitionId, newResults.groupId),
             outOfCompetitionIds = outOfCompetitionIds(newResults.competitionId)
         )
 
@@ -705,11 +723,20 @@ class OrienteeringCompetitionInteractor(
 
             val resultsByParticipant = results.associateBy { it.participantId }
             val participantsByGroup = participants.groupBy { it.groupId }
+            // У серверной группы distanceId — серверный id дистанции. Экраны ищут дистанцию (формат,
+            // КП, баллы) в локальной БД по локальному id — переводим, иначе группа с дистанцией
+            // «по выбору» показывалась бы в формате соревнования (сортировка по времени, без баллов).
+            val localDistanceIdByRemote = localRepository.getDistances(competitionId).getOrNull().orEmpty()
+                .mapNotNull { distance -> distance.remoteId?.let { it to distance.id } }
+                .toMap()
 
             groups.map { group ->
                 val groupParticipants = participantsByGroup[group.remoteId] ?: emptyList()
                 GroupWithParticipantsAndResults(
-                    group = group.copy(groupId = group.remoteId ?: 0L),
+                    group = group.copy(
+                        groupId = group.remoteId ?: 0L,
+                        distanceId = localDistanceIdByRemote[group.distanceId] ?: NO_DISTANCE_ID
+                    ),
                     participants = groupParticipants.map { participant ->
                         ParticipantWithResult(participant = participant, result = resultsByParticipant[participant.id])
                     }
@@ -772,11 +799,9 @@ class OrienteeringCompetitionInteractor(
             val affectedGroups = results.map { it.competitionId to it.groupId }.distinct()
             affectedGroups.forEach { (competitionId, groupId) ->
                 val currentResults = localRepository.getResultForGroup(competitionId, groupId).getOrNull() ?: emptyList()
-                val competition = localRepository.getCompetition(competitionId).getOrNull()
                 localRepository.updateResults(
                     currentResults.withRecalculatedRanks(
-                        direction = competition?.direction ?: OrienteeringDirection.FORWARD,
-                        byChoiceMode = competition?.byChoiceMode ?: ByChoiceMode.DEFAULT,
+                        format = groupFormat(competitionId, groupId),
                         outOfCompetitionIds = outOfCompetitionIds(competitionId)
                     )
                 )
@@ -955,6 +980,19 @@ class OrienteeringCompetitionInteractor(
      */
     suspend fun saveDistance(distance: Distance, silent: Boolean = false): Result<Long> {
         return localRepository.saveDistance(distance).also { if (!silent) touch() }
+    }
+
+    /**
+     * Сохраняет дистанцию и пересчитывает места её групп, если сменился формат дистанции
+     * (места по времени ↔ по баллам, другая политика КВ).
+     */
+    suspend fun updateDistanceAndRanks(distance: Distance, silent: Boolean = false): Result<Any> {
+        val previous = localRepository.getDistanceById(distance.id).getOrNull()
+        return updateDistance(distance, silent).also {
+            if (it.isSuccess && (previous?.direction != distance.direction || previous?.byChoiceMode != distance.byChoiceMode)) {
+                applyControlTimeToStoredResults(distance.competitionId)
+            }
+        }
     }
 
     /**

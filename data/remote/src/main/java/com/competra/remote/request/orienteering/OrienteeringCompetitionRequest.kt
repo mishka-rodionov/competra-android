@@ -46,6 +46,12 @@ data class OrienteeringCompetitionRequest(
 
     @SerializedName("overtimePolicy")
     val overtimePolicy: String? = null,
+    /** Политика КВ для дистанций по времени (IGNORE / DISQUALIFY). */
+    @SerializedName("timeOvertimePolicy")
+    val timeOvertimePolicy: String? = null,
+    /** Политика КВ для дистанций с баллами (IGNORE / DISQUALIFY / SCORE_PENALTY). */
+    @SerializedName("scoreOvertimePolicy")
+    val scoreOvertimePolicy: String? = null,
 
     /** Итог формата «по выбору»: SCORE / MIN_CONTROLS ([com.competra.domain.models.orienteering.ByChoiceMode]). */
     @SerializedName("byChoiceMode")

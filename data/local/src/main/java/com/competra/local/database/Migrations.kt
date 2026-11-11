@@ -509,3 +509,26 @@ val MIGRATION_60_61 = object : Migration(60, 61) {
         db.execSQL("ALTER TABLE orienteering_participants ADD COLUMN isOutOfCompetition INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/**
+ * Миграция с версии 61 на 62.
+ * Формат на дистанции: своё направление и режим «по выбору» у дистанции (null — как у соревнования)
+ * и две политики КВ соревнования — по времени (прежняя колонка `overtimePolicy`) и по баллам.
+ * У score-О соревнований прежняя политика относилась к баллам — переносим её в новую колонку.
+ */
+val MIGRATION_61_62 = object : Migration(61, 62) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE distances ADD COLUMN direction TEXT")
+        db.execSQL("ALTER TABLE distances ADD COLUMN byChoiceMode TEXT")
+        db.execSQL(
+            "ALTER TABLE orienteering_competitions ADD COLUMN scoreOvertimePolicy TEXT NOT NULL DEFAULT 'SCORE_PENALTY'"
+        )
+        db.execSQL(
+            "UPDATE orienteering_competitions SET scoreOvertimePolicy = overtimePolicy, overtimePolicy = 'IGNORE' " +
+                "WHERE direction = 'BY_CHOICE' AND byChoiceMode = 'SCORE'"
+        )
+        db.execSQL(
+            "UPDATE orienteering_competitions SET overtimePolicy = 'IGNORE' WHERE overtimePolicy = 'SCORE_PENALTY'"
+        )
+    }
+}

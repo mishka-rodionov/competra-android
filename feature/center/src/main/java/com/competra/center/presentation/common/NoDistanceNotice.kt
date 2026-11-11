@@ -51,3 +51,42 @@ internal fun GroupsWithoutDistanceBanner(
         )
     }
 }
+
+/** Метка группы, которой нужно своё КВ (дистанция с баллами со штрафом, у соревнования КВ нет). */
+@Composable
+internal fun NoControlTimeBadge(modifier: Modifier = Modifier) {
+    Text(
+        text = "нужно КВ",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onErrorContainer,
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    )
+}
+
+/**
+ * Предупреждение о группах без нужного КВ: на дистанции «по выбору» по баллам штраф начисляется
+ * после КВ, а у соревнования КВ не задано. [hint] — где его задать.
+ */
+@Composable
+internal fun GroupsWithoutControlTimeBanner(
+    titles: List<String>,
+    modifier: Modifier = Modifier,
+    hint: String = "Задайте КВ в группе или у соревнования."
+) {
+    if (titles.isEmpty()) return
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        shape = RoundedCornerShape(Dimens.SIZE_BASE.dp)
+    ) {
+        Text(
+            text = "${if (titles.size == 1) "Группе" else "Группам"} ${titles.joinToString()} нужно контрольное время: " +
+                "на дистанции «по выбору» по баллам штраф начисляется после КВ, а у соревнования КВ не задано. $hint",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(Dimens.SIZE_BASE.dp)
+        )
+    }
+}
