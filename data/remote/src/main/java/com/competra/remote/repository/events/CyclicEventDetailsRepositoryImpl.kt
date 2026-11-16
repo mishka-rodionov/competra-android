@@ -186,6 +186,7 @@ class CyclicEventDetailsRepositoryImpl(
 
     private fun mapStatus(status: String): EventStatus = when (status) {
         "REGISTRATION_OPEN" -> EventStatus.REGISTRATION
+        "REGISTRATION_CLOSED" -> EventStatus.REGISTRATION_CLOSED
         "IN_PROGRESS" -> EventStatus.STARTED
         "FINISHED" -> EventStatus.FINISHED
         "CANCELLED" -> EventStatus.CANCELLED

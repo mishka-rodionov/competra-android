@@ -195,13 +195,19 @@ fun ScrollableColumnScreenWithImageAnimation(
             onAction = onAction
         )
 
-        Text(
-            text = state.eventDetails?.description ?: "",
-            fontSize = 14.sp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        )
+        // Пустое описание не рисуем: его отступы давали пустую полосу под блоком регистрации.
+        val description = state.eventDetails?.description
+        if (!description.isNullOrBlank()) {
+            Text(
+                text = description,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            )
+        } else {
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         state.eventDetails?.let { EventOrganizerInfo(it, state.organizerClubName) }
 
@@ -238,6 +244,9 @@ private fun EventActionButtons(
 
     val status = state.eventDetails?.status
     when (status) {
+        // Сервер принимает регистрацию только при открытой регистрации, а отмену — ещё и до её открытия
+        // (организатор мог перенести начало регистрации). До открытия кнопки «Зарегистрироваться» нет:
+        // над ней уже написано «Регистрация откроется …».
         EventStatus.CREATED, EventStatus.REGISTRATION -> {
             if (state.isUserRegistered) {
                 Button(
@@ -261,7 +270,7 @@ private fun EventActionButtons(
                         Text("Отменить регистрацию")
                     }
                 }
-            } else {
+            } else if (status == EventStatus.REGISTRATION) {
                 Button(
                     onClick = { onAction(EventDetailsAction.ShowRegistrationDialog) },
                     modifier = Modifier
@@ -270,6 +279,29 @@ private fun EventActionButtons(
                     enabled = !state.isRegistering
                 ) {
                     Text("Зарегистрироваться")
+                }
+            }
+        }
+
+        EventStatus.REGISTRATION_CLOSED -> {
+            // После завершения регистрации (по дедлайну или досрочно организатором)
+            // новых регистраций нет, а отмену сервер отклоняет (409) — как в вебе.
+            if (state.isUserRegistered) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Вы зарегистрированы",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Регистрация завершена — отменить её уже нельзя",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
