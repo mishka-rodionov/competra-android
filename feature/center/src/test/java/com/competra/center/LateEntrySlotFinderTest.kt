@@ -1,7 +1,9 @@
 package com.competra.center
 
+import com.competra.center.data.draw.LATE_ENTRY_PREPARATION_MS
 import com.competra.center.data.draw.LateEntrySlotFinder
 import com.competra.center.data.draw.ProtocolStart
+import com.competra.center.data.draw.lateEntryNotBefore
 import com.competra.domain.models.orienteering.DrawMode
 import com.competra.domain.models.orienteering.DrawSettings
 import org.junit.Assert.assertEquals
@@ -121,5 +123,28 @@ class LateEntrySlotFinderTest {
         val protocol = listOf(ProtocolStart(at(0), 1L), ProtocolStart(at(1) + 10_000L, 2L))
         val f = finder(protocol, DrawSettings(DrawMode.GENERAL))
         assertEquals(at(2), f.freeSlot(groupId = 1L))
+    }
+
+    @Test
+    fun `notBefore applies only after the competition has started`() {
+        val now = at(40)
+        assertEquals(now + LATE_ENTRY_PREPARATION_MS, lateEntryNotBefore(competitionStartTime = at(30), now = now))
+        assertEquals(Long.MIN_VALUE, lateEntryNotBefore(competitionStartTime = null, now = now))
+        assertEquals(Long.MIN_VALUE, lateEntryNotBefore(competitionStartTime = 0L, now = now))
+    }
+
+    @Test
+    fun `late entry before the start goes right after the distance protocol even if planned time has passed`() {
+        // Протокол привязан к плановому времени, которое уже прошло: дистанция 10 занимает минуты 0..24.
+        val protocol = (0..24).map { ProtocolStart(at(it), 1L) }
+        val f = finder(
+            protocol,
+            DrawSettings(DrawMode.DISTANCE, corridors = 4, gap = 1),
+            notBefore = lateEntryNotBefore(competitionStartTime = null, now = at(44)),
+            groupDistanceMap = mapOf(1L to 10L)
+        )
+        // Раньше ставили на минуту 46 (сейчас + 2 мин) — после старта оставалась дыра в 21 минуту.
+        assertEquals(at(25), f.freeSlot(groupId = 1L))
+        assertEquals(at(25), f.endOfProtocol())
     }
 }

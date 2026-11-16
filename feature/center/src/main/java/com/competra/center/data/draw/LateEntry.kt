@@ -2,10 +2,31 @@ package com.competra.center.data.draw
 
 import com.competra.domain.models.orienteering.DrawMode
 import com.competra.domain.models.orienteering.DrawSettings
+import com.competra.utils.isValidStartTimestamp
 import kotlin.math.roundToLong
 
 /** Запас на подготовку опоздавшего (запись чипа, путь до старта) — раньше этого он не стартует. */
 const val LATE_ENTRY_PREPARATION_MS = 2 * 60 * 1000L
+
+/**
+ * Самое раннее допустимое время старта дозаявленного для [LateEntrySlotFinder].
+ *
+ * После старта соревнования (задано фактическое [competitionStartTime]) — «сейчас +
+ * [LATE_ENTRY_PREPARATION_MS]»: прошедшие минуты протокола уже недоступны. До старта ограничения нет:
+ * протокол ещё привязан к плановому времени, а при нажатии «Старт» сдвигается целиком, и сравнение
+ * с текущим временем поставило бы опоздавшего далеко за последний старт, оставив дыру в протоколе.
+ *
+ * Та же логика есть в веб-клиенте (competra-web-ts, `src/lib/lateEntry.ts`).
+ *
+ * @param competitionStartTime Фактическое время старта соревнования; null или невалидное — ещё не стартовало.
+ * @param now Текущее время.
+ */
+fun lateEntryNotBefore(competitionStartTime: Long?, now: Long): Long =
+    if (competitionStartTime != null && competitionStartTime.isValidStartTimestamp()) {
+        now + LATE_ENTRY_PREPARATION_MS
+    } else {
+        Long.MIN_VALUE
+    }
 
 /**
  * Куда поставить участника, дозаявленного после жеребьёвки.
@@ -43,7 +64,7 @@ data class ProtocolStart(val startTime: Long, val groupId: Long)
  * @param drawSettings Режим проведённой жеребьёвки; null — режим неизвестен (жеребьёвка старой версии).
  * @param intervalMs Стартовый интервал.
  * @param fallbackAnchor Начало сетки, если в протоколе ещё нет ни одного старта.
- * @param notBefore Раньше этого момента ставить нельзя (обычно «сейчас + [LATE_ENTRY_PREPARATION_MS]»).
+ * @param notBefore Раньше этого момента ставить нельзя — см. [lateEntryNotBefore].
  */
 class LateEntrySlotFinder(
     starts: List<ProtocolStart>,

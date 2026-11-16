@@ -4,7 +4,7 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.competra.analytics.AnalyticsEvent
 import com.competra.analytics.AnalyticsTracker
-import com.competra.center.data.draw.LATE_ENTRY_PREPARATION_MS
+import com.competra.center.data.draw.lateEntryNotBefore
 import com.competra.center.data.draw.LateEntryPlacement
 import com.competra.center.data.draw.LateEntrySlotFinder
 import com.competra.center.data.draw.ProtocolStart
@@ -459,7 +459,7 @@ class ParticipantListViewModel(
             intervalMs = (competition.startIntervalSeconds ?: 60) * 1000L,
             fallbackAnchor = competition.startTime?.takeIf { it.isValidStartTimestamp() }
                 ?: competition.competition.startDate,
-            notBefore = System.currentTimeMillis() + LATE_ENTRY_PREPARATION_MS
+            notBefore = lateEntryNotBefore(competition.startTime, now = System.currentTimeMillis())
         )
     }
 
